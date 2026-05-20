@@ -138,7 +138,7 @@ export const profiles = pgTable('profiles', {
   reminderEnabled: boolean('reminder_enabled').default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+})
 ```
 
 ### 4.2 categories（分类）
@@ -152,7 +152,7 @@ export const categories = pgTable('categories', {
   isPreset: boolean('is_preset').default(false),
   sortOrder: integer('sort_order').default(0),
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 ```
 
 **预置分类**（系统初始化时写入，`is_preset = true`）：
@@ -167,7 +167,7 @@ export const tags = pgTable('tags', {
   name: text('name').notNull(),
   color: text('color').notNull().default('#cc785c'), // hex
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 ```
 
 ### 4.4 payment_types（支付类型）
@@ -178,7 +178,7 @@ export const paymentTypes = pgTable('payment_types', {
   userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   isPreset: boolean('is_preset').default(false),
-});
+})
 ```
 
 **预置支付类型**：信用卡、借记卡、微信支付、支付宝、Apple Pay、现金、其他
@@ -191,7 +191,7 @@ export const paymentAccounts = pgTable('payment_accounts', {
   userId: uuid('user_id').notNull().references(() => profiles.id, { onDelete: 'cascade' }),
   paymentTypeId: uuid('payment_type_id').notNull().references(() => paymentTypes.id),
   name: text('name').notNull(), // 例：工行尾号 1234
-});
+})
 ```
 
 ### 4.6 assets（资产）
@@ -232,7 +232,7 @@ export const assets = pgTable('assets', {
 
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+})
 ```
 
 ### 4.7 asset_tags（资产-标签关联）
@@ -241,9 +241,9 @@ export const assets = pgTable('assets', {
 export const assetTags = pgTable('asset_tags', {
   assetId: uuid('asset_id').notNull().references(() => assets.id, { onDelete: 'cascade' }),
   tagId: uuid('tag_id').notNull().references(() => tags.id, { onDelete: 'cascade' }),
-}, (t) => ({
+}, t => ({
   pk: primaryKey({ columns: [t.assetId, t.tagId] }),
-}));
+}))
 ```
 
 ### 4.8 warranties（保修信息）
@@ -257,7 +257,7 @@ export const warranties = pgTable('warranties', {
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-});
+})
 ```
 
 ### 4.9 repair_records（维修记录）
@@ -273,7 +273,7 @@ export const repairRecords = pgTable('repair_records', {
   result: text('result'),
   isDone: boolean('is_done').default(true),
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 ```
 
 ### 4.10 subscription_renewals（订阅续费记录）
@@ -286,7 +286,7 @@ export const subscriptionRenewals = pgTable('subscription_renewals', {
   price: numeric('price', { precision: 10, scale: 2 }).notNull(),
   startDate: date('start_date').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 ```
 
 ### 4.11 reminder_jobs（提醒任务，P1 后端）
@@ -301,7 +301,7 @@ export const reminderJobs = pgTable('reminder_jobs', {
   sentAt: timestamp('sent_at'), // null = 未发送
   cancelledAt: timestamp('cancelled_at'), // null = 未取消
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 ```
 
 ### 4.12 P2 计划相关表（需求文档，P1 不实现）
@@ -317,7 +317,7 @@ export const plans = pgTable('plans', {
   permission: text('permission', { enum: ['own', 'all'] }).default('own'),
   deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 
 // plan_members - 计划成员
 export const planMembers = pgTable('plan_members', {
@@ -325,7 +325,7 @@ export const planMembers = pgTable('plan_members', {
   userId: uuid('user_id').notNull().references(() => profiles.id),
   role: text('role', { enum: ['owner', 'editor'] }).notNull(),
   joinedAt: timestamp('joined_at').defaultNow(),
-}, (t) => ({ pk: primaryKey({ columns: [t.planId, t.userId] }) }));
+}, t => ({ pk: primaryKey({ columns: [t.planId, t.userId] }) }))
 
 // plan_records - 月度记录
 export const planRecords = pgTable('plan_records', {
@@ -335,7 +335,7 @@ export const planRecords = pgTable('plan_records', {
   month: integer('month').notNull(), // 1-12
   deletedAt: timestamp('deleted_at'),
   createdAt: timestamp('created_at').defaultNow(),
-});
+})
 
 // plan_record_items - 收支条目
 export const planRecordItems = pgTable('plan_record_items', {
@@ -345,7 +345,7 @@ export const planRecordItems = pgTable('plan_record_items', {
   itemType: text('item_type', { enum: ['income', 'expense'] }).notNull(),
   name: text('name').notNull(),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
-});
+})
 ```
 
 ---
@@ -355,8 +355,8 @@ export const planRecordItems = pgTable('plan_record_items', {
 ### 5.1 每日成本计算
 
 ```typescript
-import currency from 'currency.js';
-import { differenceInDays } from 'date-fns';
+import currency from 'currency.js'
+import { differenceInDays } from 'date-fns'
 
 /**
  * 买断型资产每日成本
@@ -364,8 +364,8 @@ import { differenceInDays } from 'date-fns';
  * holdingDays = today - purchaseDate（最小值为 1）
  */
 function calcOneTimeDailyCost(purchasePrice: number, purchaseDate: Date): number {
-  const days = Math.max(1, differenceInDays(new Date(), purchaseDate));
-  return currency(purchasePrice).divide(days).value;
+  const days = Math.max(1, differenceInDays(new Date(), purchaseDate))
+  return currency(purchasePrice).divide(days).value
 }
 
 /**
@@ -378,8 +378,8 @@ function calcSubscriptionDailyCost(
   price: number,
   cycle: 'monthly' | 'quarterly' | 'yearly'
 ): number {
-  const cycleDays = { monthly: 30, quarterly: 91, yearly: 365 };
-  return currency(price).divide(cycleDays[cycle]).value;
+  const cycleDays = { monthly: 30, quarterly: 91, yearly: 365 }
+  return currency(price).divide(cycleDays[cycle]).value
 }
 ```
 
@@ -390,29 +390,29 @@ function calcSubscriptionDailyCost(
 ```typescript
 interface TradeInCalcInput {
   oldAsset: {
-    name: string;
-    purchasePrice: number;
-    purchaseDate: Date;
-  };
-  tradeInDiscount: number;  // 回收价 / 换新优惠
-  newAssetPrice: number;
-  tradeInDate: Date;        // 换新日期，也作为新资产 purchaseDate
+    name: string
+    purchasePrice: number
+    purchaseDate: Date
+  }
+  tradeInDiscount: number // 回收价 / 换新优惠
+  newAssetPrice: number
+  tradeInDate: Date // 换新日期，也作为新资产 purchaseDate
 }
 
 interface TradeInCalcResult {
-  actualSpend: number;        // newAssetPrice - tradeInDiscount
-  oldDailyCost: number;       // 旧资产历史每日成本（基于旧持有天数）
-  newDailyCost: number;       // 新资产预计每日成本（actualSpend / 旧资产相同持有天数）
+  actualSpend: number // newAssetPrice - tradeInDiscount
+  oldDailyCost: number // 旧资产历史每日成本（基于旧持有天数）
+  newDailyCost: number // 新资产预计每日成本（actualSpend / 旧资产相同持有天数）
 }
 
 function calcTradeIn(input: TradeInCalcInput): TradeInCalcResult {
-  const { oldAsset, tradeInDiscount, newAssetPrice, tradeInDate } = input;
-  const actualSpend = currency(newAssetPrice).subtract(tradeInDiscount).value;
-  const oldHoldingDays = Math.max(1, differenceInDays(tradeInDate, oldAsset.purchaseDate));
-  const oldDailyCost = currency(oldAsset.purchasePrice).divide(oldHoldingDays).value;
+  const { oldAsset, tradeInDiscount, newAssetPrice, tradeInDate } = input
+  const actualSpend = currency(newAssetPrice).subtract(tradeInDiscount).value
+  const oldHoldingDays = Math.max(1, differenceInDays(tradeInDate, oldAsset.purchaseDate))
+  const oldDailyCost = currency(oldAsset.purchasePrice).divide(oldHoldingDays).value
   // 新资产按相同持有天数预估
-  const newDailyCost = currency(actualSpend).divide(oldHoldingDays).value;
-  return { actualSpend, oldDailyCost, newDailyCost };
+  const newDailyCost = currency(actualSpend).divide(oldHoldingDays).value
+  return { actualSpend, oldDailyCost, newDailyCost }
 }
 ```
 
@@ -792,7 +792,7 @@ FAB / 按钮 → 新建计划
 ```typescript
 // /app/api/cron/send-reminders.ts
 export async function loader() {
-  const now = new Date();
+  const now = new Date()
   const jobs = await db
     .select()
     .from(reminderJobs)
@@ -802,7 +802,7 @@ export async function loader() {
         isNull(reminderJobs.sentAt),
         isNull(reminderJobs.cancelledAt),
       )
-    );
+    )
 
   for (const job of jobs) {
     // 1. 获取 asset + user 信息
@@ -832,9 +832,9 @@ export async function loader() {
 
 ```typescript
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { supabase, headers } = createServerClient(request);
-  const { data: { session } } = await supabase.auth.getSession();
-  return json({ session }, { headers });
+  const { supabase, headers } = createServerClient(request)
+  const { data: { session } } = await supabase.auth.getSession()
+  return json({ session }, { headers })
 }
 ```
 

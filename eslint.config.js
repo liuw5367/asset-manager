@@ -2,7 +2,7 @@ import antfu from '@antfu/eslint-config'
 
 export default antfu(
   {
-    ignores: ['files/*.md'],
+    ignores: ['files/*.md', 'docs/*.md'],
     react: true,
     typescript: true,
   },
@@ -11,5 +11,5 @@ export default antfu(
     rules: {
       'react-refresh/only-export-components': 'off',
     },
-  }
+  },
 )
