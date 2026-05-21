@@ -2,6 +2,7 @@ import type { Route } from './+types/assets.$id.trade-in'
 import { useState } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
+import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import {
@@ -51,20 +52,35 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   // 2. 创建新资产
   const { createAsset } = await import('~/db/queries/assets')
+  const assetType = (formData.get('assetType') as 'one_time' | 'subscription') || 'one_time'
   const tagIds = formData.getAll('tagIds').map(String)
-  const newAssetId = await createAsset({
+  const baseData = {
     userId,
     name: formData.get('name') as string,
     emoji: (formData.get('emoji') as string) || '📦',
     categoryId: formData.get('categoryId') as string,
-    assetType: 'one_time',
-    purchasePrice: formData.get('actualSpend') as string,
-    purchaseDate: formData.get('tradeInDate') as string,
+    assetType,
     paymentTypeId: (formData.get('paymentTypeId') as string) || undefined,
     paymentAccountId: (formData.get('paymentAccountId') as string) || undefined,
     notes: (formData.get('notes') as string) || undefined,
     tagIds,
-  })
+  }
+
+  const newAssetId = await createAsset(
+    assetType === 'one_time'
+      ? {
+          ...baseData,
+          purchasePrice: formData.get('actualSpend') as string,
+          purchaseDate: formData.get('tradeInDate') as string,
+        }
+      : {
+          ...baseData,
+          subscriptionPrice: (formData.get('subscriptionPrice') as string) || undefined,
+          billingCycle: (formData.get('billingCycle') as 'monthly' | 'quarterly' | 'yearly') || undefined,
+          nextRenewalDate: (formData.get('nextRenewalDate') as string) || undefined,
+          subscriptionStartDate: (formData.get('subscriptionStartDate') as string) || undefined,
+        },
+  )
 
   return redirect(`/assets/${newAssetId}`, { headers })
 }
@@ -75,7 +91,9 @@ export default function AssetsTradeIn() {
 
   const [tradeInPrice, setTradeInPrice] = useState('')
   const [newPrice, setNewPrice] = useState('')
-  const [tradeInDate, setTradeInDate] = useState(new Date().toISOString().split('T')[0])
+  const [todayTs] = useState(() => Date.now())
+  const [tradeInDate, setTradeInDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [isSubscriptionNewAsset, setIsSubscriptionNewAsset] = useState(false)
 
   const tradeVal = Number.parseFloat(tradeInPrice) || 0
   const newP = Number.parseFloat(newPrice) || 0
@@ -83,7 +101,7 @@ export default function AssetsTradeIn() {
   const actualSpend = newP - tradeVal
 
   const oldHoldingDays = asset.purchaseDate
-    ? Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+    ? Math.max(1, Math.floor((todayTs - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
     : 1
   const oldDailyCost = asset.purchasePrice
     ? calcOneTimeDailyCost(Number(asset.purchasePrice), asset.purchaseDate!)
@@ -93,7 +111,8 @@ export default function AssetsTradeIn() {
   function handleAssetFormSubmit(fd: FormData) {
     fd.append('tradeInDate', tradeInDate)
     fd.append('tradeInPrice', tradeInPrice || '0')
-    fd.append('actualSpend', String(actualSpend))
+    if (!isSubscriptionNewAsset)
+      fd.append('actualSpend', String(actualSpend))
     submit(fd, { method: 'post' })
   }
 
@@ -105,67 +124,76 @@ export default function AssetsTradeIn() {
         tags={tags}
         paymentTypes={paymentTypes}
         paymentAccounts={paymentAccounts}
-        showSubscriptionToggle={false}
+        showSubscriptionToggle
+        hideOneTimeFields
         submitLabel="完成换新"
         backLabel="‹ 返回详情"
         backTo={`/assets/${asset.id}`}
         title="以旧换新"
+        onAssetTypeChange={setIsSubscriptionNewAsset}
         onSubmit={handleAssetFormSubmit}
+        topContent={(
+          <>
+            <div className="mb-1 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
+              <span>旧设备回收</span>
+              <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
+            </div>
+            <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
+              <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+                回收价 *
+              </Label>
+              <Input
+                className="mb-3"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={tradeInPrice}
+                onChange={e => setTradeInPrice(e.target.value)}
+              />
+
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+                换新日 *
+              </Label>
+              <DatePicker
+                value={tradeInDate}
+                onChange={setTradeInDate}
+              />
+            </div>
+
+            {!isSubscriptionNewAsset && (
+              <>
+                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>新设备标价 *</Label>
+                <Input
+                  className="mb-3"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newPrice}
+                  onChange={e => setNewPrice(e.target.value)}
+                />
+                <p className="mb-3 text-[12px]" style={{ color: 'var(--color-muted)' }}>
+                  标价用于计算，最终入账购入价 = 新设备标价 - 回收抵扣。
+                </p>
+              </>
+            )}
+          </>
+        )}
       >
-        {/* 旧设备区域 */}
-        <div className="mb-1 mt-5 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-          <span>旧设备回收</span>
-          <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
-        </div>
-        <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
-          <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
-          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-            回收价 *
-          </Label>
-          <Input
-            className="mb-3"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            value={tradeInPrice}
-            onChange={e => setTradeInPrice(e.target.value)}
-          />
-
-          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-            换新日 *
-          </Label>
-          <Input
-            type="date"
-            value={tradeInDate}
-            onChange={e => setTradeInDate(e.target.value)}
-          />
-        </div>
-
-        {/* 新设备购入价（独立于 AssetForm，用于计算） */}
-        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>新设备购入价 *</Label>
-        <Input
-          className="mb-3"
-          type="number"
-          step="0.01"
-          placeholder="0.00"
-          value={newPrice}
-          onChange={e => setNewPrice(e.target.value)}
-        />
-
         {/* 计算面板 */}
-        {showCalc && (
+        {!isSubscriptionNewAsset && showCalc && (
           <div
             className="mb-4 rounded-lg p-4"
             style={{ background: 'var(--color-surface-card)' }}
           >
             <div className="mb-2 flex items-center justify-between text-[14px]">
-              <span style={{ color: 'var(--color-muted)' }}>新资产购入价</span>
+              <span style={{ color: 'var(--color-muted)' }}>新设备标价</span>
               <span className="font-medium" style={{ color: 'var(--color-ink)' }}>
                 {newP.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="mb-2 flex items-center justify-between text-[14px]">
-              <span style={{ color: 'var(--color-muted)' }}>以旧换新优惠</span>
+              <span style={{ color: 'var(--color-muted)' }}>旧设备回收抵扣</span>
               <span className="font-medium" style={{ color: 'var(--color-error)' }}>
                 −
                 {tradeVal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
@@ -177,6 +205,9 @@ export default function AssetsTradeIn() {
               <span className="text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
                 {actualSpend.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
               </span>
+            </div>
+            <div className="mb-3 rounded-md bg-[var(--color-primary-muted)] px-3 py-2 text-[12px]" style={{ color: 'var(--color-body)' }}>
+              新资产将以「实际支出」作为购入价入账。
             </div>
             <div className="flex items-center justify-between text-[13px]">
               <span style={{ color: 'var(--color-muted)' }}>旧资产每日成本（历史）</span>

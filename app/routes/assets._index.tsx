@@ -2,6 +2,8 @@ import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link, redirect, useLoaderData, useNavigate } from 'react-router'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -137,18 +139,14 @@ export default function AssetsIndex() {
 
       {/* Search */}
       <div className="mb-4">
-        <div
-          className="flex items-center gap-2 rounded-full px-4 py-2.5"
-          style={{ background: 'var(--color-surface-card)' }}
-        >
-          <IconSearch size={16} style={{ color: 'var(--color-muted)' }} />
-          <input
+        <div className="relative">
+          <IconSearch size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2" style={{ color: 'var(--color-muted)' }} />
+          <Input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="搜索资产名称..."
-            className="flex-1 bg-transparent text-[14px] outline-none placeholder:text-[var(--color-muted-soft)]"
-            style={{ color: 'var(--color-ink)' }}
+            className="rounded-full bg-[var(--color-surface-card)] pl-9"
           />
         </div>
       </div>
@@ -158,25 +156,31 @@ export default function AssetsIndex() {
         {/* Left: Type Toggle */}
         <div className="flex gap-2">
           {(['one_time', 'subscription'] as const).map(type => (
-            <button
+            <Button
               key={type}
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setActiveType(prev => prev === type ? null : type)}
-              className="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+              className="h-8 rounded-full px-3.5 text-[13px] font-medium"
               style={{
                 background: activeType === type ? 'var(--color-primary)' : 'var(--color-surface-strong)',
                 color: activeType === type ? '#fff' : 'var(--color-body)',
               }}
             >
               {type === 'one_time' ? '买断' : '订阅'}
-            </button>
+            </Button>
           ))}
         </div>
 
         {/* Right: Filter Buttons */}
         <div className="flex gap-1.5">
-          <button
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setSheetType('category')}
-            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedCategory ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedCategory ? 'var(--color-primary)' : 'var(--color-body)',
@@ -186,10 +190,13 @@ export default function AssetsIndex() {
             {selectedCategory
               ? <IconX size={12} />
               : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setSheetType('tag')}
-            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedTag ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedTag ? 'var(--color-primary)' : 'var(--color-body)',
@@ -199,10 +206,13 @@ export default function AssetsIndex() {
             {selectedTag
               ? <IconX size={12} />
               : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={() => setSheetType('sort')}
-            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
             style={{
               background: sortOption !== 'default' ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: sortOption !== 'default' ? 'var(--color-primary)' : 'var(--color-body)',
@@ -220,23 +230,18 @@ export default function AssetsIndex() {
                   />
                 )
               : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Asset List */}
-      <div
-        className="overflow-hidden rounded-xl"
-        style={{ background: 'var(--color-surface-card)' }}
-      >
-        {filteredAssets.map((asset, i) => (
+      <div className="space-y-2">
+        {filteredAssets.map(asset => (
           <button
             key={asset.id}
             onClick={() => navigate(`/assets/${asset.id}`)}
-            className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:opacity-80 ${
-              i < filteredAssets.length - 1 ? 'border-b' : ''
-            }`}
-            style={{ borderColor: 'var(--color-hairline)' }}
+            className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors hover:opacity-80"
+            style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
           >
             {/* Emoji */}
             <span
@@ -298,27 +303,31 @@ export default function AssetsIndex() {
             <SheetTitle>选择分类</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-1 px-4 pb-6">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => {
                 setSelectedCategory(null)
                 setSheetType(null)
               }}
-              className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+              className="h-11 w-full justify-start rounded-lg px-4 text-left text-[14px] transition-colors"
               style={{
                 background: !selectedCategory ? 'var(--color-primary-muted)' : 'transparent',
                 color: !selectedCategory ? 'var(--color-primary)' : 'var(--color-ink)',
               }}
             >
               全部分类
-            </button>
+            </Button>
             {categories.map(cat => (
-              <button
+              <Button
                 key={cat.id}
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setSelectedCategory(cat.id)
                   setSheetType(null)
                 }}
-                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                className="h-11 w-full justify-start rounded-lg px-4 text-left text-[14px] transition-colors"
                 style={{
                   background: selectedCategory === cat.id ? 'var(--color-primary-muted)' : 'transparent',
                   color: selectedCategory === cat.id ? 'var(--color-primary)' : 'var(--color-ink)',
@@ -327,7 +336,7 @@ export default function AssetsIndex() {
                 {cat.emoji}
                 {' '}
                 {cat.name}
-              </button>
+              </Button>
             ))}
           </div>
         </SheetContent>
@@ -340,27 +349,31 @@ export default function AssetsIndex() {
             <SheetTitle>选择标签</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-1 px-4 pb-6">
-            <button
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => {
                 setSelectedTag(null)
                 setSheetType(null)
               }}
-              className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+              className="h-11 w-full justify-start rounded-lg px-4 text-left text-[14px] transition-colors"
               style={{
                 background: !selectedTag ? 'var(--color-primary-muted)' : 'transparent',
                 color: !selectedTag ? 'var(--color-primary)' : 'var(--color-ink)',
               }}
             >
               全部标签
-            </button>
+            </Button>
             {tags.map(tag => (
-              <button
+              <Button
                 key={tag.id}
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setSelectedTag(tag.id)
                   setSheetType(null)
                 }}
-                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                className="h-11 w-full justify-start rounded-lg px-4 text-left text-[14px] transition-colors"
                 style={{
                   background: selectedTag === tag.id ? 'var(--color-primary-muted)' : 'transparent',
                   color: selectedTag === tag.id ? 'var(--color-primary)' : 'var(--color-ink)',
@@ -371,7 +384,7 @@ export default function AssetsIndex() {
                   style={{ background: tag.color }}
                 />
                 {tag.name}
-              </button>
+              </Button>
             ))}
           </div>
         </SheetContent>
@@ -385,20 +398,22 @@ export default function AssetsIndex() {
           </SheetHeader>
           <div className="mt-4 space-y-1 px-4 pb-6">
             {(Object.entries(sortLabels) as [SortOption, string][]).map(([value, label]) => (
-              <button
+              <Button
                 key={value}
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setSortOption(value)
                   setSheetType(null)
                 }}
-                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                className="h-11 w-full justify-start rounded-lg px-4 text-left text-[14px] transition-colors"
                 style={{
                   background: sortOption === value ? 'var(--color-primary-muted)' : 'transparent',
                   color: sortOption === value ? 'var(--color-primary)' : 'var(--color-ink)',
                 }}
               >
                 {label}
-              </button>
+              </Button>
             ))}
           </div>
         </SheetContent>

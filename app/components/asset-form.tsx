@@ -1,9 +1,11 @@
 import type { AssetFormValues } from '~/lib/asset.schema'
 import { IconLoader2 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useNavigation } from 'react-router'
+import { Button } from '~/components/ui/button'
+import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
@@ -45,8 +47,12 @@ interface AssetFormProps {
   backLabel?: string
   backTo?: string
   title?: string
+  purchasePriceLabel?: string
+  hideOneTimeFields?: boolean
+  onAssetTypeChange?: (isSubscription: boolean) => void
   errors?: Record<string, string[]>
   onSubmit: (fd: FormData) => void
+  topContent?: React.ReactNode
   children?: React.ReactNode
 }
 
@@ -61,8 +67,12 @@ export function AssetForm({
   backLabel = '‹ 返回',
   backTo,
   title,
+  purchasePriceLabel = '购入价 *',
+  hideOneTimeFields = false,
+  onAssetTypeChange,
   errors: serverErrors,
   onSubmit,
+  topContent,
   children,
 }: AssetFormProps) {
   const navigate = useNavigate()
@@ -70,8 +80,13 @@ export function AssetForm({
   const isSubmitting = navigation.state === 'submitting'
 
   const [isSubscription, setIsSubscription] = useState(defaultValues?.assetType === 'subscription')
-  const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState(defaultValues?.paymentTypeId || '')
-  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState(defaultValues?.paymentAccountId || '')
+  const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState<string | null>(defaultValues?.paymentTypeId || null)
+  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string | null>(defaultValues?.paymentAccountId || null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(defaultValues?.categoryId || null)
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<AssetFormValues['billingCycle'] | null>(defaultValues?.billingCycle || null)
+  const [selectedPurchaseDate, setSelectedPurchaseDate] = useState(defaultValues?.purchaseDate || '')
+  const [selectedNextRenewalDate, setSelectedNextRenewalDate] = useState(defaultValues?.nextRenewalDate || '')
+  const [selectedSubscriptionStartDate, setSelectedSubscriptionStartDate] = useState(defaultValues?.subscriptionStartDate || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(defaultValues?.tagIds || [])
   const [selectedEmoji, setSelectedEmoji] = useState(defaultValues?.emoji || '📦')
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -139,7 +154,12 @@ export function AssetForm({
   function handleSubscriptionToggle(checked: boolean) {
     setIsSubscription(checked)
     setValue('assetType', checked ? 'subscription' : 'one_time')
+    onAssetTypeChange?.(checked)
   }
+
+  useEffect(() => {
+    onAssetTypeChange?.(isSubscription)
+  }, [isSubscription, onAssetTypeChange])
 
   function toggleTag(id: string) {
     setSelectedTags(prev =>
@@ -160,30 +180,38 @@ export function AssetForm({
         className="sticky top-0 z-10 flex items-center justify-between py-3"
         style={{ background: 'var(--color-canvas)' }}
       >
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => backTo && navigate(backTo)}
-          className="flex items-center gap-1 text-sm"
+          className="h-9 px-2 text-sm"
           style={{ color: 'var(--color-muted)' }}
         >
           {backLabel}
-        </button>
+        </Button>
         {title && (
           <span className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
             {title}
           </span>
         )}
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={handleSubmit(handleFormSubmit)}
           disabled={isSubmitting}
-          className="flex items-center gap-1 text-sm font-medium disabled:opacity-50"
+          className="h-9 gap-1 px-2 text-sm font-medium"
           style={{ color: 'var(--color-primary)' }}
         >
           {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
           {isSubmitting ? '保存中' : '保存'}
-        </button>
+        </Button>
       </div>
 
       <form onSubmit={handleSubmit(handleFormSubmit)}>
+        {topContent && <div className="mb-3">{topContent}</div>}
+
         {/* Emoji */}
         <div className="flex flex-col items-center py-4 pb-6">
           <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -226,9 +254,13 @@ export function AssetForm({
           分类 *
         </Label>
         <Select
+          value={selectedCategoryId}
+          items={categories.map(c => ({ value: c.id, label: `${c.emoji} ${c.name}` }))}
           onValueChange={(v: string | null) => {
-            if (v)
+            if (v) {
+              setSelectedCategoryId(v)
               setValue('categoryId', v)
+            }
           }}
         >
           <SelectTrigger
@@ -262,90 +294,109 @@ export function AssetForm({
           </div>
         )}
 
-        {!isSubscription
-          ? (
-              <>
-                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>购入价 *</Label>
-                <Input
-                  className="mb-1"
-                  style={{ borderColor: fieldError('purchasePrice') ? 'var(--color-error)' : undefined }}
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  {...register('purchasePrice')}
-                />
-                {fieldError('purchasePrice') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('purchasePrice')}</p>}
+        {!isSubscription && !hideOneTimeFields && (
+          <>
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>{purchasePriceLabel}</Label>
+            <Input
+              className="mb-1"
+              style={{ borderColor: fieldError('purchasePrice') ? 'var(--color-error)' : undefined }}
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('purchasePrice')}
+            />
+            {fieldError('purchasePrice') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('purchasePrice')}</p>}
 
-                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>当前估价</Label>
-                <Input
-                  className="mb-3"
-                  type="number"
-                  step="0.01"
-                  placeholder="可选，留空默认等于购入价"
-                  {...register('currentValue')}
-                />
+            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>当前估价</Label>
+            <Input
+              className="mb-3"
+              type="number"
+              step="0.01"
+              placeholder="可选，留空默认等于购入价"
+              {...register('currentValue')}
+            />
 
-                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>购入日期 *</Label>
-                <Input
-                  className="mb-3"
-                  style={{ borderColor: fieldError('purchaseDate') ? 'var(--color-error)' : undefined }}
-                  type="date"
-                  {...register('purchaseDate')}
-                />
-                {fieldError('purchaseDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('purchaseDate')}</p>}
-              </>
-            )
-          : (
-              <>
-                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>订阅价 *</Label>
-                <Input
-                  className="mb-1"
-                  style={{ borderColor: fieldError('subscriptionPrice') ? 'var(--color-error)' : undefined }}
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  {...register('subscriptionPrice')}
-                />
-                {fieldError('subscriptionPrice') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('subscriptionPrice')}</p>}
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>购入日期 *</Label>
+            <input type="hidden" {...register('purchaseDate')} value={selectedPurchaseDate} />
+            <DatePicker
+              className="mb-3"
+              value={selectedPurchaseDate}
+              onChange={(v) => {
+                setSelectedPurchaseDate(v)
+                setValue('purchaseDate', v)
+              }}
+            />
+            {fieldError('purchaseDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('purchaseDate')}</p>}
+          </>
+        )}
 
-                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅周期 *</Label>
-                <Select
-                  onValueChange={(v: string | null) => {
-                    if (v)
-                      setValue('billingCycle', v as 'monthly' | 'quarterly' | 'yearly')
-                  }}
-                >
-                  <SelectTrigger
-                    className="mb-1 w-full"
-                    style={{ borderColor: fieldError('billingCycle') ? 'var(--color-error)' : undefined }}
-                  >
-                    <SelectValue placeholder="请选择周期" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">月付</SelectItem>
-                    <SelectItem value="quarterly">季付</SelectItem>
-                    <SelectItem value="yearly">年付</SelectItem>
-                  </SelectContent>
-                </Select>
-                {fieldError('billingCycle') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('billingCycle')}</p>}
+        {isSubscription && (
+          <>
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>订阅价 *</Label>
+            <Input
+              className="mb-1"
+              style={{ borderColor: fieldError('subscriptionPrice') ? 'var(--color-error)' : undefined }}
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              {...register('subscriptionPrice')}
+            />
+            {fieldError('subscriptionPrice') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('subscriptionPrice')}</p>}
 
-                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</Label>
-                <Input
-                  className="mb-1"
-                  style={{ borderColor: fieldError('nextRenewalDate') ? 'var(--color-error)' : undefined }}
-                  type="date"
-                  {...register('nextRenewalDate')}
-                />
-                {fieldError('nextRenewalDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('nextRenewalDate')}</p>}
+            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅周期 *</Label>
+            <Select
+              value={selectedBillingCycle}
+              items={[
+                { value: 'monthly', label: '月付' },
+                { value: 'quarterly', label: '季付' },
+                { value: 'yearly', label: '年付' },
+              ]}
+              onValueChange={(v: string | null) => {
+                if (v) {
+                  const cycle = v as 'monthly' | 'quarterly' | 'yearly'
+                  setSelectedBillingCycle(cycle)
+                  setValue('billingCycle', v as 'monthly' | 'quarterly' | 'yearly')
+                }
+              }}
+            >
+              <SelectTrigger
+                className="mb-1 w-full"
+                style={{ borderColor: fieldError('billingCycle') ? 'var(--color-error)' : undefined }}
+              >
+                <SelectValue placeholder="请选择周期" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">月付</SelectItem>
+                <SelectItem value="quarterly">季付</SelectItem>
+                <SelectItem value="yearly">年付</SelectItem>
+              </SelectContent>
+            </Select>
+            {fieldError('billingCycle') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('billingCycle')}</p>}
 
-                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅开始日期</Label>
-                <Input
-                  className="mb-3"
-                  type="date"
-                  {...register('subscriptionStartDate')}
-                />
-              </>
-            )}
+            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</Label>
+            <input type="hidden" {...register('nextRenewalDate')} value={selectedNextRenewalDate} />
+            <DatePicker
+              className="mb-1"
+              value={selectedNextRenewalDate}
+              onChange={(v) => {
+                setSelectedNextRenewalDate(v)
+                setValue('nextRenewalDate', v)
+              }}
+            />
+            {fieldError('nextRenewalDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('nextRenewalDate')}</p>}
+
+            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅开始日期</Label>
+            <input type="hidden" {...register('subscriptionStartDate')} value={selectedSubscriptionStartDate} />
+            <DatePicker
+              className="mb-3"
+              value={selectedSubscriptionStartDate}
+              onChange={(v) => {
+                setSelectedSubscriptionStartDate(v)
+                setValue('subscriptionStartDate', v)
+              }}
+            />
+          </>
+        )}
 
         {children}
 
@@ -354,12 +405,13 @@ export function AssetForm({
           <div className="flex-1">
             <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付类型</Label>
             <Select
-              value={selectedPaymentTypeId || undefined}
+              value={selectedPaymentTypeId}
+              items={paymentTypes.map(p => ({ value: p.id, label: p.name }))}
               onValueChange={(v: string | null) => {
-                const val = v || ''
+                const val = v || null
                 setSelectedPaymentTypeId(val)
-                setValue('paymentTypeId', val)
-                setSelectedPaymentAccountId('')
+                setValue('paymentTypeId', val || '')
+                setSelectedPaymentAccountId(null)
                 setValue('paymentAccountId', '')
               }}
             >
@@ -376,11 +428,12 @@ export function AssetForm({
           <div className="flex-1">
             <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付账户</Label>
             <Select
-              value={selectedPaymentAccountId || undefined}
+              value={selectedPaymentAccountId}
+              items={filteredAccounts.map(a => ({ value: a.id, label: a.name }))}
               onValueChange={(v: string | null) => {
-                const val = v || ''
+                const val = v || null
                 setSelectedPaymentAccountId(val)
-                setValue('paymentAccountId', val)
+                setValue('paymentAccountId', val || '')
               }}
             >
               <SelectTrigger className="w-full">
@@ -399,11 +452,13 @@ export function AssetForm({
         <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
         <div className="mb-3 flex flex-wrap gap-2">
           {tags.map(tag => (
-            <button
+            <Button
               key={tag.id}
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => toggleTag(tag.id)}
-              className="rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors"
+              className="h-8 rounded-full px-3 text-[13px] font-medium"
               style={{
                 background: selectedTags.includes(tag.id) ? `${tag.color}22` : 'var(--color-surface-strong)',
                 color: selectedTags.includes(tag.id) ? tag.color : 'var(--color-body)',
@@ -411,7 +466,7 @@ export function AssetForm({
               }}
             >
               {tag.name}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -424,15 +479,14 @@ export function AssetForm({
         />
 
         {/* Save button */}
-        <button
+        <Button
           type="submit"
           disabled={isSubmitting}
-          className="sticky bottom-4 mb-6 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] text-[15px] font-semibold text-white transition-colors disabled:opacity-50"
-          style={{ background: 'var(--color-primary)' }}
+          className="sticky bottom-4 mb-6 flex w-full items-center justify-center gap-2 text-[15px] font-semibold"
         >
           {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
           {submitLabel}
-        </button>
+        </Button>
       </form>
     </div>
   )

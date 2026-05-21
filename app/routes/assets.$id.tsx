@@ -11,9 +11,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '~/components/ui/alert-dialog'
 import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import { DatePicker } from '~/components/ui/date-picker'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '~/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +38,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '~/components/ui/sheet'
+import { Switch } from '~/components/ui/switch'
+import { Textarea } from '~/components/ui/textarea'
 import {
   createRepairRecord,
   getAssetById,
@@ -40,6 +50,7 @@ import {
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
+  upsertWarranty,
 } from '~/db/queries/assets'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 
@@ -125,6 +136,24 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { ok: true }
   }
 
+  if (intent === 'upsert-warranty') {
+    const startDate = String(formData.get('startDate') || '')
+    const endDate = String(formData.get('endDate') || '')
+    const notes = String(formData.get('notes') || '')
+
+    if (!startDate || !endDate)
+      return { ok: false, error: '保修开始和结束日期不能为空' }
+
+    await upsertWarranty({
+      assetId,
+      startDate,
+      endDate,
+      notes: notes || undefined,
+    })
+
+    return { ok: true }
+  }
+
   return { ok: false }
 }
 
@@ -152,13 +181,19 @@ export default function AssetsDetail() {
   const paymentAccount = asset.paymentAccountId ? paymentAccounts.find(a => a.id === asset.paymentAccountId) : null
 
   // 维修表单状态
-  const [repairDate, setRepairDate] = useState(new Date().toISOString().split('T')[0])
+  const [todayDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [repairDate, setRepairDate] = useState(() => new Date().toISOString().split('T')[0])
   const [repairCost, setRepairCost] = useState('')
   const [repairReason, setRepairReason] = useState('')
   const [repairVendor, setRepairVendor] = useState('')
   const [repairResult, setRepairResult] = useState('')
   const [repairIsDone, setRepairIsDone] = useState(true)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [warrantyDialogOpen, setWarrantyDialogOpen] = useState(false)
+  const [warrantyStartDate, setWarrantyStartDate] = useState(warranty?.startDate || todayDate)
+  const [warrantyEndDate, setWarrantyEndDate] = useState(warranty?.endDate || todayDate)
+  const [warrantyNotes, setWarrantyNotes] = useState(warranty?.notes || '')
 
   // 提醒设置
   const [subReminder, setSubReminder] = useState('跟随全局（7天）')
@@ -182,12 +217,22 @@ export default function AssetsDetail() {
     submit(fd, { method: 'post' })
     setSheetOpen(false)
     // 重置表单
-    setRepairDate(new Date().toISOString().split('T')[0])
+    setRepairDate(todayDate)
     setRepairCost('')
     setRepairReason('')
     setRepairVendor('')
     setRepairResult('')
     setRepairIsDone(true)
+  }
+
+  function handleSaveWarranty() {
+    const fd = new FormData()
+    fd.append('intent', 'upsert-warranty')
+    fd.append('startDate', warrantyStartDate)
+    fd.append('endDate', warrantyEndDate)
+    fd.append('notes', warrantyNotes)
+    submit(fd, { method: 'post' })
+    setWarrantyDialogOpen(false)
   }
 
   const bgColors: Record<string, string> = {}
@@ -204,6 +249,8 @@ export default function AssetsDetail() {
               ? '#f0e4dc'
               : 'var(--color-primary-muted)'
   })
+
+  const isWarrantyActive = warranty ? warranty.endDate >= todayDate : false
 
   return (
     <div>
@@ -226,42 +273,45 @@ export default function AssetsDetail() {
             编辑
           </Link>
           <DropdownMenu>
-            <DropdownMenuTrigger className="text-[16px] tracking-wider" style={{ color: 'var(--color-muted)' }}>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-[16px] tracking-wider" />}>
               <IconDots size={18} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[140px]">
               <DropdownMenuItem onClick={() => navigate(`/assets/${asset.id}/trade-in`)}>
                 以旧换新
               </DropdownMenuItem>
-              <AlertDialog>
-                <AlertDialogTrigger
-                  className="w-full rounded-md px-3 py-2 text-left text-[14px] transition-colors hover:bg-[var(--color-surface-soft)]"
-                  style={{ color: 'var(--color-error)' }}
-                >
-                  删除资产
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>确认删除</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      确定要删除「
-                      {asset.name}
-                      」吗？删除后可在回收站中恢复。
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDelete}
-                      className="bg-[var(--color-error)] text-white hover:bg-[var(--color-error)]/90"
-                    >
-                      删除
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+                删除资产
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认删除</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要删除「
+                  {asset.name}
+                  」吗？删除后可在回收站中恢复。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  variant="outline"
+                  className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+                >
+                  取消
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="default"
+                  onClick={handleDelete}
+                  className="h-10 !bg-[var(--color-error)] px-4 text-[14px] !text-white hover:!bg-[var(--color-error)]/90"
+                >
+                  删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -405,9 +455,21 @@ export default function AssetsDetail() {
       <Section
         title="保修"
         action={(
-          <button className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-1 text-[14px] font-medium"
+            style={{ color: 'var(--color-primary)' }}
+            onClick={() => {
+              setWarrantyStartDate(warranty?.startDate || todayDate)
+              setWarrantyEndDate(warranty?.endDate || todayDate)
+              setWarrantyNotes(warranty?.notes || '')
+              setWarrantyDialogOpen(true)
+            }}
+          >
             编辑保修
-          </button>
+          </Button>
         )}
       >
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
@@ -421,11 +483,11 @@ export default function AssetsDetail() {
                       <span
                         className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium"
                         style={{
-                          background: new Date(warranty.endDate) >= new Date() ? 'var(--color-success)' : 'var(--color-error)',
+                          background: isWarrantyActive ? 'var(--color-success)' : 'var(--color-error)',
                           color: '#fff',
                         }}
                       >
-                        {new Date(warranty.endDate) >= new Date() ? '活跃' : '已过期'}
+                        {isWarrantyActive ? '活跃' : '已过期'}
                       </span>
                     )}
                   />
@@ -487,7 +549,7 @@ export default function AssetsDetail() {
         title="维修记录"
         action={(
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>
+            <SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 px-1 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }} />}>
               + 添加维修
             </SheetTrigger>
             <SheetContent side="bottom" className="rounded-t-xl">
@@ -497,10 +559,9 @@ export default function AssetsDetail() {
               <div className="mt-4 space-y-3 px-4 pb-6">
                 <div>
                   <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修日期 *</Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={repairDate}
-                    onChange={e => setRepairDate(e.target.value)}
+                    onChange={setRepairDate}
                   />
                 </div>
                 <div>
@@ -540,25 +601,26 @@ export default function AssetsDetail() {
                     placeholder="例：已完成"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isDone"
-                    checked={repairIsDone}
-                    onChange={e => setRepairIsDone(e.target.checked)}
-                    className="h-4 w-4 accent-[var(--color-primary)]"
-                  />
-                  <label htmlFor="isDone" className="text-[14px]" style={{ color: 'var(--color-ink)' }}>已完成</label>
+                <div>
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>状态</Label>
+                  <div className="flex h-11 items-center justify-between rounded-[10px] border border-solid border-[var(--color-hairline)] bg-[var(--color-canvas)] px-3">
+                    <span className="text-[14px]" style={{ color: 'var(--color-ink)' }}>已完成</span>
+                    <Switch
+                      checked={repairIsDone}
+                      onCheckedChange={setRepairIsDone}
+                      aria-label="已完成"
+                    />
+                  </div>
                 </div>
-                <button
+                <Button
+                  type="button"
                   onClick={handleAddRepair}
                   disabled={isSubmitting}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] text-[15px] font-semibold text-white transition-colors disabled:opacity-50"
-                  style={{ background: 'var(--color-primary)' }}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] !bg-[var(--color-primary)] text-[15px] font-semibold !text-white hover:!bg-[var(--color-primary-active)]"
                 >
                   {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
                   添加维修记录
-                </button>
+                </Button>
               </div>
             </SheetContent>
           </Sheet>
@@ -603,6 +665,50 @@ export default function AssetsDetail() {
               )}
         </div>
       </Section>
+
+      <Dialog open={warrantyDialogOpen} onOpenChange={setWarrantyDialogOpen}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>编辑保修</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>保修开始日期 *</Label>
+              <DatePicker value={warrantyStartDate} onChange={setWarrantyStartDate} />
+            </div>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>保修结束日期 *</Label>
+              <DatePicker value={warrantyEndDate} onChange={setWarrantyEndDate} />
+            </div>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>备注</Label>
+              <Textarea
+                value={warrantyNotes}
+                onChange={e => setWarrantyNotes(e.target.value)}
+                placeholder="可选备注..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+              onClick={() => setWarrantyDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="h-10 !bg-[var(--color-primary)] px-4 text-[14px] !text-white hover:!bg-[var(--color-primary-active)]"
+              onClick={handleSaveWarranty}
+              disabled={isSubmitting}
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

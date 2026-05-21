@@ -248,6 +248,48 @@ export async function createRepairRecord(input: CreateRepairRecordInput) {
   return record.id
 }
 
+// ========== 保修信息 ==========
+
+export interface UpsertWarrantyInput {
+  assetId: string
+  startDate: string
+  endDate: string
+  notes?: string
+}
+
+export async function upsertWarranty(input: UpsertWarrantyInput) {
+  const existing = await db
+    .select({ id: warranties.id })
+    .from(warranties)
+    .where(eq(warranties.assetId, input.assetId))
+    .limit(1)
+
+  if (existing[0]) {
+    await db
+      .update(warranties)
+      .set({
+        startDate: input.startDate,
+        endDate: input.endDate,
+        notes: input.notes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(warranties.id, existing[0].id))
+    return existing[0].id
+  }
+
+  const [warranty] = await db
+    .insert(warranties)
+    .values({
+      assetId: input.assetId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      notes: input.notes ?? null,
+    })
+    .returning({ id: warranties.id })
+
+  return warranty.id
+}
+
 // ========== 获取带分类名称的资产 ==========
 
 export async function getAssetsWithCategoryName(userId: string) {
