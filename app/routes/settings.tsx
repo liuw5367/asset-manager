@@ -1,14 +1,23 @@
+import type { Route } from './+types/settings'
 import {
   IconChevronRight,
   IconDeviceDesktop,
   IconDownload,
+  IconLoader2,
   IconLogout,
   IconMail,
   IconMoon,
   IconSun,
 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, redirect, useFetcher } from 'react-router'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase, headers } = createSupabaseServerClient(request)
+  await supabase.auth.signOut()
+  return redirect('/login', { headers })
+}
 
 const modes = [
   { key: 'auto', label: '自动', icon: IconDeviceDesktop },
@@ -21,6 +30,8 @@ type ThemeMode = (typeof modes)[number]['key']
 export default function SettingsPage() {
   const [emailReminder, setEmailReminder] = useState(true)
   const [activeMode, setActiveMode] = useState<ThemeMode>('auto')
+  const logoutFetcher = useFetcher()
+  const isLoggingOut = logoutFetcher.state !== 'idle'
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
@@ -57,13 +68,17 @@ export default function SettingsPage() {
             wang@example.com
           </p>
         </div>
-        <button
-          className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-          style={{ color: 'var(--color-error)' }}
-        >
-          <IconLogout size={16} />
-          退出登录
-        </button>
+        <logoutFetcher.Form method="post">
+          <button
+            type="submit"
+            disabled={isLoggingOut}
+            className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+            style={{ color: 'var(--color-error)' }}
+          >
+            {isLoggingOut ? <IconLoader2 size={16} className="animate-spin" /> : <IconLogout size={16} />}
+            退出登录
+          </button>
+        </logoutFetcher.Form>
       </div>
 
       {/* Section: Notifications */}

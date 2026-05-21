@@ -1,4 +1,6 @@
 import type { Route } from './+types/root'
+import NProgress from 'nprogress'
+import { useEffect } from 'react'
 import {
   isRouteErrorResponse,
   Links,
@@ -7,8 +9,10 @@ import {
   Scripts,
   ScrollRestoration,
   useNavigate,
+  useNavigation,
   useRouteError,
 } from 'react-router'
+import 'nprogress/nprogress.css'
 import './app.css'
 
 export const links: Route.LinksFunction = () => [
@@ -53,6 +57,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const navigation = useNavigation()
+  const isNavigating = navigation.state !== 'idle'
+
+  useEffect(() => {
+    if (isNavigating) {
+      NProgress.start()
+    }
+    else {
+      NProgress.done()
+    }
+  }, [isNavigating])
+
   return <Outlet />
 }
 

@@ -1,4 +1,9 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --color-canvas: #faf9f5;
@@ -63,29 +68,6 @@
   --color-muted-soft: #8e8b82;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  font-size: 16px;
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  font-family: var(--font-body);
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  line-height: 1.55;
-  min-height: 100dvh;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-}
-
 a {
   color: var(--color-primary);
   text-decoration: none;
@@ -113,4 +95,40 @@ img {
 ul,
 ol {
   list-style: none;
+}
+
+/* NProgress - thin top bar */
+#nprogress .bar {
+  background: var(--color-primary) !important;
+  height: 2px !important;
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px var(--color-primary), 0 0 5px var(--color-primary) !important;
+}
+#nprogress .spinner {
+  display: none !important;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    font-family: var(--font-body);
+  }
+  body {
+    font-family: var(--font-body);
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    line-height: 1.55;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
 }

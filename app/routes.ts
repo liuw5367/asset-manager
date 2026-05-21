@@ -12,6 +12,7 @@ export default [
   route('login', 'routes/login.tsx'),
   route('register', 'routes/register.tsx'),
   route('forgot-password', 'routes/forgot-password.tsx'),
+  route('auth/callback', 'routes/auth.callback.tsx'),
 
   layout('components/layout/app-shell.tsx', [
     route('dashboard', 'routes/dashboard.tsx'),

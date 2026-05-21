@@ -1,3 +1,4 @@
+import type { Route } from './+types/app-shell'
 import {
   IconBox,
   IconFileText,
@@ -5,7 +6,20 @@ import {
   IconPlus,
   IconSettings,
 } from '@tabler/icons-react'
-import { NavLink, Outlet, useLocation } from 'react-router'
+import { NavLink, Outlet, redirect, useLocation } from 'react-router'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { session } } = await supabase.auth.getSession()
+
+  if (!session) {
+    const url = new URL(request.url)
+    return redirect(`/login?next=${encodeURIComponent(url.pathname)}`)
+  }
+
+  return { user: { id: session.user.id, email: session.user.email } }
+}
 
 const navItems = [
   { to: '/dashboard', label: '统计', icon: IconLayoutDashboard },

@@ -41,12 +41,21 @@ Routes live in `app/routes/`. Each route exports `loader` (server data) and `act
 ### Data layer
 
 - **Schema**: Drizzle schema files define all tables (profiles, categories, tags, payment_types, payment_accounts, assets, asset_tags, warranties, repair_records, subscription_renewals, reminder_jobs).
+- **No database foreign keys**: Tables store关联字段（如 `user_id`, `asset_id`）但不声明 `REFERENCES` / 外键约束。所有关联查询由 Drizzle ORM 在应用层处理。建表 SQL 见 `docs/db-init.sql`。
 - **Soft delete**: All queries filter `deleted_at IS NULL`. Never hard-delete user data.
 - **Business logic**: Daily cost calculations and trade-in math use `currency.js` for precision — never use raw floating point for financial fields.
+
+### Rendering strategy
+
+- **Prefer client-side rendering**. Minimize SSR usage — only use `loader` for auth checks and critical data fetching. All mutations go through `action` (server-side).
+- API routes (via `loader`/`action`) serve as the data layer. Avoid exposing server rendering for pages that don't need SEO.
 
 ### UI conventions
 
 - `app/components/ui/` holds shadcn/ui primitives. These files may re-export freely (eslint rule `react-refresh/only-export-components` is disabled for this directory).
+- **Component library**: Use shadcn/ui components + Tailwind CSS v4 for all UI. Avoid raw HTML elements (`<button>`, `<input>`) — use shadcn equivalents (`Button`, `Input`, `Card`, etc.). Gradually migrate existing prototype code to shadcn components.
+- **Button loading**: Every interactive button must have an independent loading state. Use the `disabled` + spinner pattern during async operations. Never disable all buttons on a page because one is loading.
+- **Navigation progress bar**: Show a thin progress bar at the top of the page during route transitions. Use `NProgress` or a CSS-based equivalent integrated with React Router navigation events.
 - Responsive layout: sidebar on desktop, bottom tab bar + FAB on mobile.
 - Theme: next-themes (light/dark/system) with CSS custom properties.
 
