@@ -1,12 +1,168 @@
-import { IconChevronDown } from '@tabler/icons-react'
+import type { Route } from './+types/assets.new'
+import type { AssetFormValues } from '~/lib/asset.schema'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { IconLoader2 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router'
-import { categories, paymentAccounts, paymentTypes } from '~/data/mock'
+import { useForm } from 'react-hook-form'
+import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { Switch } from '~/components/ui/switch'
+import { Textarea } from '~/components/ui/textarea'
+import {
+  getCategoriesByUserId,
+  getPaymentAccountsByUserId,
+  getPaymentTypesByUserId,
+  getTagsByUserId,
+} from '~/db/queries/assets'
+import { assetFormSchema } from '~/lib/asset.schema'
+
+import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session)
+    throw redirect('/login')
+
+  const userId = session.user.id
+  const [categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
+    getCategoriesByUserId(userId),
+    getTagsByUserId(userId),
+    getPaymentTypesByUserId(userId),
+    getPaymentAccountsByUserId(userId),
+  ])
+
+  return { categories, tags, paymentTypes, paymentAccounts }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase, headers } = createSupabaseServerClient(request)
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session)
+    throw redirect('/login')
+
+  const formData = await request.formData()
+  const raw = Object.fromEntries(formData)
+  const tagIds = formData.getAll('tagIds').map(String)
+  const assetType = raw.assetType as 'one_time' | 'subscription'
+
+  const baseData = {
+    name: raw.name as string,
+    emoji: (raw.emoji as string) || '📦',
+    categoryId: raw.categoryId as string,
+    assetType,
+    paymentTypeId: (raw.paymentTypeId as string) || undefined,
+    paymentAccountId: (raw.paymentAccountId as string) || undefined,
+    tagIds,
+    notes: (raw.notes as string) || undefined,
+    purchasePrice: (raw.purchasePrice as string) || undefined,
+    currentValue: (raw.currentValue as string) || undefined,
+    purchaseDate: (raw.purchaseDate as string) || undefined,
+    subscriptionPrice: (raw.subscriptionPrice as string) || undefined,
+    billingCycle: (raw.billingCycle as 'monthly' | 'quarterly' | 'yearly') || undefined,
+    nextRenewalDate: (raw.nextRenewalDate as string) || undefined,
+    subscriptionStartDate: (raw.subscriptionStartDate as string) || undefined,
+  }
+
+  const parsed = assetFormSchema.safeParse(baseData)
+
+  if (!parsed.success) {
+    return { errors: parsed.error.flatten().fieldErrors }
+  }
+
+  const data = parsed.data
+  const { createAsset } = await import('~/db/queries/assets')
+  const assetId = await createAsset({
+    userId: session.user.id,
+    name: data.name,
+    emoji: data.emoji,
+    categoryId: data.categoryId,
+    assetType: data.assetType,
+    paymentTypeId: data.paymentTypeId,
+    paymentAccountId: data.paymentAccountId,
+    notes: data.notes,
+    tagIds: data.tagIds,
+    purchasePrice: data.purchasePrice,
+    currentValue: data.currentValue,
+    purchaseDate: data.purchaseDate,
+    subscriptionPrice: data.subscriptionPrice,
+    billingCycle: data.billingCycle,
+    nextRenewalDate: data.nextRenewalDate,
+    subscriptionStartDate: data.subscriptionStartDate,
+  })
+
+  return redirect(`/assets/${assetId}`, { headers })
+}
 
 export default function AssetsNew() {
+  const { categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const navigate = useNavigate()
+  const navigation = useNavigation()
+  const submit = useSubmit()
+  const isSubmitting = navigation.state === 'submitting'
+
   const [isSubscription, setIsSubscription] = useState(false)
-  const [emoji] = useState('📦')
+  const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+
+  const filteredAccounts = selectedPaymentTypeId
+    ? paymentAccounts.filter(a => a.paymentTypeId === selectedPaymentTypeId)
+    : paymentAccounts
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<AssetFormValues>({
+    resolver: zodResolver(assetFormSchema),
+    defaultValues: {
+      assetType: 'one_time',
+      emoji: '📦',
+      tagIds: [],
+    },
+  })
+
+  function onSubmit(data: AssetFormValues) {
+    const fd = new FormData()
+    fd.append('assetType', data.assetType)
+    fd.append('name', data.name)
+    fd.append('emoji', data.emoji)
+    fd.append('categoryId', data.categoryId)
+    if (data.paymentTypeId)
+      fd.append('paymentTypeId', data.paymentTypeId)
+    if (data.paymentAccountId)
+      fd.append('paymentAccountId', data.paymentAccountId)
+    if (data.notes)
+      fd.append('notes', data.notes)
+    selectedTags.forEach(id => fd.append('tagIds', id))
+
+    if (data.assetType === 'one_time') {
+      fd.append('purchasePrice', data.purchasePrice || '')
+      if (data.currentValue)
+        fd.append('currentValue', data.currentValue)
+      fd.append('purchaseDate', data.purchaseDate || '')
+    }
+    else {
+      fd.append('subscriptionPrice', data.subscriptionPrice || '')
+      fd.append('billingCycle', data.billingCycle || '')
+      fd.append('nextRenewalDate', data.nextRenewalDate || '')
+      if (data.subscriptionStartDate)
+        fd.append('subscriptionStartDate', data.subscriptionStartDate)
+    }
+
+    submit(fd, { method: 'post' })
+  }
+
+  function handleSubscriptionToggle(checked: boolean) {
+    setIsSubscription(checked)
+    setValue('assetType', checked ? 'subscription' : 'one_time')
+  }
+
+  function toggleTag(id: string) {
+    setSelectedTags(prev =>
+      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id],
+    )
+  }
 
   return (
     <div>
@@ -29,53 +185,59 @@ export default function AssetsNew() {
           新建资产
         </span>
         <button
-          onClick={() => navigate('/assets')}
-          className="text-sm font-medium"
+          onClick={handleSubmit(onSubmit)}
+          disabled={isSubmitting}
+          className="flex items-center gap-1 text-sm font-medium disabled:opacity-50"
           style={{ color: 'var(--color-primary)' }}
         >
-          保存
+          {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+          {isSubmitting ? '保存中' : '保存'}
         </button>
       </div>
 
-      {/* Emoji */}
-      <div className="flex flex-col items-center py-4 pb-6">
-        <div
-          className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-lg text-[30px]"
-          style={{ background: 'var(--color-primary-muted)' }}
-        >
-          {emoji}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        {/* Emoji */}
+        <div className="flex flex-col items-center py-4 pb-6">
+          <div
+            className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-lg text-[30px]"
+            style={{ background: 'var(--color-primary-muted)' }}
+          >
+            📦
+          </div>
         </div>
-      </div>
 
-      {/* Name */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-        名称 *
-      </label>
-      <input
-        className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{
-          background: 'var(--color-canvas)',
-          borderColor: 'var(--color-hairline)',
-          color: 'var(--color-ink)',
-        }}
-        type="text"
-        placeholder="例：MacBook Pro"
-      />
-
-      {/* Category */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-        分类 *
-      </label>
-      <div className="relative mb-3">
-        <select
-          className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 pr-9 text-[15px] outline-none"
+        {/* Name */}
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+          名称 *
+        </label>
+        <input
+          className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
           style={{
             background: 'var(--color-canvas)',
-            borderColor: 'var(--color-hairline)',
+            borderColor: errors.name ? 'var(--color-error)' : 'var(--color-hairline)',
             color: 'var(--color-ink)',
           }}
-          defaultValue="cat-1"
+          type="text"
+          placeholder="例：MacBook Pro"
+          {...register('name')}
+        />
+        {errors.name && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.name.message}</p>}
+
+        {/* Category */}
+        <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+          分类 *
+        </label>
+        <select
+          className="mb-1 h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
+          style={{
+            background: 'var(--color-canvas)',
+            borderColor: errors.categoryId ? 'var(--color-error)' : 'var(--color-hairline)',
+            color: 'var(--color-ink)',
+          }}
+          {...register('categoryId')}
+          defaultValue=""
         >
+          <option value="" disabled>请选择分类</option>
           {categories.map(c => (
             <option key={c.id} value={c.id}>
               {c.emoji}
@@ -84,238 +246,172 @@ export default function AssetsNew() {
             </option>
           ))}
         </select>
-        <IconChevronDown
-          size={14}
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--color-muted)' }}
-        />
-      </div>
+        {errors.categoryId && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.categoryId.message}</p>}
 
-      {/* Subscription toggle */}
-      <div
-        className="mb-3 flex items-center justify-between py-2"
-      >
-        <span className="text-[14px]" style={{ color: 'var(--color-ink)' }}>
-          订阅资产
-        </span>
-        <label className="relative inline-block h-6 w-11 cursor-pointer">
-          <input
-            type="checkbox"
-            className="peer sr-only"
+        {/* Subscription toggle */}
+        <div className="mb-3 mt-2 flex items-center justify-between py-2">
+          <span className="text-[14px]" style={{ color: 'var(--color-ink)' }}>订阅资产</span>
+          <Switch
             checked={isSubscription}
-            onChange={e => setIsSubscription(e.target.checked)}
+            onCheckedChange={handleSubscriptionToggle}
           />
-          <span
-            className="absolute inset-0 rounded-full transition-colors peer-checked:bg-[var(--color-primary)]"
-            style={{ background: 'var(--color-surface-strong)' }}
-          />
-          <span
-            className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"
-          />
-        </label>
-      </div>
+        </div>
 
-      {!isSubscription
-        ? (
-            <>
-              {/* One-time fields */}
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                购入价 *
-              </label>
-              <input
-                className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                style={{
-                  background: 'var(--color-canvas)',
-                  borderColor: 'var(--color-hairline)',
-                  color: 'var(--color-ink)',
-                }}
-                type="number"
-                placeholder="0.00"
-              />
+        {!isSubscription
+          ? (
+              <>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>购入价 *</label>
+                <input
+                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: errors.purchasePrice ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...register('purchasePrice')}
+                />
+                {errors.purchasePrice && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.purchasePrice.message}</p>}
 
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                当前估价
-              </label>
-              <input
-                className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                style={{
-                  background: 'var(--color-canvas)',
-                  borderColor: 'var(--color-hairline)',
-                  color: 'var(--color-ink)',
-                }}
-                type="number"
-                placeholder="可选，留空默认等于购入价"
-              />
-            </>
-          )
-        : (
-            <>
-              {/* Subscription fields */}
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                订阅价 *
-              </label>
-              <input
-                className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                style={{
-                  background: 'var(--color-canvas)',
-                  borderColor: 'var(--color-hairline)',
-                  color: 'var(--color-ink)',
-                }}
-                type="number"
-                placeholder="0.00"
-              />
+                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>当前估价</label>
+                <input
+                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="number"
+                  step="0.01"
+                  placeholder="可选，留空默认等于购入价"
+                  {...register('currentValue')}
+                />
 
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                订阅周期
-              </label>
-              <div className="relative mb-3">
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>购入日期 *</label>
+                <input
+                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: errors.purchaseDate ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="date"
+                  {...register('purchaseDate')}
+                />
+                {errors.purchaseDate && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.purchaseDate.message}</p>}
+              </>
+            )
+          : (
+              <>
+                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅价 *</label>
+                <input
+                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: errors.subscriptionPrice ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...register('subscriptionPrice')}
+                />
+                {errors.subscriptionPrice && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.subscriptionPrice.message}</p>}
+
+                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅周期 *</label>
                 <select
-                  className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 pr-9 text-[15px] outline-none"
-                  style={{
-                    background: 'var(--color-canvas)',
-                    borderColor: 'var(--color-hairline)',
-                    color: 'var(--color-ink)',
-                  }}
-                  defaultValue="monthly"
+                  className="mb-1 h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
+                  style={{ background: 'var(--color-canvas)', borderColor: errors.billingCycle ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  {...register('billingCycle')}
+                  defaultValue=""
                 >
+                  <option value="" disabled>请选择周期</option>
                   <option value="monthly">月付</option>
                   <option value="quarterly">季付</option>
                   <option value="yearly">年付</option>
                 </select>
-                <IconChevronDown
-                  size={14}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: 'var(--color-muted)' }}
+                {errors.billingCycle && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.billingCycle.message}</p>}
+
+                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</label>
+                <input
+                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: errors.nextRenewalDate ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="date"
+                  {...register('nextRenewalDate')}
                 />
-              </div>
+                {errors.nextRenewalDate && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.nextRenewalDate.message}</p>}
 
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                下次续费日期
-              </label>
-              <input
-                className="mb-3 h-11 w-full rounded-[10px] border px-3 pr-9 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                style={{
-                  background: 'var(--color-canvas)',
-                  borderColor: 'var(--color-hairline)',
-                  color: 'var(--color-ink)',
-                }}
-                type="date"
-                defaultValue="2026-06-20"
-              />
-            </>
-          )}
+                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅开始日期</label>
+                <input
+                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+                  style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                  type="date"
+                  {...register('subscriptionStartDate')}
+                />
+              </>
+            )}
 
-      {/* Purchase date */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-        {isSubscription ? '订阅开始日期' : '购入日期 *'}
-      </label>
-      <input
-        className="mb-3 h-11 w-full rounded-[10px] border px-3 pr-9 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{
-          background: 'var(--color-canvas)',
-          borderColor: 'var(--color-hairline)',
-          color: 'var(--color-ink)',
-        }}
-        type="date"
-        defaultValue="2026-05-20"
-      />
-
-      {/* Payment type + account */}
-      <div className="mb-3 flex gap-2">
-        <div className="flex-1">
-          <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            支付类型
-          </label>
-          <div className="relative">
+        {/* Payment type + account */}
+        <div className="mb-3 flex gap-2">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付类型</label>
             <select
-              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 pr-9 text-[15px] outline-none"
-              style={{
-                background: 'var(--color-canvas)',
-                borderColor: 'var(--color-hairline)',
-                color: 'var(--color-ink)',
+              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
+              style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+              value={selectedPaymentTypeId}
+              onChange={(e) => {
+                setSelectedPaymentTypeId(e.target.value)
+                setValue('paymentTypeId', e.target.value)
+                setValue('paymentAccountId', '')
               }}
-              defaultValue="pt-1"
             >
               <option value="">可选</option>
               {paymentTypes.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
-            <IconChevronDown
-              size={14}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--color-muted)' }}
-            />
           </div>
-        </div>
-        <div className="flex-1">
-          <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            支付账户
-          </label>
-          <div className="relative">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付账户</label>
             <select
-              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 pr-9 text-[15px] outline-none"
-              style={{
-                background: 'var(--color-canvas)',
-                borderColor: 'var(--color-hairline)',
-                color: 'var(--color-ink)',
-              }}
+              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
+              style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+              {...register('paymentAccountId')}
+              defaultValue=""
             >
               <option value="">可选</option>
-              {paymentAccounts.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+              {filteredAccounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </select>
-            <IconChevronDown
-              size={14}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-              style={{ color: 'var(--color-muted)' }}
-            />
           </div>
         </div>
-      </div>
 
-      {/* Tags */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-        标签
-      </label>
-      <input
-        className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{
-          background: 'var(--color-canvas)',
-          borderColor: 'var(--color-hairline)',
-          color: 'var(--color-ink)',
-        }}
-        type="text"
-        placeholder="选择或输入标签"
-      />
+        {/* Tags */}
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>标签</label>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {tags.map(tag => (
+            <button
+              key={tag.id}
+              type="button"
+              onClick={() => toggleTag(tag.id)}
+              className="rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors"
+              style={{
+                background: selectedTags.includes(tag.id) ? `${tag.color}22` : 'var(--color-surface-strong)',
+                color: selectedTags.includes(tag.id) ? tag.color : 'var(--color-body)',
+                border: `1px solid ${selectedTags.includes(tag.id) ? tag.color : 'transparent'}`,
+              }}
+            >
+              {tag.name}
+            </button>
+          ))}
+        </div>
 
-      {/* Notes */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-        备注
-      </label>
-      <textarea
-        className="mb-6 h-20 w-full resize-y rounded-[10px] border p-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{
-          background: 'var(--color-canvas)',
-          borderColor: 'var(--color-hairline)',
-          color: 'var(--color-ink)',
-        }}
-        placeholder="可选备注..."
-      />
+        {/* Notes */}
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>备注</label>
+        <Textarea
+          className="mb-6 resize-y"
+          placeholder="可选备注..."
+          {...register('notes')}
+        />
 
-      {/* Save button */}
-      <button
-        onClick={() => navigate('/assets')}
-        className="sticky bottom-4 mb-6 flex h-11 w-full items-center justify-center rounded-[10px] text-[15px] font-semibold text-white transition-colors"
-        style={{ background: 'var(--color-primary)' }}
-      >
-        保存资产
-      </button>
+        {/* Save button */}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="sticky bottom-4 mb-6 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] text-[15px] font-semibold text-white transition-colors disabled:opacity-50"
+          style={{ background: 'var(--color-primary)' }}
+        >
+          {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
+          保存资产
+        </button>
+      </form>
     </div>
   )
 }

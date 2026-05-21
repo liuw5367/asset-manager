@@ -1,0 +1,272 @@
+import { and, eq, isNull } from 'drizzle-orm'
+import { db } from '~/db'
+import {
+  assets,
+  assetTags,
+  categories,
+  paymentAccounts,
+  paymentTypes,
+  repairRecords,
+  tags,
+  warranties,
+} from '~/db/schema'
+
+// ========== 资产列表 ==========
+
+export async function getAssetsByUserId(userId: string) {
+  return db
+    .select()
+    .from(assets)
+    .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
+    .orderBy(assets.createdAt)
+}
+
+// ========== 资产详情 ==========
+
+export async function getAssetById(id: string, userId: string) {
+  const rows = await db
+    .select()
+    .from(assets)
+    .where(
+      and(
+        eq(assets.id, id),
+        eq(assets.userId, userId),
+        isNull(assets.deletedAt),
+      ),
+    )
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
+export async function getAssetWithTags(assetId: string) {
+  const rows = await db
+    .select({ tagId: assetTags.tagId })
+    .from(assetTags)
+    .where(eq(assetTags.assetId, assetId))
+
+  return rows.map(r => r.tagId)
+}
+
+export async function getAssetWarranty(assetId: string) {
+  const rows = await db
+    .select()
+    .from(warranties)
+    .where(eq(warranties.assetId, assetId))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
+export async function getAssetRepairRecords(assetId: string) {
+  return db
+    .select()
+    .from(repairRecords)
+    .where(eq(repairRecords.assetId, assetId))
+    .orderBy(repairRecords.repairDate)
+}
+
+// ========== 创建资产 ==========
+
+export interface CreateAssetInput {
+  userId: string
+  name: string
+  emoji: string
+  categoryId: string
+  assetType: 'one_time' | 'subscription'
+  purchasePrice?: string
+  currentValue?: string
+  purchaseDate?: string
+  subscriptionPrice?: string
+  billingCycle?: 'monthly' | 'quarterly' | 'yearly'
+  nextRenewalDate?: string
+  subscriptionStartDate?: string
+  paymentTypeId?: string
+  paymentAccountId?: string
+  notes?: string
+  tagIds?: string[]
+}
+
+export async function createAsset(input: CreateAssetInput) {
+  const { tagIds, ...data } = input
+
+  const [asset] = await db
+    .insert(assets)
+    .values({
+      userId: data.userId,
+      name: data.name,
+      emoji: data.emoji,
+      categoryId: data.categoryId,
+      assetType: data.assetType,
+      purchasePrice: data.purchasePrice ?? null,
+      currentValue: data.currentValue ?? null,
+      purchaseDate: data.purchaseDate ?? null,
+      subscriptionPrice: data.subscriptionPrice ?? null,
+      billingCycle: data.billingCycle ?? null,
+      nextRenewalDate: data.nextRenewalDate ?? null,
+      subscriptionStartDate: data.subscriptionStartDate ?? null,
+      paymentTypeId: data.paymentTypeId ?? null,
+      paymentAccountId: data.paymentAccountId ?? null,
+      notes: data.notes ?? null,
+    })
+    .returning({ id: assets.id })
+
+  if (tagIds && tagIds.length > 0) {
+    await db
+      .insert(assetTags)
+      .values(tagIds.map(tagId => ({ assetId: asset.id, tagId })))
+  }
+
+  return asset.id
+}
+
+// ========== 更新资产 ==========
+
+export interface UpdateAssetInput {
+  name: string
+  emoji: string
+  categoryId: string
+  assetType: 'one_time' | 'subscription'
+  purchasePrice?: string
+  currentValue?: string
+  purchaseDate?: string
+  subscriptionPrice?: string
+  billingCycle?: 'monthly' | 'quarterly' | 'yearly'
+  nextRenewalDate?: string
+  subscriptionStartDate?: string
+  paymentTypeId?: string
+  paymentAccountId?: string
+  notes?: string
+  tagIds?: string[]
+}
+
+export async function updateAsset(id: string, userId: string, input: UpdateAssetInput) {
+  const { tagIds, ...data } = input
+
+  await db
+    .update(assets)
+    .set({
+      name: data.name,
+      emoji: data.emoji,
+      categoryId: data.categoryId,
+      assetType: data.assetType,
+      purchasePrice: data.purchasePrice ?? null,
+      currentValue: data.currentValue ?? null,
+      purchaseDate: data.purchaseDate ?? null,
+      subscriptionPrice: data.subscriptionPrice ?? null,
+      billingCycle: data.billingCycle ?? null,
+      nextRenewalDate: data.nextRenewalDate ?? null,
+      subscriptionStartDate: data.subscriptionStartDate ?? null,
+      paymentTypeId: data.paymentTypeId ?? null,
+      paymentAccountId: data.paymentAccountId ?? null,
+      notes: data.notes ?? null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+
+  // 更新标签关联（先删后插）
+  await db.delete(assetTags).where(eq(assetTags.assetId, id))
+  if (tagIds && tagIds.length > 0) {
+    await db
+      .insert(assetTags)
+      .values(tagIds.map(tagId => ({ assetId: id, tagId })))
+  }
+}
+
+// ========== 软删除资产 ==========
+
+export async function softDeleteAsset(id: string, userId: string) {
+  await db
+    .update(assets)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+// ========== 分类 ==========
+
+export async function getCategoriesByUserId(userId: string) {
+  return db
+    .select()
+    .from(categories)
+    .where(eq(categories.userId, userId))
+    .orderBy(categories.sortOrder)
+}
+
+// ========== 标签 ==========
+
+export async function getTagsByUserId(userId: string) {
+  return db
+    .select()
+    .from(tags)
+    .where(eq(tags.userId, userId))
+}
+
+// ========== 支付类型 ==========
+
+export async function getPaymentTypesByUserId(userId: string) {
+  return db
+    .select()
+    .from(paymentTypes)
+    .where(eq(paymentTypes.userId, userId))
+}
+
+// ========== 支付账户 ==========
+
+export async function getPaymentAccountsByUserId(userId: string) {
+  return db
+    .select()
+    .from(paymentAccounts)
+    .where(eq(paymentAccounts.userId, userId))
+}
+
+// ========== 维修记录 ==========
+
+export interface CreateRepairRecordInput {
+  assetId: string
+  repairDate: string
+  cost?: string
+  reason?: string
+  vendor?: string
+  result?: string
+  isDone?: boolean
+}
+
+export async function createRepairRecord(input: CreateRepairRecordInput) {
+  const [record] = await db
+    .insert(repairRecords)
+    .values({
+      assetId: input.assetId,
+      repairDate: input.repairDate,
+      cost: input.cost ?? '0',
+      reason: input.reason ?? null,
+      vendor: input.vendor ?? null,
+      result: input.result ?? null,
+      isDone: input.isDone ?? true,
+    })
+    .returning({ id: repairRecords.id })
+
+  return record.id
+}
+
+// ========== 获取带分类名称的资产 ==========
+
+export async function getAssetsWithCategoryName(userId: string) {
+  return db
+    .select({
+      id: assets.id,
+      name: assets.name,
+      emoji: assets.emoji,
+      categoryId: assets.categoryId,
+      assetType: assets.assetType,
+      purchasePrice: assets.purchasePrice,
+      subscriptionPrice: assets.subscriptionPrice,
+      billingCycle: assets.billingCycle,
+      purchaseDate: assets.purchaseDate,
+      createdAt: assets.createdAt,
+      categoryName: categories.name,
+    })
+    .from(assets)
+    .leftJoin(categories, eq(assets.categoryId, categories.id))
+    .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
+    .orderBy(assets.createdAt)
+}
