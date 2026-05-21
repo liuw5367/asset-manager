@@ -11,14 +11,14 @@ import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     const url = new URL(request.url)
     return redirect(`/login?next=${encodeURIComponent(url.pathname)}`)
   }
 
-  return { user: { id: session.user.id, email: session.user.email } }
+  return { user: { id: user.id, email: user.email } }
 }
 
 const navItems = [

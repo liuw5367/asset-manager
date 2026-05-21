@@ -16,11 +16,11 @@ import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
-  const userId = session.user.id
+  const userId = user.id
   const asset = await getAssetById(params.id, userId)
   if (!asset)
     throw new Response('Not Found', { status: 404 })
@@ -37,11 +37,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
-  const userId = session.user.id
+  const userId = user.id
   const formData = await request.formData()
 
   // 1. 软删除旧资产

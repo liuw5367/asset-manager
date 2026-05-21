@@ -19,11 +19,11 @@ import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
-  const userId = session.user.id
+  const userId = user.id
   const [categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
     getCategoriesByUserId(userId),
     getTagsByUserId(userId),
@@ -36,8 +36,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
   const formData = await request.formData()
@@ -72,7 +72,7 @@ export async function action({ request }: Route.ActionArgs) {
   const data = parsed.data
   const { createAsset } = await import('~/db/queries/assets')
   const assetId = await createAsset({
-    userId: session.user.id,
+    userId: user.id,
     name: data.name,
     emoji: data.emoji,
     categoryId: data.categoryId,

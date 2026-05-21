@@ -21,11 +21,11 @@ import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
-  const userId = session.user.id
+  const userId = user.id
   const assetId = params.id
 
   const asset = await getAssetById(assetId, userId)
@@ -45,8 +45,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
     throw redirect('/login')
 
   const formData = await request.formData()
@@ -78,7 +78,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   const data = parsed.data
-  await updateAsset(params.id, session.user.id, {
+  await updateAsset(params.id, user.id, {
     name: data.name,
     emoji: data.emoji,
     categoryId: data.categoryId,
