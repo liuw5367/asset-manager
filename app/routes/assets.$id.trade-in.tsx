@@ -1,11 +1,9 @@
 import type { Route } from './+types/assets.$id.trade-in'
-import { IconLoader2 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { redirect, useLoaderData, useSubmit } from 'react-router'
+import { AssetForm } from '~/components/asset-form'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
-import { Textarea } from '~/components/ui/textarea'
 import {
   getAssetById,
   getCategoriesByUserId,
@@ -73,24 +71,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 export default function AssetsTradeIn() {
   const { asset, categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
-  const navigate = useNavigate()
-  const navigation = useNavigation()
   const submit = useSubmit()
-  const isSubmitting = navigation.state === 'submitting'
 
   const [tradeInPrice, setTradeInPrice] = useState('')
   const [newPrice, setNewPrice] = useState('')
   const [tradeInDate, setTradeInDate] = useState(new Date().toISOString().split('T')[0])
-  const [newName, setNewName] = useState('')
-  const [newCategoryId, setNewCategoryId] = useState(asset.categoryId || '')
-  const [newPaymentTypeId, setNewPaymentTypeId] = useState(asset.paymentTypeId || '')
-  const [newPaymentAccountId, setNewPaymentAccountId] = useState(asset.paymentAccountId || '')
-  const [newNotes, setNewNotes] = useState('')
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-
-  const filteredAccounts = newPaymentTypeId
-    ? paymentAccounts.filter(a => a.paymentTypeId === newPaymentTypeId)
-    : paymentAccounts
 
   const tradeVal = Number.parseFloat(tradeInPrice) || 0
   const newP = Number.parseFloat(newPrice) || 0
@@ -105,278 +90,110 @@ export default function AssetsTradeIn() {
     : 0
   const newDailyCost = actualSpend > 0 ? (actualSpend / oldHoldingDays) : 0
 
-  function toggleTag(id: string) {
-    setSelectedTags(prev =>
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id],
-    )
-  }
-
-  function handleSubmit() {
-    const fd = new FormData()
+  function handleAssetFormSubmit(fd: FormData) {
     fd.append('tradeInDate', tradeInDate)
     fd.append('tradeInPrice', tradeInPrice || '0')
     fd.append('actualSpend', String(actualSpend))
-    fd.append('name', newName)
-    fd.append('emoji', asset.emoji)
-    fd.append('categoryId', newCategoryId)
-    if (newPaymentTypeId)
-      fd.append('paymentTypeId', newPaymentTypeId)
-    if (newPaymentAccountId)
-      fd.append('paymentAccountId', newPaymentAccountId)
-    if (newNotes)
-      fd.append('notes', newNotes)
-    selectedTags.forEach(id => fd.append('tagIds', id))
     submit(fd, { method: 'post' })
   }
 
   return (
     <div>
-      {/* Top bar */}
-      <div
-        className="sticky top-0 z-10 flex items-center justify-between py-3"
-        style={{ background: 'var(--color-canvas)' }}
+      {/* Top bar - rendered by AssetForm, but we handle it manually here */}
+      <AssetForm
+        categories={categories}
+        tags={tags}
+        paymentTypes={paymentTypes}
+        paymentAccounts={paymentAccounts}
+        showSubscriptionToggle={false}
+        submitLabel="完成换新"
+        backLabel="‹ 返回详情"
+        backTo={`/assets/${asset.id}`}
+        title="以旧换新"
+        onSubmit={handleAssetFormSubmit}
       >
-        <button
-          onClick={() => navigate(`/assets/${asset.id}`)}
-          className="flex items-center gap-1 text-sm"
-          style={{ color: 'var(--color-muted)' }}
-        >
-          ‹ 返回详情
-        </button>
-        <span
-          className="text-base font-semibold"
-          style={{ color: 'var(--color-ink)' }}
-        >
-          以旧换新
-        </span>
-        <span />
-      </div>
+        {/* 旧设备区域 */}
+        <div className="mb-1 mt-5 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
+          <span>旧设备回收</span>
+          <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
+        </div>
+        <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
+          <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
+          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+            回收价 *
+          </Label>
+          <Input
+            className="mb-3"
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            value={tradeInPrice}
+            onChange={e => setTradeInPrice(e.target.value)}
+          />
 
-      {/* Old device name */}
-      <div className="py-2 text-center">
-        <span className="text-base font-semibold" style={{ color: 'var(--color-body)' }}>
-          {asset.name}
-        </span>
-      </div>
+          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+            换新日 *
+          </Label>
+          <Input
+            type="date"
+            value={tradeInDate}
+            onChange={e => setTradeInDate(e.target.value)}
+          />
+        </div>
 
-      {/* Section: Old device */}
-      <div className="mb-1 mt-5 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-        <span>旧设备回收</span>
-        <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
-      </div>
-      <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
-        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-          回收价 *
-        </Label>
+        {/* 新设备购入价（独立于 AssetForm，用于计算） */}
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>新设备购入价 *</Label>
         <Input
           className="mb-3"
           type="number"
           step="0.01"
           placeholder="0.00"
-          value={tradeInPrice}
-          onChange={e => setTradeInPrice(e.target.value)}
+          value={newPrice}
+          onChange={e => setNewPrice(e.target.value)}
         />
 
-        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-          换新日 *
-        </Label>
-        <Input
-          type="date"
-          value={tradeInDate}
-          onChange={e => setTradeInDate(e.target.value)}
-        />
-      </div>
-
-      {/* Section: New device */}
-      <div className="mb-1 mt-5 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-        <span>新设备</span>
-        <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
-      </div>
-
-      {/* Emoji */}
-      <div className="flex flex-col items-center py-4 pb-6">
-        <div
-          className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-lg text-[30px]"
-          style={{ background: 'var(--color-primary-muted)' }}
-        >
-          {asset.emoji}
-        </div>
-      </div>
-
-      {/* Name */}
-      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-        名称 *
-      </Label>
-      <Input
-        className="mb-3"
-        type="text"
-        placeholder="例：MacBook Pro M4"
-        value={newName}
-        onChange={e => setNewName(e.target.value)}
-      />
-
-      {/* Category */}
-      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-        分类 *
-      </Label>
-      <Select
-        value={newCategoryId}
-        onValueChange={(v: string | null) => {
-          if (v)
-            setNewCategoryId(v)
-        }}
-      >
-        <SelectTrigger className="mb-3 w-full">
-          <SelectValue placeholder="请选择分类" />
-        </SelectTrigger>
-        <SelectContent>
-          {categories.map(c => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.emoji}
-              {' '}
-              {c.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* New price */}
-      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-        购入价 *
-      </Label>
-      <Input
-        className="mb-3"
-        type="number"
-        step="0.01"
-        placeholder="0.00"
-        value={newPrice}
-        onChange={e => setNewPrice(e.target.value)}
-      />
-
-      {/* Payment type + account */}
-      <div className="mb-3 flex gap-2">
-        <div className="flex-1">
-          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付类型</Label>
-          <Select
-            value={newPaymentTypeId || undefined}
-            onValueChange={(v: string | null) => {
-              const val = v || ''
-              setNewPaymentTypeId(val)
-              setNewPaymentAccountId('')
-            }}
+        {/* 计算面板 */}
+        {showCalc && (
+          <div
+            className="mb-4 rounded-lg p-4"
+            style={{ background: 'var(--color-surface-card)' }}
           >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="可选" />
-            </SelectTrigger>
-            <SelectContent>
-              {paymentTypes.map(p => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1">
-          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付账户</Label>
-          <Select
-            value={newPaymentAccountId || undefined}
-            onValueChange={(v: string | null) => {
-              if (v)
-                setNewPaymentAccountId(v)
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="可选" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredAccounts.map(a => (
-                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Tags */}
-      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
-      <div className="mb-3 flex flex-wrap gap-2">
-        {tags.map(tag => (
-          <button
-            key={tag.id}
-            type="button"
-            onClick={() => toggleTag(tag.id)}
-            className="rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors"
-            style={{
-              background: selectedTags.includes(tag.id) ? `${tag.color}22` : 'var(--color-surface-strong)',
-              color: selectedTags.includes(tag.id) ? tag.color : 'var(--color-body)',
-              border: `1px solid ${selectedTags.includes(tag.id) ? tag.color : 'transparent'}`,
-            }}
-          >
-            {tag.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Notes */}
-      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>备注</Label>
-      <Textarea
-        className="mb-6 resize-y"
-        placeholder="可选备注..."
-        value={newNotes}
-        onChange={e => setNewNotes(e.target.value)}
-      />
-
-      {/* Calculation panel */}
-      {showCalc && (
-        <div
-          className="mb-6 rounded-lg p-4"
-          style={{ background: 'var(--color-surface-card)' }}
-        >
-          <div className="mb-2 flex items-center justify-between text-[14px]">
-            <span style={{ color: 'var(--color-muted)' }}>新资产购入价</span>
-            <span className="font-medium" style={{ color: 'var(--color-ink)' }}>
-              {newP.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-            </span>
+            <div className="mb-2 flex items-center justify-between text-[14px]">
+              <span style={{ color: 'var(--color-muted)' }}>新资产购入价</span>
+              <span className="font-medium" style={{ color: 'var(--color-ink)' }}>
+                {newP.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="mb-2 flex items-center justify-between text-[14px]">
+              <span style={{ color: 'var(--color-muted)' }}>以旧换新优惠</span>
+              <span className="font-medium" style={{ color: 'var(--color-error)' }}>
+                −
+                {tradeVal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="my-2 h-px" style={{ background: 'var(--color-hairline)' }} />
+            <div className="mb-3 flex items-center justify-between text-[14px]">
+              <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>实际支出</span>
+              <span className="text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
+                {actualSpend.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span style={{ color: 'var(--color-muted)' }}>旧资产每日成本（历史）</span>
+              <span className="font-mono" style={{ color: 'var(--color-muted-soft)' }}>
+                {oldDailyCost.toFixed(2)}
+                /天
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[13px]">
+              <span style={{ color: 'var(--color-muted)' }}>新资产每日成本（预计）</span>
+              <span className="font-mono" style={{ color: 'var(--color-primary)' }}>
+                {newDailyCost > 0 ? `${newDailyCost.toFixed(2)}/天` : '—'}
+              </span>
+            </div>
           </div>
-          <div className="mb-2 flex items-center justify-between text-[14px]">
-            <span style={{ color: 'var(--color-muted)' }}>以旧换新优惠</span>
-            <span className="font-medium" style={{ color: 'var(--color-error)' }}>
-              −
-              {tradeVal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div className="my-2 h-px" style={{ background: 'var(--color-hairline)' }} />
-          <div className="mb-3 flex items-center justify-between text-[14px]">
-            <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>实际支出</span>
-            <span className="text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
-              {actualSpend.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-[13px]">
-            <span style={{ color: 'var(--color-muted)' }}>旧资产每日成本（历史）</span>
-            <span className="font-mono" style={{ color: 'var(--color-muted-soft)' }}>
-              {oldDailyCost.toFixed(2)}
-              /天
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-[13px]">
-            <span style={{ color: 'var(--color-muted)' }}>新资产每日成本（预计）</span>
-            <span className="font-mono" style={{ color: 'var(--color-primary)' }}>
-              {newDailyCost > 0 ? `${newDailyCost.toFixed(2)}/天` : '—'}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Submit */}
-      <button
-        onClick={handleSubmit}
-        disabled={isSubmitting || !newName || !newPrice}
-        className="sticky bottom-4 mb-6 flex h-11 w-full items-center justify-center gap-2 rounded-[10px] text-[15px] font-semibold text-white transition-colors disabled:opacity-50"
-        style={{ background: 'var(--color-primary)' }}
-      >
-        {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
-        完成换新
-      </button>
+        )}
+      </AssetForm>
     </div>
   )
 }
