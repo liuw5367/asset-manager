@@ -30,6 +30,7 @@
     "currency.js": "^2.0.4",
     "date-fns": "^4.2.1",
     "drizzle-orm": "^0.45.2",
+    "emoji-picker-react": "^4.19.1",
     "isbot": "^5.1.27",
     "lucide-react": "^1.16.0",
     "nprogress": "^0.2.0",

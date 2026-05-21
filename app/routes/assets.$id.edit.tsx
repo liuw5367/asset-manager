@@ -1,9 +1,14 @@
 import type { Route } from './+types/assets.$id.edit'
 import type { AssetFormValues } from '~/lib/asset.schema'
 import { IconLoader2 } from '@tabler/icons-react'
+import EmojiPicker from 'emoji-picker-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
@@ -108,7 +113,10 @@ export default function AssetsEdit() {
 
   const [isSubscription, setIsSubscription] = useState(asset.assetType === 'subscription')
   const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState(asset.paymentTypeId || '')
+  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState(asset.paymentAccountId || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(tagIds)
+  const [selectedEmoji, setSelectedEmoji] = useState(asset.emoji)
+  const [emojiOpen, setEmojiOpen] = useState(false)
 
   const filteredAccounts = selectedPaymentTypeId
     ? paymentAccounts.filter(a => a.paymentTypeId === selectedPaymentTypeId)
@@ -143,12 +151,12 @@ export default function AssetsEdit() {
     const fd = new FormData()
     fd.append('assetType', data.assetType)
     fd.append('name', data.name)
-    fd.append('emoji', data.emoji)
+    fd.append('emoji', selectedEmoji)
     fd.append('categoryId', data.categoryId)
-    if (data.paymentTypeId)
-      fd.append('paymentTypeId', data.paymentTypeId)
-    if (data.paymentAccountId)
-      fd.append('paymentAccountId', data.paymentAccountId)
+    if (selectedPaymentTypeId)
+      fd.append('paymentTypeId', selectedPaymentTypeId)
+    if (selectedPaymentAccountId)
+      fd.append('paymentAccountId', selectedPaymentAccountId)
     if (data.notes)
       fd.append('notes', data.notes)
     selectedTags.forEach(id => fd.append('tagIds', id))
@@ -215,24 +223,34 @@ export default function AssetsEdit() {
       <form onSubmit={handleSubmit(onSubmit)}>
         {/* Emoji */}
         <div className="flex flex-col items-center py-4 pb-6">
-          <div
-            className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-lg text-[30px]"
-            style={{ background: 'var(--color-primary-muted)' }}
-          >
-            {asset.emoji}
-          </div>
+          <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+            <PopoverTrigger
+              className="flex h-[60px] w-[60px] cursor-pointer items-center justify-center rounded-lg text-[30px] transition-opacity hover:opacity-80"
+              style={{ background: 'var(--color-primary-muted)' }}
+            >
+              {selectedEmoji}
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="center">
+              <EmojiPicker
+                onEmojiClick={(emojiData) => {
+                  setSelectedEmoji(emojiData.emoji)
+                  setEmojiOpen(false)
+                }}
+                width={320}
+                height={380}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Name */}
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
           名称 *
-        </label>
-        <input
-          className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
+        </Label>
+        <Input
+          className="mb-1"
           style={{
-            background: 'var(--color-canvas)',
-            borderColor: errors.name ? 'var(--color-error)' : 'var(--color-hairline)',
-            color: 'var(--color-ink)',
+            borderColor: errors.name ? 'var(--color-error)' : undefined,
           }}
           type="text"
           {...register('name')}
@@ -240,27 +258,33 @@ export default function AssetsEdit() {
         {errors.name && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.name.message}</p>}
 
         {/* Category */}
-        <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+        <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>
           分类 *
-        </label>
-        <select
-          className="mb-1 h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-          style={{
-            background: 'var(--color-canvas)',
-            borderColor: errors.categoryId ? 'var(--color-error)' : 'var(--color-hairline)',
-            color: 'var(--color-ink)',
+        </Label>
+        <Select
+          onValueChange={(v: string | null) => {
+            if (v)
+              setValue('categoryId', v)
           }}
-          {...register('categoryId')}
         >
-          <option value="" disabled>请选择分类</option>
-          {categories.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.emoji}
-              {' '}
-              {c.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger
+            className="mb-1 w-full"
+            style={{
+              borderColor: errors.categoryId ? 'var(--color-error)' : undefined,
+            }}
+          >
+            <SelectValue placeholder="请选择分类" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map(c => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.emoji}
+                {' '}
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {errors.categoryId && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.categoryId.message}</p>}
 
         {/* Subscription toggle */}
@@ -275,29 +299,28 @@ export default function AssetsEdit() {
         {!isSubscription
           ? (
               <>
-                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>购入价 *</label>
-                <input
-                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: errors.purchasePrice ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>购入价 *</Label>
+                <Input
+                  className="mb-1"
+                  style={{ borderColor: errors.purchasePrice ? 'var(--color-error)' : undefined }}
                   type="number"
                   step="0.01"
                   {...register('purchasePrice')}
                 />
                 {errors.purchasePrice && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.purchasePrice.message}</p>}
 
-                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>当前估价</label>
-                <input
-                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>当前估价</Label>
+                <Input
+                  className="mb-3"
                   type="number"
                   step="0.01"
                   {...register('currentValue')}
                 />
 
-                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>购入日期 *</label>
-                <input
-                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: errors.purchaseDate ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>购入日期 *</Label>
+                <Input
+                  className="mb-3"
+                  style={{ borderColor: errors.purchaseDate ? 'var(--color-error)' : undefined }}
                   type="date"
                   {...register('purchaseDate')}
                 />
@@ -306,43 +329,49 @@ export default function AssetsEdit() {
             )
           : (
               <>
-                <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅价 *</label>
-                <input
-                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: errors.subscriptionPrice ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>订阅价 *</Label>
+                <Input
+                  className="mb-1"
+                  style={{ borderColor: errors.subscriptionPrice ? 'var(--color-error)' : undefined }}
                   type="number"
                   step="0.01"
                   {...register('subscriptionPrice')}
                 />
                 {errors.subscriptionPrice && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.subscriptionPrice.message}</p>}
 
-                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅周期 *</label>
-                <select
-                  className="mb-1 h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-                  style={{ background: 'var(--color-canvas)', borderColor: errors.billingCycle ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
-                  {...register('billingCycle')}
-                  defaultValue=""
+                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅周期 *</Label>
+                <Select
+                  onValueChange={(v) => {
+                    if (v)
+                      setValue('billingCycle', v as 'monthly' | 'quarterly' | 'yearly')
+                  }}
                 >
-                  <option value="" disabled>请选择周期</option>
-                  <option value="monthly">月付</option>
-                  <option value="quarterly">季付</option>
-                  <option value="yearly">年付</option>
-                </select>
+                  <SelectTrigger
+                    className="mb-1 w-full"
+                    style={{ borderColor: errors.billingCycle ? 'var(--color-error)' : undefined }}
+                  >
+                    <SelectValue placeholder="请选择周期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">月付</SelectItem>
+                    <SelectItem value="quarterly">季付</SelectItem>
+                    <SelectItem value="yearly">年付</SelectItem>
+                  </SelectContent>
+                </Select>
                 {errors.billingCycle && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.billingCycle.message}</p>}
 
-                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</label>
-                <input
-                  className="mb-1 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: errors.nextRenewalDate ? 'var(--color-error)' : 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</Label>
+                <Input
+                  className="mb-1"
+                  style={{ borderColor: errors.nextRenewalDate ? 'var(--color-error)' : undefined }}
                   type="date"
                   {...register('nextRenewalDate')}
                 />
                 {errors.nextRenewalDate && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{errors.nextRenewalDate.message}</p>}
 
-                <label className="mb-1.5 mt-2 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>订阅开始日期</label>
-                <input
-                  className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                  style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+                <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅开始日期</Label>
+                <Input
+                  className="mb-3"
                   type="date"
                   {...register('subscriptionStartDate')}
                 />
@@ -352,40 +381,51 @@ export default function AssetsEdit() {
         {/* Payment type + account */}
         <div className="mb-3 flex gap-2">
           <div className="flex-1">
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付类型</label>
-            <select
-              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-              style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-              value={selectedPaymentTypeId}
-              onChange={(e) => {
-                setSelectedPaymentTypeId(e.target.value)
-                setValue('paymentTypeId', e.target.value)
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付类型</Label>
+            <Select
+              value={selectedPaymentTypeId || undefined}
+              onValueChange={(v) => {
+                const val = v || ''
+                setSelectedPaymentTypeId(val)
+                setValue('paymentTypeId', val)
+                setSelectedPaymentAccountId('')
                 setValue('paymentAccountId', '')
               }}
             >
-              <option value="">可选</option>
-              {paymentTypes.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="可选" />
+              </SelectTrigger>
+              <SelectContent>
+                {paymentTypes.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex-1">
-            <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付账户</label>
-            <select
-              className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-              style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-              {...register('paymentAccountId')}
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付账户</Label>
+            <Select
+              value={selectedPaymentAccountId || undefined}
+              onValueChange={(v) => {
+                const val = v || ''
+                setSelectedPaymentAccountId(val)
+                setValue('paymentAccountId', val)
+              }}
             >
-              <option value="">可选</option>
-              {filteredAccounts.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="可选" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredAccounts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
         {/* Tags */}
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>标签</label>
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
         <div className="mb-3 flex flex-wrap gap-2">
           {tags.map(tag => (
             <button
@@ -405,7 +445,7 @@ export default function AssetsEdit() {
         </div>
 
         {/* Notes */}
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>备注</label>
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>备注</Label>
         <Textarea
           className="mb-6 resize-y"
           placeholder="可选备注..."

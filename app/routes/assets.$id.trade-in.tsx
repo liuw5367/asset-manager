@@ -2,6 +2,10 @@ import type { Route } from './+types/assets.$id.trade-in'
 import { IconLoader2 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
+import { Textarea } from '~/components/ui/textarea'
 import {
   getAssetById,
   getCategoriesByUserId,
@@ -161,12 +165,11 @@ export default function AssetsTradeIn() {
         <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
       </div>
       <div className="rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
           回收价 *
-        </label>
-        <input
-          className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-          style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+        </Label>
+        <Input
+          className="mb-3"
           type="number"
           step="0.01"
           placeholder="0.00"
@@ -174,12 +177,10 @@ export default function AssetsTradeIn() {
           onChange={e => setTradeInPrice(e.target.value)}
         />
 
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+        <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
           换新日 *
-        </label>
-        <input
-          className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-          style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+        </Label>
+        <Input
           type="date"
           value={tradeInDate}
           onChange={e => setTradeInDate(e.target.value)}
@@ -203,12 +204,11 @@ export default function AssetsTradeIn() {
       </div>
 
       {/* Name */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
         名称 *
-      </label>
-      <input
-        className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+      </Label>
+      <Input
+        className="mb-3"
         type="text"
         placeholder="例：MacBook Pro M4"
         value={newName}
@@ -216,31 +216,36 @@ export default function AssetsTradeIn() {
       />
 
       {/* Category */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
         分类 *
-      </label>
-      <select
-        className="mb-3 h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-        style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+      </Label>
+      <Select
         value={newCategoryId}
-        onChange={e => setNewCategoryId(e.target.value)}
+        onValueChange={(v: string | null) => {
+          if (v)
+            setNewCategoryId(v)
+        }}
       >
-        {categories.map(c => (
-          <option key={c.id} value={c.id}>
-            {c.emoji}
-            {' '}
-            {c.name}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger className="mb-3 w-full">
+          <SelectValue placeholder="请选择分类" />
+        </SelectTrigger>
+        <SelectContent>
+          {categories.map(c => (
+            <SelectItem key={c.id} value={c.id}>
+              {c.emoji}
+              {' '}
+              {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* New price */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
         购入价 *
-      </label>
-      <input
-        className="mb-3 h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+      </Label>
+      <Input
+        className="mb-3"
         type="number"
         step="0.01"
         placeholder="0.00"
@@ -251,40 +256,48 @@ export default function AssetsTradeIn() {
       {/* Payment type + account */}
       <div className="mb-3 flex gap-2">
         <div className="flex-1">
-          <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付类型</label>
-          <select
-            className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-            style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-            value={newPaymentTypeId}
-            onChange={(e) => {
-              setNewPaymentTypeId(e.target.value)
+          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付类型</Label>
+          <Select
+            value={newPaymentTypeId || undefined}
+            onValueChange={(v: string | null) => {
+              const val = v || ''
+              setNewPaymentTypeId(val)
               setNewPaymentAccountId('')
             }}
           >
-            <option value="">可选</option>
-            {paymentTypes.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="可选" />
+            </SelectTrigger>
+            <SelectContent>
+              {paymentTypes.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex-1">
-          <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>支付账户</label>
-          <select
-            className="h-11 w-full cursor-pointer appearance-none rounded-[10px] border px-3 text-[15px] outline-none"
-            style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-            value={newPaymentAccountId}
-            onChange={e => setNewPaymentAccountId(e.target.value)}
+          <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>支付账户</Label>
+          <Select
+            value={newPaymentAccountId || undefined}
+            onValueChange={(v: string | null) => {
+              if (v)
+                setNewPaymentAccountId(v)
+            }}
           >
-            <option value="">可选</option>
-            {filteredAccounts.map(a => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="可选" />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredAccounts.map(a => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {/* Tags */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>标签</label>
+      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
       <div className="mb-3 flex flex-wrap gap-2">
         {tags.map(tag => (
           <button
@@ -304,10 +317,9 @@ export default function AssetsTradeIn() {
       </div>
 
       {/* Notes */}
-      <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>备注</label>
-      <textarea
-        className="mb-6 h-20 w-full resize-y rounded-[10px] border p-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-        style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
+      <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>备注</Label>
+      <Textarea
+        className="mb-6 resize-y"
         placeholder="可选备注..."
         value={newNotes}
         onChange={e => setNewNotes(e.target.value)}
