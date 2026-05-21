@@ -270,3 +270,19 @@ export async function getAssetsWithCategoryName(userId: string) {
     .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
     .orderBy(assets.createdAt)
 }
+
+// ========== 获取用户所有资产标签关联 ==========
+
+export async function getAssetTagsByUserId(userId: string) {
+  return db
+    .select({
+      assetId: assetTags.assetId,
+      tagId: assetTags.tagId,
+      tagName: tags.name,
+      tagColor: tags.color,
+    })
+    .from(assetTags)
+    .innerJoin(assets, eq(assetTags.assetId, assets.id))
+    .innerJoin(tags, eq(assetTags.tagId, tags.id))
+    .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
+}

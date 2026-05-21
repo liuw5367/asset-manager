@@ -20,6 +20,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { Input } from '~/components/ui/input'
+import { Label } from '~/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import {
   Sheet,
   SheetContent,
@@ -307,9 +310,13 @@ export default function AssetsDetail() {
       <Section title="财务摘要">
         <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
           <DetailRow label="购入价" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} />
-          <DetailRow label="当前估价" value={asset.currentValue ? Number(asset.currentValue).toLocaleString() : '—'} muted />
+          {asset.currentValue && (
+            <DetailRow label="当前估价" value={Number(asset.currentValue).toLocaleString()} muted />
+          )}
           <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-          <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+          {holdingDays > 0 && (
+            <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+          )}
           <DetailRow
             label="支付方式"
             value={
@@ -318,7 +325,9 @@ export default function AssetsDetail() {
                 : paymentType?.name || '—'
             }
           />
-          <DetailRow label="购入日期" value={asset.purchaseDate || '—'} />
+          {asset.purchaseDate && (
+            <DetailRow label="购入日期" value={asset.purchaseDate} />
+          )}
         </div>
       </Section>
 
@@ -343,7 +352,9 @@ export default function AssetsDetail() {
               }`}
             />
             <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-            <DetailRow label="下次续费" value={asset.nextRenewalDate || '—'} />
+            {asset.nextRenewalDate && (
+              <DetailRow label="下次续费" value={asset.nextRenewalDate} />
+            )}
             <DetailRow
               label="状态"
               value={(
@@ -435,37 +446,37 @@ export default function AssetsDetail() {
           <DetailRow
             label="订阅到期提醒"
             value={(
-              <select
-                value={subReminder}
-                onChange={e => setSubReminder(e.target.value)}
-                className="h-8 rounded-lg border px-3 text-[12px] outline-none"
-                style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-              >
-                <option>跟随全局（7天）</option>
-                <option>1天前</option>
-                <option>3天前</option>
-                <option>7天前</option>
-                <option>14天前</option>
-                <option>关闭</option>
-              </select>
+              <Select value={subReminder} onValueChange={v => v && setSubReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（7天）">跟随全局（7天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
             )}
           />
           <DetailRow
             label="保修到期提醒"
             value={(
-              <select
-                value={warrantyReminder}
-                onChange={e => setWarrantyReminder(e.target.value)}
-                className="h-8 rounded-lg border px-3 text-[12px] outline-none"
-                style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
-              >
-                <option>跟随全局（14天）</option>
-                <option>1天前</option>
-                <option>3天前</option>
-                <option>7天前</option>
-                <option>14天前</option>
-                <option>关闭</option>
-              </select>
+              <Select value={warrantyReminder} onValueChange={v => v && setWarrantyReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（14天）">跟随全局（14天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
             )}
           />
         </div>
@@ -485,58 +496,48 @@ export default function AssetsDetail() {
               </SheetHeader>
               <div className="mt-4 space-y-3 px-4 pb-6">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>维修日期 *</label>
-                  <input
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修日期 *</Label>
+                  <Input
                     type="date"
                     value={repairDate}
                     onChange={e => setRepairDate(e.target.value)}
-                    className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                    style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>维修费用</label>
-                  <input
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修费用</Label>
+                  <Input
                     type="number"
                     step="0.01"
                     value={repairCost}
                     onChange={e => setRepairCost(e.target.value)}
                     placeholder="0.00"
-                    className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                    style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>维修原因</label>
-                  <input
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修原因</Label>
+                  <Input
                     type="text"
                     value={repairReason}
                     onChange={e => setRepairReason(e.target.value)}
                     placeholder="例：屏幕进灰清理"
-                    className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                    style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>维修商</label>
-                  <input
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修商</Label>
+                  <Input
                     type="text"
                     value={repairVendor}
                     onChange={e => setRepairVendor(e.target.value)}
                     placeholder="例：Apple Store"
-                    className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                    style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>维修结果</label>
-                  <input
+                  <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>维修结果</Label>
+                  <Input
                     type="text"
                     value={repairResult}
                     onChange={e => setRepairResult(e.target.value)}
                     placeholder="例：已完成"
-                    className="h-11 w-full rounded-[10px] border px-3 text-[15px] outline-none transition-shadow focus:shadow-[0_0_0_3px_var(--color-primary-muted)]"
-                    style={{ background: 'var(--color-canvas)', borderColor: 'var(--color-hairline)', color: 'var(--color-ink)' }}
                   />
                 </div>
                 <div className="flex items-center gap-2">

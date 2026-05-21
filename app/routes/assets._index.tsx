@@ -1,31 +1,123 @@
-import { IconChevronDown, IconSearch } from '@tabler/icons-react'
+import type { Route } from './+types/assets._index'
+import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
-import { assets, categories } from '~/data/mock'
+import { Link, redirect, useLoaderData, useNavigate } from 'react-router'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '~/components/ui/sheet'
+import {
+  getAssetsWithCategoryName,
+  getAssetTagsByUserId,
+  getCategoriesByUserId,
+  getTagsByUserId,
+} from '~/db/queries/assets'
+import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
 
-const typeFilters = ['全部', '买断', '订阅'] as const
-type TypeFilter = typeof typeFilters[number]
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
 
-export default function AssetsIndex() {
-  const navigate = useNavigate()
-  const [search, setSearch] = useState('')
-  const [activeType, setActiveType] = useState<TypeFilter>('全部')
+  const userId = user.id
+  const [rawAssets, categories, tags, assetTagRows] = await Promise.all([
+    getAssetsWithCategoryName(userId),
+    getCategoriesByUserId(userId),
+    getTagsByUserId(userId),
+    getAssetTagsByUserId(userId),
+  ])
 
-  const filteredAssets = assets.filter((a) => {
-    const matchesSearch = a.name.toLowerCase().includes(search.toLowerCase())
-    const matchesType
-      = activeType === '全部'
-        || (activeType === '买断' && a.assetType === 'one_time')
-        || (activeType === '订阅' && a.assetType === 'subscription')
-    return matchesSearch && matchesType
+  // 计算每日成本
+  const assetsWithCost = rawAssets.map((a) => {
+    let dailyCost = 0
+    if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+      dailyCost = calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
+    }
+    else if (a.assetType === 'subscription' && a.subscriptionPrice && a.billingCycle) {
+      dailyCost = calcSubscriptionDailyCost(Number(a.subscriptionPrice), a.billingCycle)
+    }
+    return { ...a, dailyCost }
   })
 
-  function getCategoryName(categoryId: string) {
-    return categories.find(c => c.id === categoryId)?.name ?? ''
+  // 构建 assetId -> tags 映射
+  const assetTagMap: Record<string, Array<{ id: string, name: string, color: string }>> = {}
+  for (const row of assetTagRows) {
+    if (!assetTagMap[row.assetId])
+      assetTagMap[row.assetId] = []
+    assetTagMap[row.assetId].push({ id: row.tagId, name: row.tagName, color: row.tagColor })
   }
 
+  return { assets: assetsWithCost, categories, tags, assetTagMap }
+}
+
+type SortOption = 'default' | 'price_asc' | 'price_desc' | 'cost_asc' | 'cost_desc' | 'date_asc' | 'date_desc'
+type TypeFilter = 'one_time' | 'subscription' | null
+
+const sortLabels: Record<SortOption, string> = {
+  default: '默认排序',
+  price_asc: '价格升序',
+  price_desc: '价格降序',
+  cost_asc: '每日成本升序',
+  cost_desc: '每日成本降序',
+  date_asc: '购入日期升序',
+  date_desc: '购入日期降序',
+}
+
+export default function AssetsIndex() {
+  const { assets, categories, tags, assetTagMap } = useLoaderData<typeof loader>()
+  const navigate = useNavigate()
+  const [search, setSearch] = useState('')
+  const [activeType, setActiveType] = useState<TypeFilter>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
+  const [sortOption, setSortOption] = useState<SortOption>('default')
+
+  // Sheet 状态
+  const [sheetType, setSheetType] = useState<'category' | 'tag' | 'sort' | null>(null)
+
+  // 筛选 + 排序
+  let filteredAssets = assets.filter((a) => {
+    const matchesSearch = a.name.toLowerCase().includes(search.toLowerCase())
+    const matchesType = !activeType || a.assetType === activeType
+    const matchesCategory = !selectedCategory || a.categoryId === selectedCategory
+    const matchesTag = !selectedTag || (assetTagMap[a.id] || []).some(t => t.id === selectedTag)
+    return matchesSearch && matchesType && matchesCategory && matchesTag
+  })
+
+  if (sortOption !== 'default') {
+    filteredAssets = [...filteredAssets].sort((a, b) => {
+      switch (sortOption) {
+        case 'price_asc':
+          return Number(a.purchasePrice ?? a.subscriptionPrice ?? 0) - Number(b.purchasePrice ?? b.subscriptionPrice ?? 0)
+        case 'price_desc':
+          return Number(b.purchasePrice ?? b.subscriptionPrice ?? 0) - Number(a.purchasePrice ?? a.subscriptionPrice ?? 0)
+        case 'cost_asc':
+          return a.dailyCost - b.dailyCost
+        case 'cost_desc':
+          return b.dailyCost - a.dailyCost
+        case 'date_asc':
+          return (a.purchaseDate || '').localeCompare(b.purchaseDate || '')
+        case 'date_desc':
+          return (b.purchaseDate || '').localeCompare(a.purchaseDate || '')
+        default:
+          return 0
+      }
+    })
+  }
+
+  const activeCategoryName = selectedCategory
+    ? categories.find(c => c.id === selectedCategory)?.name
+    : null
+  const activeTagName = selectedTag
+    ? tags.find(t => t.id === selectedTag)?.name
+    : null
+
   return (
-    <div className="pt-6 pb-8">
+    <div className="pb-8 pt-6">
       {/* Page Header */}
       <div className="mb-5 flex items-center justify-between">
         <h1
@@ -61,35 +153,75 @@ export default function AssetsIndex() {
         </div>
       </div>
 
-      {/* Type Chips */}
-      <div className="mb-4 flex gap-2">
-        {typeFilters.map(f => (
+      {/* Filter Bar */}
+      <div className="mb-4 flex items-center justify-between">
+        {/* Left: Type Toggle */}
+        <div className="flex gap-2">
+          {(['one_time', 'subscription'] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setActiveType(prev => prev === type ? null : type)}
+              className="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+              style={{
+                background: activeType === type ? 'var(--color-primary)' : 'var(--color-surface-strong)',
+                color: activeType === type ? '#fff' : 'var(--color-body)',
+              }}
+            >
+              {type === 'one_time' ? '买断' : '订阅'}
+            </button>
+          ))}
+        </div>
+
+        {/* Right: Filter Buttons */}
+        <div className="flex gap-1.5">
           <button
-            key={f}
-            onClick={() => setActiveType(f)}
-            className="rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors"
+            onClick={() => setSheetType('category')}
+            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
             style={{
-              background: activeType === f ? 'var(--color-primary)' : 'var(--color-surface-strong)',
-              color: activeType === f ? '#fff' : 'var(--color-body)',
+              background: selectedCategory ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
+              color: selectedCategory ? 'var(--color-primary)' : 'var(--color-body)',
             }}
           >
-            {f}
+            {activeCategoryName || '分类'}
+            {selectedCategory
+              ? <IconX size={12} />
+              : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
           </button>
-        ))}
-      </div>
-
-      {/* Filter Buttons */}
-      <div className="mb-4 flex gap-2">
-        {['分类', '标签', '排序'].map(label => (
           <button
-            key={label}
-            className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-[13px] transition-colors"
-            style={{ background: 'var(--color-surface-card)', color: 'var(--color-body)' }}
+            onClick={() => setSheetType('tag')}
+            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
+            style={{
+              background: selectedTag ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
+              color: selectedTag ? 'var(--color-primary)' : 'var(--color-body)',
+            }}
           >
-            {label}
-            <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />
+            {activeTagName || '标签'}
+            {selectedTag
+              ? <IconX size={12} />
+              : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
           </button>
-        ))}
+          <button
+            onClick={() => setSheetType('sort')}
+            className="flex items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[13px] transition-colors"
+            style={{
+              background: sortOption !== 'default' ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
+              color: sortOption !== 'default' ? 'var(--color-primary)' : 'var(--color-body)',
+            }}
+          >
+            {sortOption !== 'default' ? sortLabels[sortOption] : '排序'}
+            {sortOption !== 'default'
+              ? (
+                  <IconX
+                    size={12}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSortOption('default')
+                    }}
+                  />
+                )
+              : <IconChevronDown size={14} style={{ color: 'var(--color-muted)' }} />}
+          </button>
+        </div>
       </div>
 
       {/* Asset List */}
@@ -115,17 +247,19 @@ export default function AssetsIndex() {
             </span>
 
             {/* Name + Badges */}
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
                 {asset.name}
               </div>
               <div className="mt-0.5 flex items-center gap-1.5">
-                <span
-                  className="rounded-md px-1.5 py-0.5 text-[10px]"
-                  style={{ background: 'var(--color-surface-strong)', color: 'var(--color-muted)' }}
-                >
-                  {getCategoryName(asset.categoryId)}
-                </span>
+                {asset.categoryName && (
+                  <span
+                    className="rounded-md px-1.5 py-0.5 text-[10px]"
+                    style={{ background: 'var(--color-surface-strong)', color: 'var(--color-muted)' }}
+                  >
+                    {asset.categoryName}
+                  </span>
+                )}
                 {asset.assetType === 'subscription' && (
                   <span
                     className="rounded-md px-1.5 py-0.5 text-[10px]"
@@ -140,7 +274,7 @@ export default function AssetsIndex() {
             {/* Price + Daily Cost */}
             <div className="shrink-0 text-right">
               <div className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                {(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
+                {Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--color-muted-soft)' }}>
                 {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
@@ -155,6 +289,120 @@ export default function AssetsIndex() {
           </div>
         )}
       </div>
+
+      {/* Bottom Sheets */}
+      {/* 分类 */}
+      <Sheet open={sheetType === 'category'} onOpenChange={open => !open && setSheetType(null)}>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader>
+            <SheetTitle>选择分类</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-1 px-4 pb-6">
+            <button
+              onClick={() => {
+                setSelectedCategory(null)
+                setSheetType(null)
+              }}
+              className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+              style={{
+                background: !selectedCategory ? 'var(--color-primary-muted)' : 'transparent',
+                color: !selectedCategory ? 'var(--color-primary)' : 'var(--color-ink)',
+              }}
+            >
+              全部分类
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => {
+                  setSelectedCategory(cat.id)
+                  setSheetType(null)
+                }}
+                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                style={{
+                  background: selectedCategory === cat.id ? 'var(--color-primary-muted)' : 'transparent',
+                  color: selectedCategory === cat.id ? 'var(--color-primary)' : 'var(--color-ink)',
+                }}
+              >
+                {cat.emoji}
+                {' '}
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* 标签 */}
+      <Sheet open={sheetType === 'tag'} onOpenChange={open => !open && setSheetType(null)}>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader>
+            <SheetTitle>选择标签</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-1 px-4 pb-6">
+            <button
+              onClick={() => {
+                setSelectedTag(null)
+                setSheetType(null)
+              }}
+              className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+              style={{
+                background: !selectedTag ? 'var(--color-primary-muted)' : 'transparent',
+                color: !selectedTag ? 'var(--color-primary)' : 'var(--color-ink)',
+              }}
+            >
+              全部标签
+            </button>
+            {tags.map(tag => (
+              <button
+                key={tag.id}
+                onClick={() => {
+                  setSelectedTag(tag.id)
+                  setSheetType(null)
+                }}
+                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                style={{
+                  background: selectedTag === tag.id ? 'var(--color-primary-muted)' : 'transparent',
+                  color: selectedTag === tag.id ? 'var(--color-primary)' : 'var(--color-ink)',
+                }}
+              >
+                <span
+                  className="mr-2 inline-block h-2 w-2 rounded-full"
+                  style={{ background: tag.color }}
+                />
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* 排序 */}
+      <Sheet open={sheetType === 'sort'} onOpenChange={open => !open && setSheetType(null)}>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader>
+            <SheetTitle>排序方式</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-1 px-4 pb-6">
+            {(Object.entries(sortLabels) as [SortOption, string][]).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => {
+                  setSortOption(value)
+                  setSheetType(null)
+                }}
+                className="w-full rounded-lg px-4 py-3 text-left text-[14px] transition-colors"
+                style={{
+                  background: sortOption === value ? 'var(--color-primary-muted)' : 'transparent',
+                  color: sortOption === value ? 'var(--color-primary)' : 'var(--color-ink)',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
