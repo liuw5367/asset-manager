@@ -23,6 +23,25 @@
   --color-error: #c64545;
   --color-info: #5db8a6;
 
+  /* shadcn/ui token 映射 */
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-ink);
+  --color-popover: var(--color-surface-card);
+  --color-popover-foreground: var(--color-ink);
+  --color-card: var(--color-surface-card);
+  --color-card-foreground: var(--color-ink);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--color-surface-strong);
+  --color-secondary-foreground: var(--color-ink);
+  --color-muted-foreground: var(--color-muted);
+  --color-accent: var(--color-surface-soft);
+  --color-accent-foreground: var(--color-ink);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: #ffffff;
+  --color-border: var(--color-hairline);
+  --color-input: var(--color-hairline);
+  --color-ring: var(--color-primary);
+
   --font-display: "EB Garamond", Georgia, serif;
   --font-body: "Inter", -apple-system, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -53,6 +72,8 @@
     --color-body: #d4d0c8;
     --color-muted: #a09d96;
     --color-muted-soft: #8e8b82;
+    --color-primary-foreground: #ffffff;
+    --color-destructive-foreground: #ffffff;
   }
 }
 
@@ -66,6 +87,8 @@
   --color-body: #d4d0c8;
   --color-muted: #a09d96;
   --color-muted-soft: #8e8b82;
+  --color-primary-foreground: #ffffff;
+  --color-destructive-foreground: #ffffff;
 }
 
 a {
