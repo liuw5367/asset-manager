@@ -3,9 +3,6 @@
   "type": "module",
   "private": true,
   "packageManager": "pnpm@9.15.4",
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "scripts": {
     "dev": "react-router dev",
     "build": "react-router build",
