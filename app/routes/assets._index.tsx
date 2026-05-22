@@ -1,7 +1,8 @@
 import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link, redirect, useLoaderData, useNavigate } from 'react-router'
+import { redirect, useLoaderData, useNavigate } from 'react-router'
+import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import {
@@ -36,7 +37,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   // 计算每日成本
   const assetsWithCost = rawAssets.map((a) => {
     let dailyCost = 0
-    if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+    if (a.tradedInAt && a.purchasePrice && a.purchaseDate) {
+      // 已换购：冻结持有成本 = (购入价 - 回收价) / 持有天数
+      const holdingDays = Math.max(1, Math.floor((new Date(a.tradedInAt).getTime() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      const holdingCost = Number(a.purchasePrice) - Number(a.tradeInPrice || 0)
+      dailyCost = holdingCost / holdingDays
+    }
+    else if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
       dailyCost = calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
     }
     else if (a.assetType === 'subscription' && a.subscriptionPrice && a.billingCycle) {
@@ -121,21 +128,7 @@ export default function AssetsIndex() {
   return (
     <div className="pb-8 pt-6">
       {/* Page Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <h1
-          className="font-[family-name:var(--font-display)] text-[28px] font-semibold"
-          style={{ color: 'var(--color-ink)' }}
-        >
-          资产
-        </h1>
-        <Link
-          to="/assets/new"
-          className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition-opacity hover:opacity-80"
-          style={{ background: 'var(--color-primary)', color: '#fff' }}
-        >
-          + 新建资产
-        </Link>
-      </div>
+      <MainPageHeader title="资产" action={{ label: '+ 新建资产', to: '/assets/new' }} />
 
       {/* Search */}
       <div className="mb-4">
@@ -180,7 +173,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('category')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedCategory ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedCategory ? 'var(--color-primary)' : 'var(--color-body)',
@@ -196,7 +189,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('tag')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedTag ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedTag ? 'var(--color-primary)' : 'var(--color-body)',
@@ -212,7 +205,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('sort')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: sortOption !== 'default' ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: sortOption !== 'default' ? 'var(--color-primary)' : 'var(--color-body)',
@@ -273,16 +266,26 @@ export default function AssetsIndex() {
                     订阅
                   </span>
                 )}
+                {asset.tradedInAt && (
+                  <span
+                    className="rounded-md px-1.5 py-0.5 text-[10px]"
+                    style={{ background: 'var(--color-surface-strong)', color: 'var(--color-muted-soft)' }}
+                  >
+                    已换购
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Price + Daily Cost */}
+            {/* Daily Cost + Price */}
             <div className="shrink-0 text-right">
               <div className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                {Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
+                {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--color-muted-soft)' }}>
-                {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
+                {asset.tradedInAt && asset.purchasePrice
+                  ? (Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)).toLocaleString()
+                  : Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
               </div>
             </div>
           </button>

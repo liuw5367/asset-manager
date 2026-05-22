@@ -1,7 +1,9 @@
 import type { Route } from './+types/assets.$id'
-import { IconChevronLeft, IconDots, IconLoader2 } from '@tabler/icons-react'
+import { IconCalendarOff, IconLoader2, IconPencil, IconTrash } from '@tabler/icons-react'
+import { addMonths, addYears, format, isAfter } from 'date-fns'
 import { useState } from 'react'
-import { Link, redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,12 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -42,6 +38,7 @@ import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
   createRepairRecord,
+  deleteRepairRecord,
   getAssetById,
   getAssetRepairRecords,
   getAssetWarranty,
@@ -50,6 +47,7 @@ import {
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
+  updateRepairRecord,
   upsertWarranty,
 } from '~/db/queries/assets'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
@@ -79,19 +77,34 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(userId),
   ])
 
+  // 加载关联的旧设备（以旧换新场景）
+  let tradedFromAsset = null
+  if (asset.tradedFromAssetId) {
+    const { getTradedFromAsset } = await import('~/db/queries/assets')
+    tradedFromAsset = await getTradedFromAsset(asset.tradedFromAssetId)
+  }
+
   // 计算每日成本
   let dailyCost = 0
-  if (asset.assetType === 'one_time' && asset.purchasePrice && asset.purchaseDate) {
+  let holdingDays = 0
+  if (asset.tradedInAt) {
+    // 旧设备已换购：按回收日期冻结计算（T-03）
+    if (asset.purchasePrice && asset.purchaseDate) {
+      holdingDays = Math.max(1, Math.floor((new Date(asset.tradedInAt).getTime() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      const holdingCost = Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)
+      dailyCost = holdingDays > 0 ? holdingCost / holdingDays : 0
+    }
+  }
+  else if (asset.assetType === 'one_time' && asset.purchasePrice && asset.purchaseDate) {
     dailyCost = calcOneTimeDailyCost(Number(asset.purchasePrice), asset.purchaseDate)
+    holdingDays = Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
   }
   else if (asset.assetType === 'subscription' && asset.subscriptionPrice && asset.billingCycle) {
     dailyCost = calcSubscriptionDailyCost(Number(asset.subscriptionPrice), asset.billingCycle)
+    holdingDays = asset.purchaseDate
+      ? Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0
   }
-
-  // 计算持有天数
-  const holdingDays = asset.purchaseDate
-    ? Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
-    : 0
 
   return {
     asset,
@@ -104,6 +117,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     allTags,
     paymentTypes,
     paymentAccounts,
+    tradedFromAsset,
   }
 }
 
@@ -123,6 +137,13 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect('/assets', { headers })
   }
 
+  if (intent === 'stop-subscription') {
+    const { stopSubscription } = await import('~/db/queries/assets')
+    const stoppedAt = formData.get('stoppedAt') as string
+    await stopSubscription(assetId, user.id, stoppedAt)
+    return { ok: true }
+  }
+
   if (intent === 'add-repair') {
     await createRepairRecord({
       assetId,
@@ -133,6 +154,25 @@ export async function action({ request, params }: Route.ActionArgs) {
       result: (formData.get('result') as string) || undefined,
       isDone: formData.get('isDone') === 'true',
     })
+    return { ok: true }
+  }
+
+  if (intent === 'update-repair') {
+    const repairId = formData.get('repairId') as string
+    await updateRepairRecord(repairId, {
+      repairDate: formData.get('repairDate') as string,
+      cost: (formData.get('cost') as string) || '0',
+      reason: (formData.get('reason') as string) || undefined,
+      vendor: (formData.get('vendor') as string) || undefined,
+      result: (formData.get('result') as string) || undefined,
+      isDone: formData.get('isDone') === 'true',
+    })
+    return { ok: true }
+  }
+
+  if (intent === 'delete-repair') {
+    const repairId = formData.get('repairId') as string
+    await deleteRepairRecord(repairId)
     return { ok: true }
   }
 
@@ -169,6 +209,7 @@ export default function AssetsDetail() {
     allTags,
     paymentTypes,
     paymentAccounts,
+    tradedFromAsset,
   } = useLoaderData<typeof loader>()
   const navigate = useNavigate()
   const submit = useSubmit()
@@ -182,6 +223,7 @@ export default function AssetsDetail() {
 
   // 维修表单状态
   const [todayDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [editingRepairId, setEditingRepairId] = useState<string | null>(null)
   const [repairDate, setRepairDate] = useState(() => new Date().toISOString().split('T')[0])
   const [repairCost, setRepairCost] = useState('')
   const [repairReason, setRepairReason] = useState('')
@@ -199,6 +241,41 @@ export default function AssetsDetail() {
   const [subReminder, setSubReminder] = useState('跟随全局（7天）')
   const [warrantyReminder, setWarrantyReminder] = useState('跟随全局（14天）')
 
+  // 停止订阅
+  const [stopSubDialogOpen, setStopSubDialogOpen] = useState(false)
+  const [stopSubDate, setStopSubDate] = useState(todayDate)
+
+  // 计算下次续费日期（D-05）
+  function calcNextRenewalDate(): string | null {
+    if (asset.assetType !== 'subscription' || !asset.subscriptionStartDate || !asset.billingCycle)
+      return null
+    const start = new Date(asset.subscriptionStartDate)
+    const today = new Date()
+    let next = new Date(start)
+    if (asset.billingCycle === 'monthly') {
+      while (!isAfter(next, today))
+        next = addMonths(next, 1)
+    }
+    else if (asset.billingCycle === 'quarterly') {
+      while (!isAfter(next, today))
+        next = addMonths(next, 3)
+    }
+    else {
+      while (!isAfter(next, today))
+        next = addYears(next, 1)
+    }
+    return format(next, 'yyyy-MM-dd')
+  }
+  const nextRenewalDate = calcNextRenewalDate()
+
+  function handleStopSubscription() {
+    const fd = new FormData()
+    fd.append('intent', 'stop-subscription')
+    fd.append('stoppedAt', stopSubDate)
+    submit(fd, { method: 'post' })
+    setStopSubDialogOpen(false)
+  }
+
   function handleDelete() {
     const fd = new FormData()
     fd.append('intent', 'delete')
@@ -207,7 +284,13 @@ export default function AssetsDetail() {
 
   function handleAddRepair() {
     const fd = new FormData()
-    fd.append('intent', 'add-repair')
+    if (editingRepairId) {
+      fd.append('intent', 'update-repair')
+      fd.append('repairId', editingRepairId)
+    }
+    else {
+      fd.append('intent', 'add-repair')
+    }
     fd.append('repairDate', repairDate)
     fd.append('cost', repairCost || '0')
     fd.append('reason', repairReason)
@@ -216,13 +299,35 @@ export default function AssetsDetail() {
     fd.append('isDone', String(repairIsDone))
     submit(fd, { method: 'post' })
     setSheetOpen(false)
-    // 重置表单
+    setEditingRepairId(null)
+  }
+
+  function openEditRepair(record: typeof repairRecords[number]) {
+    setEditingRepairId(record.id)
+    setRepairDate(record.repairDate)
+    setRepairCost(record.cost ? String(record.cost) : '')
+    setRepairReason(record.reason || '')
+    setRepairVendor(record.vendor || '')
+    setRepairResult(record.result || '')
+    setRepairIsDone(record.isDone ?? true)
+    setSheetOpen(true)
+  }
+
+  function resetRepairForm() {
+    setEditingRepairId(null)
     setRepairDate(todayDate)
     setRepairCost('')
     setRepairReason('')
     setRepairVendor('')
     setRepairResult('')
     setRepairIsDone(true)
+  }
+
+  function handleDeleteRepair(repairId: string) {
+    const fd = new FormData()
+    fd.append('intent', 'delete-repair')
+    fd.append('repairId', repairId)
+    submit(fd, { method: 'post' })
   }
 
   function handleSaveWarranty() {
@@ -255,65 +360,66 @@ export default function AssetsDetail() {
   return (
     <div>
       {/* Top bar */}
-      <div className="flex items-center justify-between py-3" style={{ minHeight: 48 }}>
-        <Link
-          to="/assets"
-          className="flex items-center gap-1 text-[14px] font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconChevronLeft size={18} />
-          资产
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link
-            to={`/assets/${asset.id}/edit`}
-            className="text-[14px] font-medium"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            编辑
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-[16px] tracking-wider" />}>
-              <IconDots size={18} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[140px]">
-              <DropdownMenuItem onClick={() => navigate(`/assets/${asset.id}/trade-in`)}>
-                以旧换新
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                删除资产
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>确认删除</AlertDialogTitle>
-                <AlertDialogDescription>
-                  确定要删除「
-                  {asset.name}
-                  」吗？删除后可在回收站中恢复。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel
-                  variant="outline"
-                  className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
-                >
-                  取消
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  variant="default"
-                  onClick={handleDelete}
-                  className="h-10 !bg-[var(--color-error)] px-4 text-[14px] !text-white hover:!bg-[var(--color-error)]/90"
-                >
-                  删除
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
+      <SubPageHeader
+        backTo="/assets"
+        backLabel="资产"
+        title={asset.name}
+        primaryAction={{
+          label: '编辑',
+          icon: IconPencil,
+          to: `/assets/${asset.id}/edit`,
+        }}
+        moreItems={[
+          ...(asset.assetType === 'one_time'
+            ? [{
+                label: '以旧换新',
+                onClick: () => navigate(`/assets/${asset.id}/trade-in`),
+              }]
+            : []),
+          ...(asset.assetType === 'subscription' && asset.subscriptionStatus === 'active'
+            ? [{
+                label: '停止订阅',
+                icon: IconCalendarOff,
+                onClick: () => setStopSubDialogOpen(true),
+              }]
+            : []),
+          ...(!asset.tradedInAt
+            ? [{
+                label: '删除资产',
+                icon: IconTrash,
+                variant: 'destructive' as const,
+                onClick: () => setDeleteDialogOpen(true),
+              }]
+            : []),
+        ].filter(Boolean) as { label: string, icon?: typeof IconTrash, variant?: 'default' | 'destructive', onClick: () => void }[]}
+      />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除「
+              {asset.name}
+              」吗？删除后可在回收站中恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              onClick={handleDelete}
+              className="h-10 !bg-[var(--color-error)] px-4 text-[14px] !text-white hover:!bg-[var(--color-error)]/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Hero section */}
       <div className="flex flex-col items-center py-4 text-center">
@@ -356,35 +462,40 @@ export default function AssetsDetail() {
         </div>
       </div>
 
-      {/* Financial Summary */}
-      <Section title="财务摘要">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow label="购入价" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} />
-          {asset.currentValue && (
-            <DetailRow label="当前估价" value={Number(asset.currentValue).toLocaleString()} muted />
-          )}
-          <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-          {holdingDays > 0 && (
-            <DetailRow label="持有天数" value={`${holdingDays} 天`} />
-          )}
-          <DetailRow
-            label="支付方式"
-            value={
-              paymentAccount && paymentType
-                ? `${paymentAccount.name} · ${paymentType.name}`
-                : paymentType?.name || '—'
-            }
-          />
-          {asset.purchaseDate && (
-            <DetailRow label="购入日期" value={asset.purchaseDate} />
-          )}
-        </div>
-      </Section>
+      {/* Merged Info Card */}
+      <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+        {/* One-time fields */}
+        {asset.assetType === 'one_time' && (
+          <>
+            {asset.purchasePrice && (
+              <DetailRow label="购入价" value={Number(asset.purchasePrice).toLocaleString()} />
+            )}
+            {asset.currentValue && (
+              <DetailRow label="当前估价" value={Number(asset.currentValue).toLocaleString()} muted />
+            )}
+            <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
+            {holdingDays > 0 && (
+              <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+            )}
+            {(paymentType || paymentAccount) && (
+              <DetailRow
+                label="支付方式"
+                value={
+                  paymentAccount && paymentType
+                    ? `${paymentAccount.name} · ${paymentType.name}`
+                    : paymentType?.name || '—'
+                }
+              />
+            )}
+            {asset.purchaseDate && (
+              <DetailRow label="购入日期" value={asset.purchaseDate} />
+            )}
+          </>
+        )}
 
-      {/* Subscription detail */}
-      {asset.assetType === 'subscription' && (
-        <Section title="订阅信息">
-          <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
+        {/* Subscription fields */}
+        {asset.assetType === 'subscription' && (
+          <>
             <DetailRow
               label="订阅周期"
               value={
@@ -393,63 +504,99 @@ export default function AssetsDetail() {
                   : asset.billingCycle === 'quarterly' ? '季付' : '年付'
               }
             />
-            <DetailRow
-              label="订阅金额"
-              value={`${asset.subscriptionPrice}/${
-                asset.billingCycle === 'monthly'
-                  ? '月'
-                  : asset.billingCycle === 'quarterly' ? '季' : '年'
-              }`}
-            />
+            {asset.subscriptionPrice && (
+              <DetailRow
+                label="订阅金额"
+                value={`${asset.subscriptionPrice}/${
+                  asset.billingCycle === 'monthly'
+                    ? '月'
+                    : asset.billingCycle === 'quarterly' ? '季' : '年'
+                }`}
+              />
+            )}
             <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-            {asset.nextRenewalDate && (
-              <DetailRow label="下次续费" value={asset.nextRenewalDate} />
+            {nextRenewalDate && (
+              <DetailRow label="下次续费" value={nextRenewalDate} />
             )}
             <DetailRow
               label="状态"
               value={(
                 <span
                   className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium"
-                  style={{ background: 'var(--color-success)', color: '#fff' }}
+                  style={{
+                    background: asset.subscriptionStatus === 'active' ? 'var(--color-success)' : 'var(--color-muted)',
+                    color: '#fff',
+                  }}
                 >
                   {asset.subscriptionStatus === 'active' ? '活跃' : asset.subscriptionStatus === 'cancelled' ? '已取消' : '已过期'}
                 </span>
               )}
             />
-          </div>
-        </Section>
-      )}
+          </>
+        )}
 
-      {/* Basic Info */}
-      <Section title="基础信息">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow
-            label="分类"
-            value={category ? `${category.emoji} ${category.name}` : '—'}
-          />
+        {/* Common fields */}
+        <DetailRow
+          label="分类"
+          value={category ? `${category.emoji} ${category.name}` : '—'}
+        />
+        {assetTags.length > 0 && (
           <DetailRow
             label="标签"
-            value={
-              assetTags.length > 0
-                ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {assetTags.map(tag => (
-                        <Badge
-                          key={tag.id}
-                          className="rounded-full px-2.5 py-0.5 text-[12px] font-medium"
-                          style={{ background: `${tag.color}22`, color: tag.color }}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  )
-                : '—'
-            }
+            value={(
+              <div className="flex flex-wrap gap-1.5">
+                {assetTags.map(tag => (
+                  <Badge
+                    key={tag.id}
+                    className="rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+                    style={{ background: `${tag.color}22`, color: tag.color }}
+                  >
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
           />
-          <DetailRow label="备注" value={asset.notes || '—'} muted={!asset.notes} />
+        )}
+        {asset.notes && (
+          <DetailRow label="备注" value={asset.notes} muted />
+        )}
+      </div>
+
+      {/* Subscription stopped card */}
+      {asset.assetType === 'subscription' && asset.subscriptionStatus === 'cancelled' && asset.subscriptionStoppedAt && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
+          <div className="flex items-center gap-2">
+            <IconCalendarOff size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>订阅已停止</span>
+          </div>
+          <div className="mt-2 text-[13px]" style={{ color: 'var(--color-body)' }}>
+            停止日期：
+            {asset.subscriptionStoppedAt}
+          </div>
         </div>
-      </Section>
+      )}
+
+      {/* Trade-in card for old device (T-02) */}
+      {asset.tradedInAt && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>已换购</div>
+          <DetailRow label="回收价格" value={asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'} />
+          <DetailRow label="回收日期" value={asset.tradedInAt} />
+          <DetailRow label="持有成本" value={asset.purchasePrice ? (Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)).toLocaleString() : '—'} />
+          <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+          <DetailRow label="持有成本/天" value={`${dailyCost.toFixed(2)}/天`} primary />
+        </div>
+      )}
+
+      {/* Trade-in info for new device (T-05) */}
+      {!asset.tradedInAt && tradedFromAsset && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>以旧换新购入</div>
+          <DetailRow label="旧设备回收价" value={tradedFromAsset.tradeInPrice ? Number(tradedFromAsset.tradeInPrice).toLocaleString() : '—'} />
+          <DetailRow label="实际支付价格" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} primary />
+        </div>
+      )}
 
       {/* Warranty */}
       <Section
@@ -502,59 +649,24 @@ export default function AssetsDetail() {
         </div>
       </Section>
 
-      {/* Reminder Settings */}
-      <Section title="到期提醒设置">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow
-            label="订阅到期提醒"
-            value={(
-              <Select value={subReminder} onValueChange={v => v && setSubReminder(v)}>
-                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="跟随全局（7天）">跟随全局（7天）</SelectItem>
-                  <SelectItem value="1天前">1天前</SelectItem>
-                  <SelectItem value="3天前">3天前</SelectItem>
-                  <SelectItem value="7天前">7天前</SelectItem>
-                  <SelectItem value="14天前">14天前</SelectItem>
-                  <SelectItem value="关闭">关闭</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-          <DetailRow
-            label="保修到期提醒"
-            value={(
-              <Select value={warrantyReminder} onValueChange={v => v && setWarrantyReminder(v)}>
-                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="跟随全局（14天）">跟随全局（14天）</SelectItem>
-                  <SelectItem value="1天前">1天前</SelectItem>
-                  <SelectItem value="3天前">3天前</SelectItem>
-                  <SelectItem value="7天前">7天前</SelectItem>
-                  <SelectItem value="14天前">14天前</SelectItem>
-                  <SelectItem value="关闭">关闭</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-      </Section>
-
       {/* Repair Records */}
       <Section
         title="维修记录"
         action={(
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 px-1 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }} />}>
+          <Sheet
+            open={sheetOpen}
+            onOpenChange={(open) => {
+              setSheetOpen(open)
+              if (!open)
+                resetRepairForm()
+            }}
+          >
+            <SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 px-1 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }} onClick={() => resetRepairForm()} />}>
               + 添加维修
             </SheetTrigger>
             <SheetContent side="bottom" className="rounded-t-xl">
               <SheetHeader>
-                <SheetTitle>添加维修记录</SheetTitle>
+                <SheetTitle>{editingRepairId ? '编辑维修记录' : '添加维修记录'}</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-3 px-4 pb-6">
                 <div>
@@ -619,7 +731,7 @@ export default function AssetsDetail() {
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] !bg-[var(--color-primary)] text-[15px] font-semibold !text-white hover:!bg-[var(--color-primary-active)]"
                 >
                   {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
-                  添加维修记录
+                  {editingRepairId ? '保存修改' : '添加维修记录'}
                 </Button>
               </div>
             </SheetContent>
@@ -645,24 +757,84 @@ export default function AssetsDetail() {
                         <div className="w-px flex-1" style={{ background: 'var(--color-hairline)' }} />
                       )}
                     </div>
-                    <div className="flex-1 pb-2">
+                    <div
+                      className="min-w-0 flex-1 cursor-pointer pb-2"
+                      onClick={() => openEditRepair(record)}
+                    >
                       <div className="text-[12px] font-medium" style={{ color: 'var(--color-muted)' }}>
                         {record.repairDate}
                       </div>
                       <div className="text-[14px]" style={{ color: 'var(--color-ink)' }}>
-                        {record.reason || '—'}
+                        {record.reason || '维修'}
                       </div>
-                      <div className="text-[12px]" style={{ color: 'var(--color-muted)' }}>
-                        {record.vendor || '—'}
-                        {' · '}
-                        {Number(record.cost) > 0 ? Number(record.cost) : '0（保修内）'}
-                        {' · '}
-                        <span style={{ color: 'var(--color-success)' }}>{record.result || '—'}</span>
+                      <div className="flex items-center gap-1 text-[12px]" style={{ color: 'var(--color-muted)' }}>
+                        {record.vendor && <span>{record.vendor}</span>}
+                        {record.vendor && <span>·</span>}
+                        <span>{Number(record.cost) > 0 ? Number(record.cost) : '0（保修内）'}</span>
+                        {record.result && (
+                          <>
+                            <span>·</span>
+                            <span style={{ color: 'var(--color-success)' }}>{record.result}</span>
+                          </>
+                        )}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteRepair(record.id)
+                      }}
+                      className="mt-1 shrink-0 self-start p-1 opacity-40 transition-opacity hover:opacity-100"
+                      aria-label="删除维修记录"
+                    >
+                      <IconTrash size={14} />
+                    </button>
                   </div>
                 ))
               )}
+        </div>
+      </Section>
+
+      {/* Reminder Settings - at bottom */}
+      <Section title="到期提醒设置">
+        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
+          <DetailRow
+            label="订阅到期提醒"
+            value={(
+              <Select value={subReminder} onValueChange={v => v && setSubReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（7天）">跟随全局（7天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <DetailRow
+            label="保修到期提醒"
+            value={(
+              <Select value={warrantyReminder} onValueChange={v => v && setWarrantyReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（14天）">跟随全局（14天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
         </div>
       </Section>
 
@@ -709,6 +881,43 @@ export default function AssetsDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Stop Subscription Dialog */}
+      <Dialog open={stopSubDialogOpen} onOpenChange={setStopSubDialogOpen}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>停止订阅</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[14px]" style={{ color: 'var(--color-body)' }}>
+              选择停止订阅的日期。停止后将不再计算每日成本。
+            </p>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>停止日期 *</Label>
+              <DatePicker value={stopSubDate} onChange={setStopSubDate} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+              onClick={() => setStopSubDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="h-10 !bg-[var(--color-primary)] px-4 text-[14px] !text-white hover:!bg-[var(--color-primary-active)]"
+              onClick={handleStopSubscription}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
+              确认停止
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -724,9 +933,13 @@ function Section({
 }) {
   return (
     <div>
-      <div className="my-4 flex items-center gap-3" style={{ color: 'var(--color-ink)' }}>
-        <h3 className="text-[16px] font-semibold">{title}</h3>
-        <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
+      <div className="my-4 flex items-center justify-between">
+        <h3
+          className="text-sm font-medium uppercase tracking-wide"
+          style={{ color: 'var(--color-muted-soft)' }}
+        >
+          {title}
+        </h3>
         {action}
       </div>
       {children}

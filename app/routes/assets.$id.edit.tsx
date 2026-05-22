@@ -1,6 +1,9 @@
 import type { Route } from './+types/assets.$id.edit'
+import { IconPencil } from '@tabler/icons-react'
+import { useRef } from 'react'
 import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
+import { SubPageHeader } from '~/components/page-header'
 import {
   getAssetById,
   getAssetWithTags,
@@ -96,37 +99,49 @@ export default function AssetsEdit() {
   const { asset, tagIds, categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const actionData = useActionData<typeof action>()
   const submit = useSubmit()
+  const submitRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <AssetForm
-      categories={categories}
-      tags={tags}
-      paymentTypes={paymentTypes}
-      paymentAccounts={paymentAccounts}
-      defaultValues={{
-        name: asset.name,
-        emoji: asset.emoji,
-        categoryId: asset.categoryId || '',
-        assetType: asset.assetType,
-        tagIds,
-        notes: asset.notes || '',
-        paymentTypeId: asset.paymentTypeId || '',
-        paymentAccountId: asset.paymentAccountId || '',
-        purchasePrice: asset.purchasePrice || '',
-        currentValue: asset.currentValue || '',
-        purchaseDate: asset.purchaseDate || '',
-        subscriptionPrice: asset.subscriptionPrice || '',
-        billingCycle: asset.billingCycle || undefined,
-        nextRenewalDate: asset.nextRenewalDate || '',
-        subscriptionStartDate: asset.subscriptionStartDate || '',
-      }}
-      showSubscriptionToggle
-      submitLabel="保存资产"
-      backLabel="‹ 返回详情"
-      backTo={`/assets/${asset.id}`}
-      title="编辑资产"
-      errors={actionData?.errors}
-      onSubmit={fd => submit(fd, { method: 'post' })}
-    />
+    <div>
+      <SubPageHeader
+        backTo={`/assets/${asset.id}`}
+        backLabel="返回详情"
+        title="编辑资产"
+        primaryAction={{
+          label: '保存',
+          icon: IconPencil,
+          onClick: () => submitRef.current?.click(),
+        }}
+      />
+      <AssetForm
+        categories={categories}
+        tags={tags}
+        paymentTypes={paymentTypes}
+        paymentAccounts={paymentAccounts}
+        defaultValues={{
+          name: asset.name,
+          emoji: asset.emoji,
+          categoryId: asset.categoryId || '',
+          assetType: asset.assetType,
+          tagIds,
+          notes: asset.notes || '',
+          paymentTypeId: asset.paymentTypeId || '',
+          paymentAccountId: asset.paymentAccountId || '',
+          purchasePrice: asset.purchasePrice || '',
+          currentValue: asset.currentValue || '',
+          purchaseDate: asset.purchaseDate || '',
+          subscriptionPrice: asset.subscriptionPrice || '',
+          billingCycle: asset.billingCycle || undefined,
+          nextRenewalDate: asset.nextRenewalDate || '',
+          subscriptionStartDate: asset.subscriptionStartDate || '',
+        }}
+        showSubscriptionToggle
+        hideHeader
+        submitLabel="保存资产"
+        errors={actionData?.errors}
+        onSubmit={fd => submit(fd, { method: 'post' })}
+        submitRef={submitRef}
+      />
+    </div>
   )
 }

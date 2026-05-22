@@ -182,6 +182,71 @@ export async function softDeleteAsset(id: string, userId: string) {
     .where(and(eq(assets.id, id), eq(assets.userId, userId)))
 }
 
+// ========== 停止订阅 ==========
+
+export async function stopSubscription(id: string, userId: string, stoppedAt: string) {
+  await db
+    .update(assets)
+    .set({
+      subscriptionStatus: 'cancelled',
+      subscriptionStoppedAt: stoppedAt,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+// ========== 以旧换新 ==========
+
+export async function markAssetAsTradedIn(id: string, userId: string, tradeInPrice: string, tradedInAt: string) {
+  await db
+    .update(assets)
+    .set({
+      tradedInAt,
+      tradeInPrice,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+export async function linkTradedFromAsset(newAssetId: string, oldAssetId: string) {
+  await db
+    .update(assets)
+    .set({
+      tradedFromAssetId: oldAssetId,
+      updatedAt: new Date(),
+    })
+    .where(eq(assets.id, newAssetId))
+}
+
+export async function getOrCreateTradeInTag(userId: string) {
+  const tagName = '以旧换新购买'
+  const existing = await db
+    .select()
+    .from(tags)
+    .where(and(eq(tags.userId, userId), eq(tags.name, tagName)))
+    .limit(1)
+
+  if (existing[0])
+    return existing[0]
+
+  const [tag] = await db
+    .insert(tags)
+    .values({ userId, name: tagName, color: '#7c6dea' })
+    .returning()
+
+  return tag
+}
+
+export async function getTradedFromAsset(assetId: string) {
+  const rows = await db
+    .select()
+    .from(assets)
+    .where(eq(assets.id, assetId))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
 // ========== 分类 ==========
 
 export async function getCategoriesByUserId(userId: string) {
@@ -248,6 +313,35 @@ export async function createRepairRecord(input: CreateRepairRecordInput) {
   return record.id
 }
 
+export interface UpdateRepairRecordInput {
+  repairDate: string
+  cost?: string
+  reason?: string
+  vendor?: string
+  result?: string
+  isDone?: boolean
+}
+
+export async function updateRepairRecord(id: string, input: UpdateRepairRecordInput) {
+  await db
+    .update(repairRecords)
+    .set({
+      repairDate: input.repairDate,
+      cost: input.cost ?? '0',
+      reason: input.reason ?? null,
+      vendor: input.vendor ?? null,
+      result: input.result ?? null,
+      isDone: input.isDone ?? true,
+    })
+    .where(eq(repairRecords.id, id))
+}
+
+export async function deleteRepairRecord(id: string) {
+  await db
+    .delete(repairRecords)
+    .where(eq(repairRecords.id, id))
+}
+
 // ========== 保修信息 ==========
 
 export interface UpsertWarrantyInput {
@@ -304,6 +398,8 @@ export async function getAssetsWithCategoryName(userId: string) {
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
       purchaseDate: assets.purchaseDate,
+      tradedInAt: assets.tradedInAt,
+      tradeInPrice: assets.tradeInPrice,
       createdAt: assets.createdAt,
       categoryName: categories.name,
     })

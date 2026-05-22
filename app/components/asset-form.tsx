@@ -1,13 +1,14 @@
 import type { AssetFormValues } from '~/lib/asset.schema'
 import { IconLoader2 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useNavigation } from 'react-router'
 import { Button } from '~/components/ui/button'
 import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
+import { MultiSelect } from '~/components/ui/multi-select'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
@@ -49,11 +50,13 @@ interface AssetFormProps {
   title?: string
   purchasePriceLabel?: string
   hideOneTimeFields?: boolean
+  hideHeader?: boolean
   onAssetTypeChange?: (isSubscription: boolean) => void
   errors?: Record<string, string[]>
   onSubmit: (fd: FormData) => void
   topContent?: React.ReactNode
   children?: React.ReactNode
+  submitRef?: React.Ref<HTMLButtonElement>
 }
 
 export function AssetForm({
@@ -69,15 +72,18 @@ export function AssetForm({
   title,
   purchasePriceLabel = '购入价 *',
   hideOneTimeFields = false,
+  hideHeader = false,
   onAssetTypeChange,
   errors: serverErrors,
   onSubmit,
   topContent,
   children,
+  submitRef,
 }: AssetFormProps) {
   const navigate = useNavigate()
   const navigation = useNavigation()
   const isSubmitting = navigation.state === 'submitting'
+  const internalSubmitRef = useRef<HTMLButtonElement>(null)
 
   const [isSubscription, setIsSubscription] = useState(defaultValues?.assetType === 'subscription')
   const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState<string | null>(defaultValues?.paymentTypeId || null)
@@ -85,7 +91,6 @@ export function AssetForm({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(defaultValues?.categoryId || null)
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<AssetFormValues['billingCycle'] | null>(defaultValues?.billingCycle || null)
   const [selectedPurchaseDate, setSelectedPurchaseDate] = useState(defaultValues?.purchaseDate || '')
-  const [selectedNextRenewalDate, setSelectedNextRenewalDate] = useState(defaultValues?.nextRenewalDate || '')
   const [selectedSubscriptionStartDate, setSelectedSubscriptionStartDate] = useState(defaultValues?.subscriptionStartDate || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(defaultValues?.tagIds || [])
   const [selectedEmoji, setSelectedEmoji] = useState(defaultValues?.emoji || '📦')
@@ -175,41 +180,56 @@ export function AssetForm({
 
   return (
     <div>
-      {/* Top bar */}
-      <div
-        className="sticky top-0 z-10 flex items-center justify-between py-3"
-        style={{ background: 'var(--color-canvas)' }}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => backTo && navigate(backTo)}
-          className="h-9 px-2 text-sm"
-          style={{ color: 'var(--color-muted)' }}
+      {/* Top bar - only show when hideHeader is false */}
+      {!hideHeader && (
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between py-3"
+          style={{ background: 'var(--color-canvas)' }}
         >
-          {backLabel}
-        </Button>
-        {title && (
-          <span className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-            {title}
-          </span>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleSubmit(handleFormSubmit)}
-          disabled={isSubmitting}
-          className="h-9 gap-1 px-2 text-sm font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
-          {isSubmitting ? '保存中' : '保存'}
-        </Button>
-      </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => backTo && navigate(backTo)}
+            className="h-9 px-2 text-sm"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            {backLabel}
+          </Button>
+          {title && (
+            <span className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
+              {title}
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleSubmit(handleFormSubmit)}
+            disabled={isSubmitting}
+            className="h-9 gap-1 px-2 text-sm font-medium"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+            {isSubmitting ? '保存中' : '保存'}
+          </Button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(handleFormSubmit)}>
+        {/* Hidden submit button for external triggering */}
+        <button
+          ref={(el) => {
+            (internalSubmitRef as { current: HTMLButtonElement | null }).current = el
+            if (typeof submitRef === 'function')
+              submitRef(el)
+            else if (submitRef && 'current' in submitRef)
+              (submitRef as { current: HTMLButtonElement | null }).current = el
+          }}
+          type="submit"
+          className="hidden"
+          aria-hidden="true"
+        />
         {topContent && <div className="mb-3">{topContent}</div>}
 
         {/* Emoji */}
@@ -337,6 +357,7 @@ export function AssetForm({
               className="mb-1"
               style={{ borderColor: fieldError('subscriptionPrice') ? 'var(--color-error)' : undefined }}
               type="number"
+              inputMode="decimal"
               step="0.01"
               placeholder="0.00"
               {...register('subscriptionPrice')}
@@ -373,17 +394,7 @@ export function AssetForm({
             </Select>
             {fieldError('billingCycle') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('billingCycle')}</p>}
 
-            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</Label>
-            <input type="hidden" {...register('nextRenewalDate')} value={selectedNextRenewalDate} />
-            <DatePicker
-              className="mb-1"
-              value={selectedNextRenewalDate}
-              onChange={(v) => {
-                setSelectedNextRenewalDate(v)
-                setValue('nextRenewalDate', v)
-              }}
-            />
-            {fieldError('nextRenewalDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('nextRenewalDate')}</p>}
+            {/* 下次续费日期由系统自动计算，不再手动输入 */}
 
             <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅开始日期</Label>
             <input type="hidden" {...register('subscriptionStartDate')} value={selectedSubscriptionStartDate} />
@@ -450,24 +461,13 @@ export function AssetForm({
 
         {/* Tags */}
         <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {tags.map(tag => (
-            <Button
-              key={tag.id}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => toggleTag(tag.id)}
-              className="h-8 rounded-full px-3 text-[13px] font-medium"
-              style={{
-                background: selectedTags.includes(tag.id) ? `${tag.color}22` : 'var(--color-surface-strong)',
-                color: selectedTags.includes(tag.id) ? tag.color : 'var(--color-body)',
-                border: `1px solid ${selectedTags.includes(tag.id) ? tag.color : 'transparent'}`,
-              }}
-            >
-              {tag.name}
-            </Button>
-          ))}
+        <div className="mb-3">
+          <MultiSelect
+            items={tags.map(tag => ({ value: tag.id, label: tag.name, color: tag.color }))}
+            selected={selectedTags}
+            onToggle={toggleTag}
+            placeholder="可选"
+          />
         </div>
 
         {/* Notes */}

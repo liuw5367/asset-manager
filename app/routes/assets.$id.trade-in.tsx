@@ -1,19 +1,21 @@
 import type { Route } from './+types/assets.$id.trade-in'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
+import { SubPageHeader } from '~/components/page-header'
 import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import {
   getAssetById,
   getCategoriesByUserId,
+  getOrCreateTradeInTag,
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
-  softDeleteAsset,
+  linkTradedFromAsset,
+  markAssetAsTradedIn,
 } from '~/db/queries/assets'
-import { calcOneTimeDailyCost } from '~/lib/cost'
 
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -46,14 +48,23 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   const userId = user.id
   const formData = await request.formData()
+  const tradeInPrice = (formData.get('tradeInPrice') as string) || '0'
+  const tradeInDate = (formData.get('tradeInDate') as string) || new Date().toISOString().split('T')[0]
 
-  // 1. 软删除旧资产
-  await softDeleteAsset(params.id, userId)
+  // 1. 标记旧资产为已换购（不再软删除）
+  await markAssetAsTradedIn(params.id, userId, tradeInPrice, tradeInDate)
 
-  // 2. 创建新资产
+  // 2. 获取/创建「以旧换新购买」标签
+  const tradeInTag = await getOrCreateTradeInTag(userId)
+
+  // 3. 创建新资产
   const { createAsset } = await import('~/db/queries/assets')
   const assetType = (formData.get('assetType') as 'one_time' | 'subscription') || 'one_time'
   const tagIds = formData.getAll('tagIds').map(String)
+  // 自动添加以旧换新标签
+  if (!tagIds.includes(tradeInTag.id))
+    tagIds.push(tradeInTag.id)
+
   const baseData = {
     userId,
     name: formData.get('name') as string,
@@ -71,16 +82,18 @@ export async function action({ request, params }: Route.ActionArgs) {
       ? {
           ...baseData,
           purchasePrice: formData.get('actualSpend') as string,
-          purchaseDate: formData.get('tradeInDate') as string,
+          purchaseDate: tradeInDate,
         }
       : {
           ...baseData,
           subscriptionPrice: (formData.get('subscriptionPrice') as string) || undefined,
           billingCycle: (formData.get('billingCycle') as 'monthly' | 'quarterly' | 'yearly') || undefined,
-          nextRenewalDate: (formData.get('nextRenewalDate') as string) || undefined,
           subscriptionStartDate: (formData.get('subscriptionStartDate') as string) || undefined,
         },
   )
+
+  // 4. 关联新旧资产
+  await linkTradedFromAsset(newAssetId, params.id)
 
   return redirect(`/assets/${newAssetId}`, { headers })
 }
@@ -88,50 +101,57 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function AssetsTradeIn() {
   const { asset, categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const submit = useSubmit()
+  const submitRef = useRef<HTMLButtonElement>(null)
 
   const [tradeInPrice, setTradeInPrice] = useState('')
   const [newPrice, setNewPrice] = useState('')
-  const [todayTs] = useState(() => Date.now())
   const [tradeInDate, setTradeInDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [isSubscriptionNewAsset, setIsSubscriptionNewAsset] = useState(false)
 
   const tradeVal = Number.parseFloat(tradeInPrice) || 0
   const newP = Number.parseFloat(newPrice) || 0
   const showCalc = tradeVal > 0 || newP > 0
   const actualSpend = newP - tradeVal
 
+  // 旧设备持有成本 = 购买价格 - 回收价格
+  const oldHoldingCost = asset.purchasePrice ? Number(asset.purchasePrice) - tradeVal : 0
+  // 旧设备持有天数 = 回收日期 - 购买日期
   const oldHoldingDays = asset.purchaseDate
-    ? Math.max(1, Math.floor((todayTs - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+    ? Math.max(1, Math.floor((new Date(tradeInDate).getTime() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
     : 1
-  const oldDailyCost = asset.purchasePrice
-    ? calcOneTimeDailyCost(Number(asset.purchasePrice), asset.purchaseDate!)
-    : 0
-  const newDailyCost = actualSpend > 0 ? (actualSpend / oldHoldingDays) : 0
+  // 旧设备持有成本/天
+  const oldDailyCost = oldHoldingDays > 0 ? oldHoldingCost / oldHoldingDays : 0
+  // 新设备实际花费
+  const newActualCost = newP - tradeVal
 
   function handleAssetFormSubmit(fd: FormData) {
     fd.append('tradeInDate', tradeInDate)
     fd.append('tradeInPrice', tradeInPrice || '0')
-    if (!isSubscriptionNewAsset)
-      fd.append('actualSpend', String(actualSpend))
+    fd.append('actualSpend', String(actualSpend))
     submit(fd, { method: 'post' })
   }
 
   return (
     <div>
-      {/* Top bar - rendered by AssetForm, but we handle it manually here */}
+      <SubPageHeader
+        backTo={`/assets/${asset.id}`}
+        backLabel="返回详情"
+        title="以旧换新"
+        primaryAction={{
+          label: '保存',
+          onClick: () => submitRef.current?.click(),
+        }}
+      />
       <AssetForm
         categories={categories}
         tags={tags}
         paymentTypes={paymentTypes}
         paymentAccounts={paymentAccounts}
-        showSubscriptionToggle
+        showSubscriptionToggle={false}
         hideOneTimeFields
+        hideHeader
         submitLabel="完成换新"
-        backLabel="‹ 返回详情"
-        backTo={`/assets/${asset.id}`}
-        title="以旧换新"
-        onAssetTypeChange={setIsSubscriptionNewAsset}
         onSubmit={handleAssetFormSubmit}
+        submitRef={submitRef}
         topContent={(
           <>
             <div className="mb-1 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
@@ -161,65 +181,45 @@ export default function AssetsTradeIn() {
               />
             </div>
 
-            {!isSubscriptionNewAsset && (
-              <>
-                <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>新设备标价 *</Label>
-                <Input
-                  className="mb-3"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={newPrice}
-                  onChange={e => setNewPrice(e.target.value)}
-                />
-                <p className="mb-3 text-[12px]" style={{ color: 'var(--color-muted)' }}>
-                  标价用于计算，最终入账购入价 = 新设备标价 - 回收抵扣。
-                </p>
-              </>
-            )}
+            <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>新设备标价 *</Label>
+            <Input
+              className="mb-3"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              value={newPrice}
+              onChange={e => setNewPrice(e.target.value)}
+            />
+            <p className="mb-3 text-[12px]" style={{ color: 'var(--color-muted)' }}>
+              标价用于计算，最终入账购入价 = 新设备标价 - 回收抵扣。
+            </p>
           </>
         )}
       >
-        {/* 计算面板 */}
-        {!isSubscriptionNewAsset && showCalc && (
+        {/* 计算面板 - T-08 */}
+        {showCalc && (
           <div
             className="mb-4 rounded-lg p-4"
             style={{ background: 'var(--color-surface-card)' }}
           >
             <div className="mb-2 flex items-center justify-between text-[14px]">
-              <span style={{ color: 'var(--color-muted)' }}>新设备标价</span>
+              <span style={{ color: 'var(--color-muted)' }}>旧设备持有成本</span>
               <span className="font-medium" style={{ color: 'var(--color-ink)' }}>
-                {newP.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                {oldHoldingCost.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="mb-2 flex items-center justify-between text-[14px]">
-              <span style={{ color: 'var(--color-muted)' }}>旧设备回收抵扣</span>
-              <span className="font-medium" style={{ color: 'var(--color-error)' }}>
-                −
-                {tradeVal.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="my-2 h-px" style={{ background: 'var(--color-hairline)' }} />
-            <div className="mb-3 flex items-center justify-between text-[14px]">
-              <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>实际支出</span>
-              <span className="text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
-                {actualSpend.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="mb-3 rounded-md bg-[var(--color-primary-muted)] px-3 py-2 text-[12px]" style={{ color: 'var(--color-body)' }}>
-              新资产将以「实际支出」作为购入价入账。
-            </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span style={{ color: 'var(--color-muted)' }}>旧资产每日成本（历史）</span>
-              <span className="font-mono" style={{ color: 'var(--color-muted-soft)' }}>
+              <span style={{ color: 'var(--color-muted)' }}>旧设备持有成本/天</span>
+              <span className="font-mono font-medium" style={{ color: 'var(--color-muted-soft)' }}>
                 {oldDailyCost.toFixed(2)}
                 /天
               </span>
             </div>
-            <div className="flex items-center justify-between text-[13px]">
-              <span style={{ color: 'var(--color-muted)' }}>新资产每日成本（预计）</span>
-              <span className="font-mono" style={{ color: 'var(--color-primary)' }}>
-                {newDailyCost > 0 ? `${newDailyCost.toFixed(2)}/天` : '—'}
+            <div className="my-2 h-px" style={{ background: 'var(--color-hairline)' }} />
+            <div className="flex items-center justify-between text-[14px]">
+              <span className="font-semibold" style={{ color: 'var(--color-ink)' }}>新设备实际花费</span>
+              <span className="text-lg font-semibold" style={{ color: 'var(--color-primary)' }}>
+                {newActualCost.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
