@@ -1,8 +1,8 @@
+import type { Route } from './+types/dashboard'
 import type { ChartConfig } from '~/components/ui/chart'
-import type { DashboardData } from '~/db/queries/dashboard'
-import { IconLoader2, IconX } from '@tabler/icons-react'
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { IconX } from '@tabler/icons-react'
+import { useState } from 'react'
+import { redirect, useLoaderData, useNavigate } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { MainPageHeader } from '~/components/page-header'
 import {
@@ -10,6 +10,17 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '~/components/ui/chart'
+import { getDashboardData } from '~/db/queries/dashboard'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  return getDashboardData(user.id)
+}
 
 const trendChartConfig = {
   amount: {
@@ -20,27 +31,8 @@ const trendChartConfig = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const data = useLoaderData<typeof loader>()
   const [showWarning, setShowWarning] = useState(true)
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    fetch('/api/dashboard', { signal: controller.signal })
-      .then(r => r.json())
-      .then((d: DashboardData) => setData(d))
-      .catch(() => {})
-      .finally(() => setLoading(false))
-    return () => controller.abort()
-  }, [])
-
-  if (loading || !data) {
-    return (
-      <div className="flex items-center justify-center pt-20">
-        <IconLoader2 size={24} className="animate-spin" style={{ color: 'var(--color-muted)' }} />
-      </div>
-    )
-  }
 
   const { kpi, categorySpending, monthlyTrend, expiring } = data
 
