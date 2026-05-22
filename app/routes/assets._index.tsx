@@ -277,6 +277,14 @@ export default function AssetsIndex() {
                     订阅
                   </span>
                 )}
+                {asset.subscriptionStatus === 'cancelled' && (
+                  <span
+                    className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: '#f3f4f6', color: '#6b7280' }}
+                  >
+                    已取消
+                  </span>
+                )}
                 {asset.tradedInAt && (
                   <span
                     className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"

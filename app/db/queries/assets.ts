@@ -401,6 +401,7 @@ export async function getAssetsWithCategoryName(userId: string) {
       tradedInAt: assets.tradedInAt,
       tradeInPrice: assets.tradeInPrice,
       tradedFromAssetId: assets.tradedFromAssetId,
+      subscriptionStatus: assets.subscriptionStatus,
       createdAt: assets.createdAt,
       categoryName: categories.name,
     })

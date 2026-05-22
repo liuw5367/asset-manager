@@ -619,7 +619,10 @@ export default function AssetsDetail() {
       {/* Subscription stopped card */}
       {asset.assetType === 'subscription' && asset.subscriptionStatus === 'cancelled' && asset.subscriptionStoppedAt && (
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
-          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>订阅已停止</div>
+          <div className="mb-2 flex items-center gap-2">
+            <IconCalendarOff size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>订阅已停止</span>
+          </div>
           <DetailRow label="停止日期" value={asset.subscriptionStoppedAt} />
         </div>
       )}
@@ -627,7 +630,10 @@ export default function AssetsDetail() {
       {/* Trade-in card for old device (T-02) */}
       {asset.tradedInAt && !isSoldAsset && (
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
-          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已换购</div>
+          <div className="mb-2 flex items-center gap-2">
+            <IconRefresh size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已换购</span>
+          </div>
           <DetailRow label="回收价格" value={asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'} />
           <DetailRow label="回收日期" value={asset.tradedInAt} />
         </div>
@@ -636,7 +642,10 @@ export default function AssetsDetail() {
       {/* 卖出卡片 */}
       {asset.tradedInAt && isSoldAsset && (
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
-          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已卖出</div>
+          <div className="mb-2 flex items-center gap-2">
+            <IconCoin size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已卖出</span>
+          </div>
           <DetailRow label="卖出价格" value={asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'} />
           <DetailRow label="卖出日期" value={asset.tradedInAt} />
         </div>
@@ -647,7 +656,7 @@ export default function AssetsDetail() {
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
           <div className="flex items-center gap-2">
             <IconRefresh size={16} style={{ color: 'var(--color-primary)' }} />
-            <span className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>以旧换新购入</span>
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>以旧换新购入</span>
           </div>
           <DetailRow label="旧设备回收价" value={tradedFromAsset.tradeInPrice ? Number(tradedFromAsset.tradeInPrice).toLocaleString() : '—'} />
           <DetailRow
