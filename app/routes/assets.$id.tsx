@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets.$id'
-import { IconCalendarOff, IconLoader2, IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconCalendarOff, IconLoader2, IconPencil, IconRefresh, IconTrash } from '@tabler/icons-react'
 import { addMonths, addYears, format, isAfter } from 'date-fns'
 import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
@@ -373,6 +373,7 @@ export default function AssetsDetail() {
           ...(asset.assetType === 'one_time'
             ? [{
                 label: '以旧换新',
+                icon: IconRefresh,
                 onClick: () => navigate(`/assets/${asset.id}/trade-in`),
               }]
             : []),
@@ -594,7 +595,15 @@ export default function AssetsDetail() {
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
           <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>以旧换新购入</div>
           <DetailRow label="旧设备回收价" value={tradedFromAsset.tradeInPrice ? Number(tradedFromAsset.tradeInPrice).toLocaleString() : '—'} />
-          <DetailRow label="实际支付价格" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} primary />
+          <DetailRow
+            label="实际支付价格"
+            value={
+              asset.purchasePrice && tradedFromAsset.tradeInPrice
+                ? (Number(asset.purchasePrice) - Number(tradedFromAsset.tradeInPrice)).toLocaleString()
+                : '—'
+            }
+            primary
+          />
         </div>
       )}
 

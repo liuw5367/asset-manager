@@ -41,7 +41,7 @@ export function SubPageHeader({
   moreItems,
 }: SubPageHeaderProps) {
   return (
-    <div className="flex items-center justify-between py-3" style={{ minHeight: 48 }}>
+    <div className="relative flex items-center justify-between py-3" style={{ minHeight: 48 }}>
       <Link
         to={backTo}
         className="flex items-center gap-1 text-[14px] font-medium transition-colors"
@@ -50,7 +50,7 @@ export function SubPageHeader({
         <IconArrowLeft size={16} />
         {backLabel}
       </Link>
-      <h1 className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
+      <h1 className="absolute left-1/2 -translate-x-1/2 text-[14px] font-medium whitespace-nowrap" style={{ color: 'var(--color-ink)' }}>
         {title}
       </h1>
       <div className="flex items-center gap-3">

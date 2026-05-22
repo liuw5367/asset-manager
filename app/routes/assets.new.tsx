@@ -1,6 +1,8 @@
 import type { Route } from './+types/assets.new'
+import { useRef } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
+import { SubPageHeader } from '~/components/page-header'
 import {
   createAsset,
   getCategoriesByUserId,
@@ -90,19 +92,30 @@ export async function action({ request }: Route.ActionArgs) {
 export default function AssetsNew() {
   const { categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const submit = useSubmit()
+  const submitRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <AssetForm
-      categories={categories}
-      tags={tags}
-      paymentTypes={paymentTypes}
-      paymentAccounts={paymentAccounts}
-      showSubscriptionToggle
-      submitLabel="保存资产"
-      backLabel="‹ 返回"
-      backTo="/assets"
-      title="新建资产"
-      onSubmit={fd => submit(fd, { method: 'post' })}
-    />
+    <div>
+      <SubPageHeader
+        backTo="/assets"
+        backLabel="返回"
+        title="新建资产"
+        primaryAction={{
+          label: '保存',
+          onClick: () => submitRef.current?.click(),
+        }}
+      />
+      <AssetForm
+        categories={categories}
+        tags={tags}
+        paymentTypes={paymentTypes}
+        paymentAccounts={paymentAccounts}
+        showSubscriptionToggle
+        submitLabel="保存资产"
+        hideHeader
+        onSubmit={fd => submit(fd, { method: 'post' })}
+        submitRef={submitRef}
+      />
+    </div>
   )
 }
