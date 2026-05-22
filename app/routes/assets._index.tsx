@@ -1,5 +1,6 @@
 import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
+import { isNotNull } from 'drizzle-orm'
 import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
@@ -11,12 +12,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '~/components/ui/sheet'
+import { db } from '~/db'
 import {
   getAssetsWithCategoryName,
   getAssetTagsByUserId,
   getCategoriesByUserId,
   getTagsByUserId,
 } from '~/db/queries/assets'
+import { assets } from '~/db/schema'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -60,7 +63,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     assetTagMap[row.assetId].push({ id: row.tagId, name: row.tagName, color: row.tagColor })
   }
 
-  return { assets: assetsWithCost, categories, tags, assetTagMap }
+  // 查询被其他资产通过 tradedFromAssetId 引用的 ID（用于区分已换购 vs 已卖出）
+  const tradedInRefs = await db
+    .select({ id: assets.tradedFromAssetId })
+    .from(assets)
+    .where(isNotNull(assets.tradedFromAssetId))
+  const tradedInAssetIds = new Set(tradedInRefs.map(r => r.id).filter(Boolean) as string[])
+
+  return { assets: assetsWithCost, categories, tags, assetTagMap, tradedInAssetIds: [...tradedInAssetIds] }
 }
 
 type SortOption = 'default' | 'price_asc' | 'price_desc' | 'cost_asc' | 'cost_desc' | 'date_asc' | 'date_desc'
@@ -77,7 +87,8 @@ const sortLabels: Record<SortOption, string> = {
 }
 
 export default function AssetsIndex() {
-  const { assets, categories, tags, assetTagMap } = useLoaderData<typeof loader>()
+  const { assets, categories, tags, assetTagMap, tradedInAssetIds } = useLoaderData<typeof loader>()
+  const tradedInSet = new Set(tradedInAssetIds)
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [activeType, setActiveType] = useState<TypeFilter>(null)
@@ -271,7 +282,7 @@ export default function AssetsIndex() {
                     className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"
                     style={{ background: '#fce8e8', color: '#dc2626' }}
                   >
-                    已换购
+                    {tradedInSet.has(asset.id) ? '已换购' : '已卖出'}
                   </span>
                 )}
                 {asset.tradedFromAssetId && !asset.tradedInAt && (
