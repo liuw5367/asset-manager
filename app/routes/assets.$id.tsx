@@ -38,6 +38,7 @@ import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
   createRepairRecord,
+  deleteRepairRecord,
   getAssetById,
   getAssetRepairRecords,
   getAssetWarranty,
@@ -46,6 +47,7 @@ import {
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
+  updateRepairRecord,
   upsertWarranty,
 } from '~/db/queries/assets'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
@@ -155,6 +157,25 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { ok: true }
   }
 
+  if (intent === 'update-repair') {
+    const repairId = formData.get('repairId') as string
+    await updateRepairRecord(repairId, {
+      repairDate: formData.get('repairDate') as string,
+      cost: (formData.get('cost') as string) || '0',
+      reason: (formData.get('reason') as string) || undefined,
+      vendor: (formData.get('vendor') as string) || undefined,
+      result: (formData.get('result') as string) || undefined,
+      isDone: formData.get('isDone') === 'true',
+    })
+    return { ok: true }
+  }
+
+  if (intent === 'delete-repair') {
+    const repairId = formData.get('repairId') as string
+    await deleteRepairRecord(repairId)
+    return { ok: true }
+  }
+
   if (intent === 'upsert-warranty') {
     const startDate = String(formData.get('startDate') || '')
     const endDate = String(formData.get('endDate') || '')
@@ -202,6 +223,7 @@ export default function AssetsDetail() {
 
   // 维修表单状态
   const [todayDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [editingRepairId, setEditingRepairId] = useState<string | null>(null)
   const [repairDate, setRepairDate] = useState(() => new Date().toISOString().split('T')[0])
   const [repairCost, setRepairCost] = useState('')
   const [repairReason, setRepairReason] = useState('')
@@ -262,7 +284,13 @@ export default function AssetsDetail() {
 
   function handleAddRepair() {
     const fd = new FormData()
-    fd.append('intent', 'add-repair')
+    if (editingRepairId) {
+      fd.append('intent', 'update-repair')
+      fd.append('repairId', editingRepairId)
+    }
+    else {
+      fd.append('intent', 'add-repair')
+    }
     fd.append('repairDate', repairDate)
     fd.append('cost', repairCost || '0')
     fd.append('reason', repairReason)
@@ -271,13 +299,35 @@ export default function AssetsDetail() {
     fd.append('isDone', String(repairIsDone))
     submit(fd, { method: 'post' })
     setSheetOpen(false)
-    // 重置表单
+    setEditingRepairId(null)
+  }
+
+  function openEditRepair(record: typeof repairRecords[number]) {
+    setEditingRepairId(record.id)
+    setRepairDate(record.repairDate)
+    setRepairCost(record.cost ? String(record.cost) : '')
+    setRepairReason(record.reason || '')
+    setRepairVendor(record.vendor || '')
+    setRepairResult(record.result || '')
+    setRepairIsDone(record.isDone ?? true)
+    setSheetOpen(true)
+  }
+
+  function resetRepairForm() {
+    setEditingRepairId(null)
     setRepairDate(todayDate)
     setRepairCost('')
     setRepairReason('')
     setRepairVendor('')
     setRepairResult('')
     setRepairIsDone(true)
+  }
+
+  function handleDeleteRepair(repairId: string) {
+    const fd = new FormData()
+    fd.append('intent', 'delete-repair')
+    fd.append('repairId', repairId)
+    submit(fd, { method: 'post' })
   }
 
   function handleSaveWarranty() {
@@ -603,13 +653,20 @@ export default function AssetsDetail() {
       <Section
         title="维修记录"
         action={(
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 px-1 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }} />}>
+          <Sheet
+            open={sheetOpen}
+            onOpenChange={(open) => {
+              setSheetOpen(open)
+              if (!open)
+                resetRepairForm()
+            }}
+          >
+            <SheetTrigger render={<Button type="button" variant="ghost" size="sm" className="h-8 px-1 text-[14px] font-medium" style={{ color: 'var(--color-primary)' }} onClick={() => resetRepairForm()} />}>
               + 添加维修
             </SheetTrigger>
             <SheetContent side="bottom" className="rounded-t-xl">
               <SheetHeader>
-                <SheetTitle>添加维修记录</SheetTitle>
+                <SheetTitle>{editingRepairId ? '编辑维修记录' : '添加维修记录'}</SheetTitle>
               </SheetHeader>
               <div className="mt-4 space-y-3 px-4 pb-6">
                 <div>
@@ -674,7 +731,7 @@ export default function AssetsDetail() {
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-[10px] !bg-[var(--color-primary)] text-[15px] font-semibold !text-white hover:!bg-[var(--color-primary-active)]"
                 >
                   {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
-                  添加维修记录
+                  {editingRepairId ? '保存修改' : '添加维修记录'}
                 </Button>
               </div>
             </SheetContent>
@@ -700,21 +757,39 @@ export default function AssetsDetail() {
                         <div className="w-px flex-1" style={{ background: 'var(--color-hairline)' }} />
                       )}
                     </div>
-                    <div className="flex-1 pb-2">
+                    <div
+                      className="min-w-0 flex-1 cursor-pointer pb-2"
+                      onClick={() => openEditRepair(record)}
+                    >
                       <div className="text-[12px] font-medium" style={{ color: 'var(--color-muted)' }}>
                         {record.repairDate}
                       </div>
                       <div className="text-[14px]" style={{ color: 'var(--color-ink)' }}>
-                        {record.reason || '—'}
+                        {record.reason || '维修'}
                       </div>
-                      <div className="text-[12px]" style={{ color: 'var(--color-muted)' }}>
-                        {record.vendor || '—'}
-                        {' · '}
-                        {Number(record.cost) > 0 ? Number(record.cost) : '0（保修内）'}
-                        {' · '}
-                        <span style={{ color: 'var(--color-success)' }}>{record.result || '—'}</span>
+                      <div className="flex items-center gap-1 text-[12px]" style={{ color: 'var(--color-muted)' }}>
+                        {record.vendor && <span>{record.vendor}</span>}
+                        {record.vendor && <span>·</span>}
+                        <span>{Number(record.cost) > 0 ? Number(record.cost) : '0（保修内）'}</span>
+                        {record.result && (
+                          <>
+                            <span>·</span>
+                            <span style={{ color: 'var(--color-success)' }}>{record.result}</span>
+                          </>
+                        )}
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteRepair(record.id)
+                      }}
+                      className="mt-1 shrink-0 self-start p-1 opacity-40 transition-opacity hover:opacity-100"
+                      aria-label="删除维修记录"
+                    >
+                      <IconTrash size={14} />
+                    </button>
                   </div>
                 ))
               )}

@@ -313,6 +313,35 @@ export async function createRepairRecord(input: CreateRepairRecordInput) {
   return record.id
 }
 
+export interface UpdateRepairRecordInput {
+  repairDate: string
+  cost?: string
+  reason?: string
+  vendor?: string
+  result?: string
+  isDone?: boolean
+}
+
+export async function updateRepairRecord(id: string, input: UpdateRepairRecordInput) {
+  await db
+    .update(repairRecords)
+    .set({
+      repairDate: input.repairDate,
+      cost: input.cost ?? '0',
+      reason: input.reason ?? null,
+      vendor: input.vendor ?? null,
+      result: input.result ?? null,
+      isDone: input.isDone ?? true,
+    })
+    .where(eq(repairRecords.id, id))
+}
+
+export async function deleteRepairRecord(id: string) {
+  await db
+    .delete(repairRecords)
+    .where(eq(repairRecords.id, id))
+}
+
 // ========== 保修信息 ==========
 
 export interface UpsertWarrantyInput {
