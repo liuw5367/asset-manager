@@ -167,7 +167,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('category')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedCategory ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedCategory ? 'var(--color-primary)' : 'var(--color-body)',
@@ -183,7 +183,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('tag')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: selectedTag ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: selectedTag ? 'var(--color-primary)' : 'var(--color-body)',
@@ -199,7 +199,7 @@ export default function AssetsIndex() {
             variant="outline"
             size="sm"
             onClick={() => setSheetType('sort')}
-            className="flex h-8 items-center gap-0.5 rounded-lg px-2.5 text-[13px] transition-colors"
+            className="flex h-8 items-center gap-0.5 rounded-full px-2.5 text-[13px] transition-colors"
             style={{
               background: sortOption !== 'default' ? 'var(--color-primary-muted)' : 'var(--color-surface-card)',
               color: sortOption !== 'default' ? 'var(--color-primary)' : 'var(--color-body)',
@@ -263,13 +263,13 @@ export default function AssetsIndex() {
               </div>
             </div>
 
-            {/* Price + Daily Cost */}
+            {/* Daily Cost + Price */}
             <div className="shrink-0 text-right">
               <div className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                {Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
+                {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--color-muted-soft)' }}>
-                {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
+                {Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
               </div>
             </div>
           </button>

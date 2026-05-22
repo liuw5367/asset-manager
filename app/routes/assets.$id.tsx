@@ -341,35 +341,40 @@ export default function AssetsDetail() {
         </div>
       </div>
 
-      {/* Financial Summary */}
-      <Section title="财务摘要">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow label="购入价" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} />
-          {asset.currentValue && (
-            <DetailRow label="当前估价" value={Number(asset.currentValue).toLocaleString()} muted />
-          )}
-          <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-          {holdingDays > 0 && (
-            <DetailRow label="持有天数" value={`${holdingDays} 天`} />
-          )}
-          <DetailRow
-            label="支付方式"
-            value={
-              paymentAccount && paymentType
-                ? `${paymentAccount.name} · ${paymentType.name}`
-                : paymentType?.name || '—'
-            }
-          />
-          {asset.purchaseDate && (
-            <DetailRow label="购入日期" value={asset.purchaseDate} />
-          )}
-        </div>
-      </Section>
+      {/* Merged Info Card */}
+      <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+        {/* One-time fields */}
+        {asset.assetType === 'one_time' && (
+          <>
+            {asset.purchasePrice && (
+              <DetailRow label="购入价" value={Number(asset.purchasePrice).toLocaleString()} />
+            )}
+            {asset.currentValue && (
+              <DetailRow label="当前估价" value={Number(asset.currentValue).toLocaleString()} muted />
+            )}
+            <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
+            {holdingDays > 0 && (
+              <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+            )}
+            {(paymentType || paymentAccount) && (
+              <DetailRow
+                label="支付方式"
+                value={
+                  paymentAccount && paymentType
+                    ? `${paymentAccount.name} · ${paymentType.name}`
+                    : paymentType?.name || '—'
+                }
+              />
+            )}
+            {asset.purchaseDate && (
+              <DetailRow label="购入日期" value={asset.purchaseDate} />
+            )}
+          </>
+        )}
 
-      {/* Subscription detail */}
-      {asset.assetType === 'subscription' && (
-        <Section title="订阅信息">
-          <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
+        {/* Subscription fields */}
+        {asset.assetType === 'subscription' && (
+          <>
             <DetailRow
               label="订阅周期"
               value={
@@ -379,13 +384,23 @@ export default function AssetsDetail() {
               }
             />
             <DetailRow
-              label="订阅金额"
-              value={`${asset.subscriptionPrice}/${
+              label="订阅周期"
+              value={
                 asset.billingCycle === 'monthly'
-                  ? '月'
-                  : asset.billingCycle === 'quarterly' ? '季' : '年'
-              }`}
+                  ? '月付'
+                  : asset.billingCycle === 'quarterly' ? '季付' : '年付'
+              }
             />
+            {asset.subscriptionPrice && (
+              <DetailRow
+                label="订阅金额"
+                value={`${asset.subscriptionPrice}/${
+                  asset.billingCycle === 'monthly'
+                    ? '月'
+                    : asset.billingCycle === 'quarterly' ? '季' : '年'
+                }`}
+              />
+            )}
             <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
             {asset.nextRenewalDate && (
               <DetailRow label="下次续费" value={asset.nextRenewalDate} />
@@ -401,40 +416,36 @@ export default function AssetsDetail() {
                 </span>
               )}
             />
-          </div>
-        </Section>
-      )}
+          </>
+        )}
 
-      {/* Basic Info */}
-      <Section title="基础信息">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow
-            label="分类"
-            value={category ? `${category.emoji} ${category.name}` : '—'}
-          />
+        {/* Common fields */}
+        <DetailRow
+          label="分类"
+          value={category ? `${category.emoji} ${category.name}` : '—'}
+        />
+        {assetTags.length > 0 && (
           <DetailRow
             label="标签"
-            value={
-              assetTags.length > 0
-                ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {assetTags.map(tag => (
-                        <Badge
-                          key={tag.id}
-                          className="rounded-full px-2.5 py-0.5 text-[12px] font-medium"
-                          style={{ background: `${tag.color}22`, color: tag.color }}
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  )
-                : '—'
-            }
+            value={(
+              <div className="flex flex-wrap gap-1.5">
+                {assetTags.map(tag => (
+                  <Badge
+                    key={tag.id}
+                    className="rounded-full px-2.5 py-0.5 text-[12px] font-medium"
+                    style={{ background: `${tag.color}22`, color: tag.color }}
+                  >
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
           />
-          <DetailRow label="备注" value={asset.notes || '—'} muted={!asset.notes} />
-        </div>
-      </Section>
+        )}
+        {asset.notes && (
+          <DetailRow label="备注" value={asset.notes} muted />
+        )}
+      </div>
 
       {/* Warranty */}
       <Section
@@ -484,48 +495,6 @@ export default function AssetsDetail() {
                   暂无保修信息
                 </div>
               )}
-        </div>
-      </Section>
-
-      {/* Reminder Settings */}
-      <Section title="到期提醒设置">
-        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
-          <DetailRow
-            label="订阅到期提醒"
-            value={(
-              <Select value={subReminder} onValueChange={v => v && setSubReminder(v)}>
-                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="跟随全局（7天）">跟随全局（7天）</SelectItem>
-                  <SelectItem value="1天前">1天前</SelectItem>
-                  <SelectItem value="3天前">3天前</SelectItem>
-                  <SelectItem value="7天前">7天前</SelectItem>
-                  <SelectItem value="14天前">14天前</SelectItem>
-                  <SelectItem value="关闭">关闭</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-          <DetailRow
-            label="保修到期提醒"
-            value={(
-              <Select value={warrantyReminder} onValueChange={v => v && setWarrantyReminder(v)}>
-                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="跟随全局（14天）">跟随全局（14天）</SelectItem>
-                  <SelectItem value="1天前">1天前</SelectItem>
-                  <SelectItem value="3天前">3天前</SelectItem>
-                  <SelectItem value="7天前">7天前</SelectItem>
-                  <SelectItem value="14天前">14天前</SelectItem>
-                  <SelectItem value="关闭">关闭</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
         </div>
       </Section>
 
@@ -651,6 +620,48 @@ export default function AssetsDetail() {
         </div>
       </Section>
 
+      {/* Reminder Settings - at bottom */}
+      <Section title="到期提醒设置">
+        <div className="rounded-xl p-4" style={{ background: 'var(--color-surface-card)' }}>
+          <DetailRow
+            label="订阅到期提醒"
+            value={(
+              <Select value={subReminder} onValueChange={v => v && setSubReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（7天）">跟随全局（7天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <DetailRow
+            label="保修到期提醒"
+            value={(
+              <Select value={warrantyReminder} onValueChange={v => v && setWarrantyReminder(v)}>
+                <SelectTrigger className="h-8 w-auto min-w-[140px] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="跟随全局（14天）">跟随全局（14天）</SelectItem>
+                  <SelectItem value="1天前">1天前</SelectItem>
+                  <SelectItem value="3天前">3天前</SelectItem>
+                  <SelectItem value="7天前">7天前</SelectItem>
+                  <SelectItem value="14天前">14天前</SelectItem>
+                  <SelectItem value="关闭">关闭</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </div>
+      </Section>
+
       <Dialog open={warrantyDialogOpen} onOpenChange={setWarrantyDialogOpen}>
         <DialogContent showCloseButton>
           <DialogHeader>
@@ -709,9 +720,13 @@ function Section({
 }) {
   return (
     <div>
-      <div className="my-4 flex items-center gap-3" style={{ color: 'var(--color-ink)' }}>
-        <h3 className="text-[16px] font-semibold">{title}</h3>
-        <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
+      <div className="my-4 flex items-center justify-between">
+        <h3
+          className="text-sm font-medium uppercase tracking-wide"
+          style={{ color: 'var(--color-muted-soft)' }}
+        >
+          {title}
+        </h3>
         {action}
       </div>
       {children}
