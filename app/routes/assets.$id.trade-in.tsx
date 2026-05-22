@@ -1,7 +1,8 @@
 import type { Route } from './+types/assets.$id.trade-in'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
+import { SubPageHeader } from '~/components/page-header'
 import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
@@ -88,6 +89,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function AssetsTradeIn() {
   const { asset, categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const submit = useSubmit()
+  const submitRef = useRef<HTMLButtonElement>(null)
 
   const [tradeInPrice, setTradeInPrice] = useState('')
   const [newPrice, setNewPrice] = useState('')
@@ -118,7 +120,15 @@ export default function AssetsTradeIn() {
 
   return (
     <div>
-      {/* Top bar - rendered by AssetForm, but we handle it manually here */}
+      <SubPageHeader
+        backTo={`/assets/${asset.id}`}
+        backLabel="返回详情"
+        title="以旧换新"
+        primaryAction={{
+          label: '保存',
+          onClick: () => submitRef.current?.click(),
+        }}
+      />
       <AssetForm
         categories={categories}
         tags={tags}
@@ -126,12 +136,11 @@ export default function AssetsTradeIn() {
         paymentAccounts={paymentAccounts}
         showSubscriptionToggle
         hideOneTimeFields
+        hideHeader
         submitLabel="完成换新"
-        backLabel="‹ 返回详情"
-        backTo={`/assets/${asset.id}`}
-        title="以旧换新"
         onAssetTypeChange={setIsSubscriptionNewAsset}
         onSubmit={handleAssetFormSubmit}
+        submitRef={submitRef}
         topContent={(
           <>
             <div className="mb-1 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>

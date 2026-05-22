@@ -11,6 +11,7 @@ import {
 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link, redirect, useFetcher } from 'react-router'
+import { MainPageHeader } from '~/components/page-header'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function action({ request }: Route.ActionArgs) {
@@ -36,12 +37,7 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-6">
       {/* Page header */}
-      <h1
-        className="mb-6 text-2xl font-semibold"
-        style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-      >
-        设置
-      </h1>
+      <MainPageHeader title="设置" />
 
       {/* User card */}
       <div

@@ -1,7 +1,8 @@
 import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link, redirect, useLoaderData, useNavigate } from 'react-router'
+import { redirect, useLoaderData, useNavigate } from 'react-router'
+import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import {
@@ -121,21 +122,7 @@ export default function AssetsIndex() {
   return (
     <div className="pb-8 pt-6">
       {/* Page Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <h1
-          className="font-[family-name:var(--font-display)] text-[28px] font-semibold"
-          style={{ color: 'var(--color-ink)' }}
-        >
-          资产
-        </h1>
-        <Link
-          to="/assets/new"
-          className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition-opacity hover:opacity-80"
-          style={{ background: 'var(--color-primary)', color: '#fff' }}
-        >
-          + 新建资产
-        </Link>
-      </div>
+      <MainPageHeader title="资产" action={{ label: '+ 新建资产', to: '/assets/new' }} />
 
       {/* Search */}
       <div className="mb-4">

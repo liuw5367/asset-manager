@@ -1,30 +1,12 @@
-import { IconPlus } from '@tabler/icons-react'
 import { Link } from 'react-router'
+import { MainPageHeader } from '~/components/page-header'
 import { plans } from '~/data/mock'
 
 export default function PlansIndex() {
   return (
     <div className="pt-6 pb-8">
       {/* Page Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1
-          className="font-[family-name:var(--font-display)] text-2xl"
-          style={{ color: 'var(--color-ink)' }}
-        >
-          月度财务计划
-        </h1>
-        <Link
-          to="/plans/new"
-          className="flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors"
-          style={{
-            background: 'var(--color-primary)',
-            color: '#fff',
-          }}
-        >
-          <IconPlus size={16} />
-          创建计划
-        </Link>
-      </div>
+      <MainPageHeader title="月度财务计划" action={{ label: '+ 创建计划', to: '/plans/new' }} />
 
       {/* Plan Cards */}
       <div className="flex flex-col gap-3">

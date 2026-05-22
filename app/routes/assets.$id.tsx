@@ -1,7 +1,8 @@
 import type { Route } from './+types/assets.$id'
-import { IconChevronLeft, IconDots, IconLoader2 } from '@tabler/icons-react'
+import { IconLoader2, IconPencil, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link, redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,12 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '~/components/ui/dropdown-menu'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -255,65 +250,55 @@ export default function AssetsDetail() {
   return (
     <div>
       {/* Top bar */}
-      <div className="flex items-center justify-between py-3" style={{ minHeight: 48 }}>
-        <Link
-          to="/assets"
-          className="flex items-center gap-1 text-[14px] font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconChevronLeft size={18} />
-          资产
-        </Link>
-        <div className="flex items-center gap-3">
-          <Link
-            to={`/assets/${asset.id}/edit`}
-            className="text-[14px] font-medium"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            编辑
-          </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" className="text-[16px] tracking-wider" />}>
-              <IconDots size={18} />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[140px]">
-              <DropdownMenuItem onClick={() => navigate(`/assets/${asset.id}/trade-in`)}>
-                以旧换新
-              </DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                删除资产
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>确认删除</AlertDialogTitle>
-                <AlertDialogDescription>
-                  确定要删除「
-                  {asset.name}
-                  」吗？删除后可在回收站中恢复。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel
-                  variant="outline"
-                  className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
-                >
-                  取消
-                </AlertDialogCancel>
-                <AlertDialogAction
-                  variant="default"
-                  onClick={handleDelete}
-                  className="h-10 !bg-[var(--color-error)] px-4 text-[14px] !text-white hover:!bg-[var(--color-error)]/90"
-                >
-                  删除
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
+      <SubPageHeader
+        backTo="/assets"
+        backLabel="资产"
+        title={asset.name}
+        primaryAction={{
+          label: '编辑',
+          icon: IconPencil,
+          to: `/assets/${asset.id}/edit`,
+        }}
+        moreItems={[
+          {
+            label: '以旧换新',
+            onClick: () => navigate(`/assets/${asset.id}/trade-in`),
+          },
+          {
+            label: '删除资产',
+            icon: IconTrash,
+            variant: 'destructive',
+            onClick: () => setDeleteDialogOpen(true),
+          },
+        ]}
+      />
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除「
+              {asset.name}
+              」吗？删除后可在回收站中恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="default"
+              onClick={handleDelete}
+              className="h-10 !bg-[var(--color-error)] px-4 text-[14px] !text-white hover:!bg-[var(--color-error)]/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Hero section */}
       <div className="flex flex-col items-center py-4 text-center">

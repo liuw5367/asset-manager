@@ -1,6 +1,7 @@
 import { IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
+import { MainPageHeader } from '~/components/page-header'
 import { dashboardData } from '~/data/mock'
 
 export default function Dashboard() {
@@ -62,12 +63,7 @@ export default function Dashboard() {
       )}
 
       {/* Page Header */}
-      <h1
-        className="mb-5 font-[family-name:var(--font-display)] text-[28px] font-semibold"
-        style={{ color: 'var(--color-ink)' }}
-      >
-        统计总览
-      </h1>
+      <MainPageHeader title="统计总览" />
 
       {/* KPI Grid */}
       <div className="mb-8 grid grid-cols-2 gap-3">

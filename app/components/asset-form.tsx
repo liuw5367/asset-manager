@@ -1,7 +1,7 @@
 import type { AssetFormValues } from '~/lib/asset.schema'
 import { IconLoader2 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useNavigation } from 'react-router'
 import { Button } from '~/components/ui/button'
@@ -49,11 +49,13 @@ interface AssetFormProps {
   title?: string
   purchasePriceLabel?: string
   hideOneTimeFields?: boolean
+  hideHeader?: boolean
   onAssetTypeChange?: (isSubscription: boolean) => void
   errors?: Record<string, string[]>
   onSubmit: (fd: FormData) => void
   topContent?: React.ReactNode
   children?: React.ReactNode
+  submitRef?: React.Ref<HTMLButtonElement>
 }
 
 export function AssetForm({
@@ -69,15 +71,18 @@ export function AssetForm({
   title,
   purchasePriceLabel = '购入价 *',
   hideOneTimeFields = false,
+  hideHeader = false,
   onAssetTypeChange,
   errors: serverErrors,
   onSubmit,
   topContent,
   children,
+  submitRef,
 }: AssetFormProps) {
   const navigate = useNavigate()
   const navigation = useNavigation()
   const isSubmitting = navigation.state === 'submitting'
+  const internalSubmitRef = useRef<HTMLButtonElement>(null)
 
   const [isSubscription, setIsSubscription] = useState(defaultValues?.assetType === 'subscription')
   const [selectedPaymentTypeId, setSelectedPaymentTypeId] = useState<string | null>(defaultValues?.paymentTypeId || null)
@@ -175,41 +180,56 @@ export function AssetForm({
 
   return (
     <div>
-      {/* Top bar */}
-      <div
-        className="sticky top-0 z-10 flex items-center justify-between py-3"
-        style={{ background: 'var(--color-canvas)' }}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => backTo && navigate(backTo)}
-          className="h-9 px-2 text-sm"
-          style={{ color: 'var(--color-muted)' }}
+      {/* Top bar - only show when hideHeader is false */}
+      {!hideHeader && (
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between py-3"
+          style={{ background: 'var(--color-canvas)' }}
         >
-          {backLabel}
-        </Button>
-        {title && (
-          <span className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-            {title}
-          </span>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleSubmit(handleFormSubmit)}
-          disabled={isSubmitting}
-          className="h-9 gap-1 px-2 text-sm font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
-          {isSubmitting ? '保存中' : '保存'}
-        </Button>
-      </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => backTo && navigate(backTo)}
+            className="h-9 px-2 text-sm"
+            style={{ color: 'var(--color-muted)' }}
+          >
+            {backLabel}
+          </Button>
+          {title && (
+            <span className="text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
+              {title}
+            </span>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleSubmit(handleFormSubmit)}
+            disabled={isSubmitting}
+            className="h-9 gap-1 px-2 text-sm font-medium"
+            style={{ color: 'var(--color-primary)' }}
+          >
+            {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+            {isSubmitting ? '保存中' : '保存'}
+          </Button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(handleFormSubmit)}>
+        {/* Hidden submit button for external triggering */}
+        <button
+          ref={(el) => {
+            (internalSubmitRef as { current: HTMLButtonElement | null }).current = el
+            if (typeof submitRef === 'function')
+              submitRef(el)
+            else if (submitRef && 'current' in submitRef)
+              (submitRef as { current: HTMLButtonElement | null }).current = el
+          }}
+          type="submit"
+          className="hidden"
+          aria-hidden="true"
+        />
         {topContent && <div className="mb-3">{topContent}</div>}
 
         {/* Emoji */}
