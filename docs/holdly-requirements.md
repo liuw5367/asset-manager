@@ -352,80 +352,92 @@ export const planRecordItems = pgTable('plan_record_items', {
 
 ## 5. 业务逻辑
 
-### 5.1 每日成本计算
+### 5.1 持有天数定义
 
-```typescript
-import currency from 'currency.js'
-import { differenceInDays } from 'date-fns'
+```
+// 买断：第 n 天（购买日当天 = 第 1 天）
+n(D) = D - D_b + 1
 
-/**
- * 买断型资产每日成本
- * dailyCost = purchasePrice / holdingDays
- * holdingDays = today - purchaseDate（最小值为 1）
- */
-function calcOneTimeDailyCost(purchasePrice: number, purchaseDate: Date): number {
-  const days = Math.max(1, differenceInDays(new Date(), purchaseDate))
-  return currency(purchasePrice).divide(days).value
-}
+// 买断已卖出：总持有天数（卖出日不计入）
+N_sold = D_r - D_b          // 若 D_r = D_b，取 1（防除零）
 
-/**
- * 订阅型资产每日成本
- * monthly  → price / 30
- * quarterly → price / 91
- * yearly  → price / 365
- */
-function calcSubscriptionDailyCost(
-  price: number,
-  cycle: 'monthly' | 'quarterly' | 'yearly'
-): number {
-  const cycleDays = { monthly: 30, quarterly: 91, yearly: 365 }
-  return currency(price).divide(cycleDays[cycle]).value
-}
+// 订阅在区间 [A, B] 内的有效天数（结束日不计入）
+active_days(A, B) = clamp(D_e - 1, A, B) - max(A, D_s) + 1
 ```
 
-### 5.2 以旧换新计算
+### 5.2 单品成本计算
+
+#### 订阅
+
+```
+// 某天 D 的日均持有成本（条件：D_s ≤ D 且 D < D_e）
+daily_sub(D) = P_m / 30
+
+// 区间 [A, B] 的持有成本
+cost_sub(A, B) = (P_m / 30) × active_days(A, B)
+```
+
+#### 买断（持有中）
+
+```
+// 某天 D 的日均持有成本（动态递减，条件：D_b ≤ D 且 D_r = null）
+daily_onetime(D) = P_b / (D - D_b + 1)
+
+// 区间 [A, B] 的持有成本（调和级数连续近似）
+n_start = A - D_b + 1
+n_end   = B - D_b + 1
+cost_onetime(A, B) = P_b × ln(n_end / max(n_start - 1, 1))
+```
+
+> 买断持有中的日费是**动态递减**的，每天不同。连续近似在 n 较大时误差极小。
+
+#### 买断（已卖出）
+
+```
+// 卖出后成本固定，区间 [A, B] 的持有成本
+// 仅计算 [A, B] ∩ [D_b, D_r - 1] 的交集部分，公式同上
+cost_sold(A, B) = (P_b - P_r) × ln(n_end / max(n_start - 1, 1))
+```
+
+> P_r > P_b 时结果为负，表示"盈利"。
+
+### 5.3 以旧换新计算
 
 入口：资产详情页 `···` 菜单 → 「以旧换新」→ 跳转至 `/assets/:id/trade-in`，旧资产信息自动预填。
 
-```typescript
-interface TradeInCalcInput {
-  oldAsset: {
-    name: string
-    purchasePrice: number
-    purchaseDate: Date
-  }
-  tradeInDiscount: number // 回收价 / 换新优惠
-  newAssetPrice: number
-  tradeInDate: Date // 换新日期，也作为新资产 purchaseDate
-}
-
-interface TradeInCalcResult {
-  actualSpend: number // newAssetPrice - tradeInDiscount
-  oldDailyCost: number // 旧资产历史每日成本（基于旧持有天数）
-  newDailyCost: number // 新资产预计每日成本（actualSpend / 旧资产相同持有天数）
-}
-
-function calcTradeIn(input: TradeInCalcInput): TradeInCalcResult {
-  const { oldAsset, tradeInDiscount, newAssetPrice, tradeInDate } = input
-  const actualSpend = currency(newAssetPrice).subtract(tradeInDiscount).value
-  const oldHoldingDays = Math.max(1, differenceInDays(tradeInDate, oldAsset.purchaseDate))
-  const oldDailyCost = currency(oldAsset.purchasePrice).divide(oldHoldingDays).value
-  // 新资产按相同持有天数预估
-  const newDailyCost = currency(actualSpend).divide(oldHoldingDays).value
-  return { actualSpend, oldDailyCost, newDailyCost }
-}
+```
+旧资产净成本 = purchasePrice - tradeInPrice
+新资产实际支出 = newDevicePrice - tradeInPrice（即新资产的 purchasePrice）
 ```
 
 完成换新后的操作流程：
-1. 旧资产 `deleted_at` 设为换新日期（软删除）
-2. 取消旧资产的所有未发送 `reminder_jobs`
-3. 创建新资产，`purchaseDate` = 换新日期，`purchasePrice` = `actualSpend`
+1. 旧资产设置 `tradedInAt` = 换新日期，`tradeInPrice` = 回收价（不软删除）
+2. 创建新资产，`purchaseDate` = 换新日期，`purchasePrice` = 实际支出
+3. 新资产设置 `tradedFromAssetId` 指向旧资产
 
-### 5.3 软删除过滤
+#### 在统计中的处理
+
+| 场景 | 每日估算 | 年度已支出 |
+|---|---|---|
+| 旧资产 | 不参与（已回收） | 按 `tradedInAt` 计入本年，金额 = `-P_r`（回收抵扣） |
+| 新资产 | 参与，`P_b / (D - D_b + 1)` | 按 `purchaseDate` 计入本年，金额 = `P_b` |
+
+> 注意：新旧资产的日期不重叠，旧资产到 `tradedInAt` 截止，新资产从 `purchaseDate`（= 换新日）开始。
+
+### 5.4 续费日推算
+
+```
+续费日 = D_s + k × cycleMonths
+
+// cycleMonths: monthly = 1, quarterly = 3, yearly = 12
+// 某月内是否有续费：k 满足 D_s + k×c ∈ [月初, 月末]
+```
+
+### 5.5 软删除过滤
 
 所有查询必须附加 `where(isNull(assets.deletedAt))` 条件。
 
-### 5.4 P2 月度净值计算
+### 5.6 P2 月度净值计算
 
 ```
 monthlyNetValue = startingValue + Σ(income) - Σ(expense)
@@ -690,16 +702,73 @@ Bottom Sheet 字段：维修日期（必填）、维修费用（可选，默认 
 
 #### KPI 卡片（4 个）
 
-| 卡片 | 计算逻辑 |
-|---|---|
-| 当日支出 | Σ(所有活跃资产每日成本) |
-| 本月预计 | 当日支出 × 当月剩余天数 + 已过天数每日成本 |
-| 本年预计 | 当日支出 × 365 |
-| 累计已花 | Σ(所有资产 purchasePrice + repair costs) |
+| 卡片 | 口径 | 计算逻辑 |
+|---|---|---|
+| 每日估算 | 持有成本 | `Σ daily_sub(D_today) + Σ daily_onetime(D_today)` |
+| 月度估算 | 现金流 | `Σ(本月续费次数 × P_m) + Σ(本月购入 P_b)` |
+| 年度估算 | 现金流 | `Σ(本年续费次数 × P_m) + Σ(本年购入 P_b) - Σ(本年回收 P_r)` |
+| 订阅月固定成本 | 持有成本 | `Σ P_m`（活跃订阅，季/3，年/12） |
+
+各指标详细公式：
+
+**每日估算**
+
+```
+= Σ(P_m / 30)   当日有效订阅
++ Σ(P_b / n)    当日持有中买断，n = D_today - D_b + 1
+```
+
+- 订阅有效条件：`D_s ≤ today` 且 (`D_e = null` 或 `D_e > today`)
+- 买断条件：`D_r = null`（已回收的不参与）
+
+**月度估算（现金流口径）**
+
+```
+= Σ(本月续费次数 × P_m)  +  Σ(本月购入 P_b)
+```
+
+- 续费日 = `D_s + k × cycleMonths`，判断是否有续费日落在 `[月初, 月末]`
+- cycleMonths: monthly=1, quarterly=3, yearly=12
+- 季付/年付的订阅在无续费月贡献为 0
+
+**年度估算（现金流口径）**
+
+```
+= Σ(本年续费次数 × P_m)
++ Σ(本年购入 P_b)    // purchaseDate 在本年
+- Σ(本年回收 P_r)    // tradedInAt 在本年，作为负支出抵扣
+```
+
+- 续费次数 = 从首次续费日到年末，按 cycleMonths 递推计数
+- 回收抵扣：卖出价高于买入价时为"盈利"
+
+**订阅月固定成本**
+
+```
+= Σ P_m    // 所有当前活跃订阅
+  季付: P_m / 3
+  年付: P_m / 12
+```
+
+- 活跃条件：`D_s ≤ today` 且 (`D_e = null` 或 `D_e > today`)
+- 仅统计订阅，与买断无关
 
 #### 分类花费分布
 
-按分类聚合 purchasePrice，展示水平条形图（Recharts）
+时间范围：过去 365 天滚动
+
+```
+category_cost(C) = Σ cost_sub(C, A, B)          // C 内订阅
+                 + Σ cost_onetime(C, A, B)      // C 内持有中买断
+                 + Σ cost_sold(C, A, B)         // C 内已卖出买断（持有期部分）
+
+category_pct(C)  = category_cost(C) / Σ category_cost(all) × 100%
+```
+
+- cost_sub = (P_m / 30) × active_days(A, B)
+- cost_onetime = P_b × ln(n_end / (n_start - 1))，调和级数连续近似
+- cost_sold = (P_b - P_r) × ln(n_end / (n_start - 1))，仅计算持有期交集
+- 金额为负（盈利）的分类不计入占比
 
 #### 月度趋势图
 

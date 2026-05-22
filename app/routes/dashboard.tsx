@@ -40,7 +40,7 @@ export default function Dashboard() {
     { label: '每日估算', value: kpi.totalDailyCost.toFixed(2), subtitle: '元/天' },
     { label: '月度估算', value: kpi.monthlyEstimate.toLocaleString(), subtitle: '元/月' },
     { label: '年度估算', value: kpi.yearlyEstimate.toLocaleString(), subtitle: '元/年' },
-    { label: '累计支出', value: kpi.totalSpent.toLocaleString(), subtitle: `${kpi.assetCount} 项资产` },
+    { label: '订阅月固定成本', value: kpi.subscriptionMonthlyCommitment.toFixed(2), subtitle: '元/月' },
   ]
 
   return (

@@ -1,8 +1,15 @@
-import { addDays, differenceInMonths, format, startOfMonth, startOfYear, subMonths } from 'date-fns'
+import { addDays, differenceInMonths, endOfMonth, endOfYear, format, startOfMonth, startOfYear, subMonths } from 'date-fns'
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 import { db } from '~/db'
-import { assets, categories, subscriptionRenewals, warranties } from '~/db/schema'
-import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
+import { assets, categories, warranties } from '~/db/schema'
+import {
+  calcOneTimeCostRange,
+  calcOneTimeDailyCost,
+  calcSoldOneTimeCostRange,
+  calcSubscriptionCostRange,
+  calcSubscriptionDailyCost,
+  countSubPaymentsInMonth,
+} from '~/lib/cost'
 
 const CATEGORY_COLORS: Record<string, string> = {
   '💻': '#cc785c',
@@ -20,7 +27,7 @@ export interface DashboardData {
     totalDailyCost: number
     monthlyEstimate: number
     yearlyEstimate: number
-    totalSpent: number
+    subscriptionMonthlyCommitment: number
     assetCount: number
   }
   categorySpending: {
@@ -86,9 +93,100 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   })
 
   // 4. 计算 KPI
-  // 4a. 订阅每日花费：只计算今天仍在有效期内的订阅
+  // 4a. 日均持有成本（今日快照）
   let subscriptionDailyCost = 0
-  let subscriptionMonthlyCost = 0
+  for (const a of allAssets) {
+    if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
+      continue
+    const startDate = a.subscriptionStartDate || a.purchaseDate
+    if (startDate && startDate > todayStr)
+      continue
+    if (a.subscriptionStoppedAt && a.subscriptionStoppedAt <= todayStr)
+      continue
+    subscriptionDailyCost += calcSubscriptionDailyCost(Number(a.subscriptionPrice), a.billingCycle)
+  }
+
+  let oneTimeDailyCost = 0
+  for (const a of allAssets) {
+    if (a.assetType !== 'one_time' || !a.purchasePrice || !a.purchaseDate || a.tradedInAt)
+      continue
+    oneTimeDailyCost += calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
+  }
+
+  const totalDailyCost = subscriptionDailyCost + oneTimeDailyCost
+
+  // 4b. 本月预计支出（现金流口径）
+  const monthStart = startOfMonth(today)
+  const monthEnd = endOfMonth(today)
+  let monthlyEstimate = 0
+
+  for (const a of allAssets) {
+    if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
+      continue
+    const startDate = a.subscriptionStartDate || a.purchaseDate
+    if (!startDate)
+      continue
+    if (a.subscriptionStoppedAt && a.subscriptionStoppedAt <= format(monthEnd, 'yyyy-MM-dd'))
+      continue
+    const payments = countSubPaymentsInMonth(monthStart, monthEnd, startDate, a.billingCycle)
+    monthlyEstimate += payments * Number(a.subscriptionPrice)
+  }
+
+  for (const a of allAssets) {
+    if (a.assetType !== 'one_time' || !a.purchasePrice || !a.purchaseDate)
+      continue
+    if (a.purchaseDate >= format(monthStart, 'yyyy-MM-dd') && a.purchaseDate <= format(monthEnd, 'yyyy-MM-dd'))
+      monthlyEstimate += Number(a.purchasePrice)
+  }
+
+  // 4c. 年度已支出（现金流口径）
+  const yearStart = startOfYear(today)
+  const yearEnd = endOfYear(today)
+  let yearlyEstimate = 0
+
+  for (const a of allAssets) {
+    if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
+      continue
+    const startDate = a.subscriptionStartDate || a.purchaseDate
+    if (!startDate)
+      continue
+    if (a.subscriptionStoppedAt && a.subscriptionStoppedAt <= format(yearEnd, 'yyyy-MM-dd'))
+      continue
+    const cycleMonths = { monthly: 1, quarterly: 3, yearly: 12 } as const
+    const start = new Date(startDate)
+    if (start > yearEnd)
+      continue
+    const monthsToYearStart = Math.max(0, Math.round((yearStart.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+    const c = cycleMonths[a.billingCycle]
+    const k = Math.max(0, Math.ceil(monthsToYearStart / c))
+    const firstRenewal = new Date(start)
+    firstRenewal.setMonth(firstRenewal.getMonth() + k * c)
+    if (firstRenewal > yearEnd)
+      continue
+    const remainingMonths = Math.round((yearEnd.getTime() - firstRenewal.getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+    const paymentCount = 1 + Math.floor(remainingMonths / (c * 30.44))
+    yearlyEstimate += paymentCount * Number(a.subscriptionPrice)
+  }
+
+  const yearStartStr = format(yearStart, 'yyyy-MM-dd')
+  const yearEndStr = format(yearEnd, 'yyyy-MM-dd')
+
+  for (const a of allAssets) {
+    if (a.assetType !== 'one_time' || !a.purchasePrice || !a.purchaseDate)
+      continue
+    if (a.purchaseDate >= yearStartStr && a.purchaseDate <= yearEndStr)
+      yearlyEstimate += Number(a.purchasePrice)
+  }
+
+  for (const a of allAssets) {
+    if (a.assetType !== 'one_time' || !a.tradeInPrice || !a.tradedInAt)
+      continue
+    if (a.tradedInAt >= yearStartStr && a.tradedInAt <= yearEndStr)
+      yearlyEstimate -= Number(a.tradeInPrice)
+  }
+
+  // 4d. 订阅月固定成本（当前活跃订阅的等价月费）
+  let subscriptionMonthlyCommitment = 0
   for (const a of allAssets) {
     if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
       continue
@@ -98,83 +196,49 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     if (a.subscriptionStoppedAt && a.subscriptionStoppedAt <= todayStr)
       continue
     const price = Number(a.subscriptionPrice)
-    subscriptionDailyCost += calcSubscriptionDailyCost(price, a.billingCycle)
     if (a.billingCycle === 'monthly')
-      subscriptionMonthlyCost += price
+      subscriptionMonthlyCommitment += price
     else if (a.billingCycle === 'quarterly')
-      subscriptionMonthlyCost += price / 3
-    else subscriptionMonthlyCost += price / 12
+      subscriptionMonthlyCommitment += price / 3
+    else subscriptionMonthlyCommitment += price / 12
   }
 
-  // 4b. 买断每日花费：已回收的不计入（以旧换新在累计支出中单独处理）
-  let oneTimeDailyCost = 0
-  for (const a of allAssets) {
-    if (a.assetType !== 'one_time' || !a.purchasePrice || !a.purchaseDate || a.tradedInAt)
-      continue
-    oneTimeDailyCost += calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
-  }
-
-  const totalDailyCost = subscriptionDailyCost + oneTimeDailyCost
-  const monthlyEstimate = Math.round(subscriptionMonthlyCost + oneTimeDailyCost * 30)
-  const yearlyEstimate = Math.round(subscriptionMonthlyCost * 12 + oneTimeDailyCost * 365)
-
-  // 4c. 累计支出：本年订阅续费 + 本年买断费用
-  const yearStart = format(startOfYear(today), 'yyyy-MM-dd')
-
-  const yearRenewals = await db
-    .select({ price: subscriptionRenewals.price })
-    .from(subscriptionRenewals)
-    .innerJoin(assets, eq(subscriptionRenewals.assetId, assets.id))
-    .where(and(
-      eq(assets.userId, userId),
-      isNull(assets.deletedAt),
-      gte(subscriptionRenewals.startDate, yearStart),
-      lte(subscriptionRenewals.startDate, todayStr),
-    ))
-
-  const subscriptionSpent = yearRenewals.reduce((sum, r) => sum + Number(r.price), 0)
-
-  // 本年新购入的买断资产（未回收）
-  const yearNewOneTime = allAssets.filter(a =>
-    a.assetType === 'one_time'
-    && a.purchasePrice
-    && a.purchaseDate
-    && !a.tradedInAt
-    && a.purchaseDate >= yearStart
-    && a.purchaseDate <= todayStr,
-  )
-
-  // 本年发生以旧换新的旧资产（按回收日期计入，而非购买日期）
-  const yearTradedIn = allAssets.filter(a =>
-    a.assetType === 'one_time'
-    && a.purchasePrice
-    && a.tradedInAt
-    && a.tradeInPrice
-    && a.tradedInAt >= yearStart
-    && a.tradedInAt <= todayStr,
-  )
-
-  const oneTimeSpent = yearNewOneTime.reduce((sum, a) => sum + Number(a.purchasePrice), 0)
-    + yearTradedIn.reduce((sum, a) => sum + Number(a.purchasePrice) - Number(a.tradeInPrice), 0)
-
-  const totalSpent = subscriptionSpent + oneTimeSpent
   const assetCount = activeAssets.length
 
-  // 5. 分类花费
+  // 5. 分类花费（过去 12 个月滚动持有成本）
+  const catRangeStart = new Date(today.getTime() - 365 * 86400000)
   const catSpending: Record<string, number> = {}
+
   for (const a of allAssets) {
-    if (a.purchasePrice && !a.tradedInAt && a.categoryId) {
-      catSpending[a.categoryId] = (catSpending[a.categoryId] || 0) + Number(a.purchasePrice)
+    if (!a.categoryId)
+      continue
+    let cost = 0
+    if (a.assetType === 'subscription' && a.subscriptionPrice) {
+      const startDate = a.subscriptionStartDate || a.purchaseDate
+      if (startDate)
+        cost = calcSubscriptionCostRange(Number(a.subscriptionPrice), startDate, a.subscriptionStoppedAt, catRangeStart, today)
     }
+    else if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+      if (a.tradedInAt && a.tradeInPrice) {
+        cost = calcSoldOneTimeCostRange(Number(a.purchasePrice), a.purchaseDate, Number(a.tradeInPrice), a.tradedInAt, catRangeStart, today)
+      }
+      else if (!a.tradedInAt) {
+        cost = calcOneTimeCostRange(Number(a.purchasePrice), a.purchaseDate, catRangeStart, today)
+      }
+    }
+    if (cost > 0)
+      catSpending[a.categoryId] = (catSpending[a.categoryId] || 0) + cost
   }
+
+  const categoryTotal = Object.values(catSpending).reduce((s, v) => s + v, 0)
   const categorySpending = Object.entries(catSpending)
     .map(([catId, amount]) => {
       const cat = categoryMap[catId]
       return {
         name: cat?.name || '未分类',
         emoji: cat?.emoji || '📦',
-        amount,
-        percent: totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0,
+        amount: Math.round(amount),
+        percent: categoryTotal > 0 ? Math.round((amount / categoryTotal) * 100) : 0,
         color: CATEGORY_COLORS[cat?.emoji || '📦'] || '#9ca3af',
       }
     })
@@ -287,5 +351,5 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     return daysA - daysB
   })
 
-  return { kpi: { totalDailyCost, monthlyEstimate, yearlyEstimate, totalSpent, assetCount }, categorySpending, monthlyTrend, expiring }
+  return { kpi: { totalDailyCost, monthlyEstimate, yearlyEstimate, subscriptionMonthlyCommitment, assetCount }, categorySpending, monthlyTrend, expiring }
 }

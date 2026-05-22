@@ -1,6 +1,7 @@
 import type { Route } from './+types/assets.$id'
-import { IconCalendarOff, IconLoader2, IconPencil, IconRefresh, IconTrash } from '@tabler/icons-react'
+import { IconCalendarOff, IconCoin, IconLoader2, IconPencil, IconRefresh, IconTrash } from '@tabler/icons-react'
 import { addMonths, addYears, format, isAfter } from 'date-fns'
+import { eq } from 'drizzle-orm'
 import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
@@ -36,6 +37,7 @@ import {
 } from '~/components/ui/sheet'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
+import { db } from '~/db'
 import {
   createRepairRecord,
   deleteRepairRecord,
@@ -47,9 +49,11 @@ import {
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
+  markAssetAsTradedIn,
   updateRepairRecord,
   upsertWarranty,
 } from '~/db/queries/assets'
+import { assets } from '~/db/schema'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 
 import { createSupabaseServerClient } from '~/lib/supabase.server'
@@ -82,6 +86,17 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (asset.tradedFromAssetId) {
     const { getTradedFromAsset } = await import('~/db/queries/assets')
     tradedFromAsset = await getTradedFromAsset(asset.tradedFromAssetId)
+  }
+
+  // 判断是「已卖出」还是「已换购」：是否有其他资产通过 tradedFromAssetId 关联到当前资产
+  let isSoldAsset = false
+  if (asset.tradedInAt && !asset.tradedFromAssetId) {
+    const linked = await db
+      .select({ id: assets.id })
+      .from(assets)
+      .where(eq(assets.tradedFromAssetId, assetId))
+      .limit(1)
+    isSoldAsset = linked.length === 0
   }
 
   // 计算每日成本
@@ -118,6 +133,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     paymentTypes,
     paymentAccounts,
     tradedFromAsset,
+    isSoldAsset,
   }
 }
 
@@ -141,6 +157,13 @@ export async function action({ request, params }: Route.ActionArgs) {
     const { stopSubscription } = await import('~/db/queries/assets')
     const stoppedAt = formData.get('stoppedAt') as string
     await stopSubscription(assetId, user.id, stoppedAt)
+    return { ok: true }
+  }
+
+  if (intent === 'sell') {
+    const tradeInPrice = formData.get('tradeInPrice') as string
+    const tradedInAt = formData.get('tradedInAt') as string
+    await markAssetAsTradedIn(assetId, user.id, tradeInPrice, tradedInAt)
     return { ok: true }
   }
 
@@ -210,6 +233,7 @@ export default function AssetsDetail() {
     paymentTypes,
     paymentAccounts,
     tradedFromAsset,
+    isSoldAsset,
   } = useLoaderData<typeof loader>()
   const navigate = useNavigate()
   const submit = useSubmit()
@@ -244,6 +268,11 @@ export default function AssetsDetail() {
   // 停止订阅
   const [stopSubDialogOpen, setStopSubDialogOpen] = useState(false)
   const [stopSubDate, setStopSubDate] = useState(todayDate)
+
+  // 卖出
+  const [sellDialogOpen, setSellDialogOpen] = useState(false)
+  const [sellPrice, setSellPrice] = useState('')
+  const [sellDate, setSellDate] = useState(todayDate)
 
   // 计算下次续费日期（D-05）
   function calcNextRenewalDate(): string | null {
@@ -280,6 +309,15 @@ export default function AssetsDetail() {
     const fd = new FormData()
     fd.append('intent', 'delete')
     submit(fd, { method: 'post' })
+  }
+
+  function handleSell() {
+    const fd = new FormData()
+    fd.append('intent', 'sell')
+    fd.append('tradeInPrice', sellPrice || '0')
+    fd.append('tradedInAt', sellDate)
+    submit(fd, { method: 'post' })
+    setSellDialogOpen(false)
   }
 
   function handleAddRepair() {
@@ -370,12 +408,19 @@ export default function AssetsDetail() {
           to: `/assets/${asset.id}/edit`,
         }}
         moreItems={[
-          ...(asset.assetType === 'one_time'
-            ? [{
-                label: '以旧换新',
-                icon: IconRefresh,
-                onClick: () => navigate(`/assets/${asset.id}/trade-in`),
-              }]
+          ...(asset.assetType === 'one_time' && !asset.tradedInAt
+            ? [
+                {
+                  label: '以旧换新',
+                  icon: IconRefresh,
+                  onClick: () => navigate(`/assets/${asset.id}/trade-in`),
+                },
+                {
+                  label: '卖出',
+                  icon: IconCoin,
+                  onClick: () => setSellDialogOpen(true),
+                },
+              ]
             : []),
           ...(asset.assetType === 'subscription' && asset.subscriptionStatus === 'active'
             ? [{
@@ -579,7 +624,7 @@ export default function AssetsDetail() {
       )}
 
       {/* Trade-in card for old device (T-02) */}
-      {asset.tradedInAt && (
+      {asset.tradedInAt && !isSoldAsset && (
         <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
           <div className="flex items-center gap-2">
             <IconRefresh size={16} style={{ color: 'var(--color-primary)' }} />
@@ -592,6 +637,26 @@ export default function AssetsDetail() {
             </div>
             <div>
               回收日期：
+              {asset.tradedInAt}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 卖出卡片 */}
+      {asset.tradedInAt && isSoldAsset && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
+          <div className="flex items-center gap-2">
+            <IconCoin size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已卖出</span>
+          </div>
+          <div className="mt-2 space-y-1 text-[13px]" style={{ color: 'var(--color-body)' }}>
+            <div>
+              卖出价格：
+              {asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'}
+            </div>
+            <div>
+              卖出日期：
               {asset.tradedInAt}
             </div>
           </div>
@@ -931,6 +996,54 @@ export default function AssetsDetail() {
             >
               {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
               确认停止
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 卖出弹窗 */}
+      <Dialog open={sellDialogOpen} onOpenChange={setSellDialogOpen}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>卖出资产</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[14px]" style={{ color: 'var(--color-body)' }}>
+              输入卖出价格和日期。卖出后将不再计算每日成本。
+            </p>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>卖出价格 *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={sellPrice}
+                onChange={e => setSellPrice(e.target.value)}
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>卖出日期 *</Label>
+              <DatePicker value={sellDate} onChange={setSellDate} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+              onClick={() => setSellDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="h-10 !bg-[var(--color-primary)] px-4 text-[14px] !text-white hover:!bg-[var(--color-primary-active)]"
+              onClick={handleSell}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
+              确认卖出
             </Button>
           </DialogFooter>
         </DialogContent>
