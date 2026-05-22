@@ -1,7 +1,7 @@
-import { addDays, differenceInMonths, format, startOfMonth, subMonths } from 'date-fns'
+import { addDays, differenceInMonths, format, startOfMonth, startOfYear, subMonths } from 'date-fns'
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 import { db } from '~/db'
-import { assets, categories, warranties } from '~/db/schema'
+import { assets, categories, subscriptionRenewals, warranties } from '~/db/schema'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -86,20 +86,78 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   })
 
   // 4. 计算 KPI
-  let totalDailyCost = 0
-  for (const a of activeAssets) {
-    if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
-      totalDailyCost += calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
-    }
-    else if (a.assetType === 'subscription' && a.subscriptionPrice && a.billingCycle) {
-      totalDailyCost += calcSubscriptionDailyCost(Number(a.subscriptionPrice), a.billingCycle)
-    }
+  // 4a. 订阅每日花费：只计算今天仍在有效期内的订阅
+  let subscriptionDailyCost = 0
+  let subscriptionMonthlyCost = 0
+  for (const a of allAssets) {
+    if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
+      continue
+    const startDate = a.subscriptionStartDate || a.purchaseDate
+    if (startDate && startDate > todayStr)
+      continue
+    if (a.subscriptionStoppedAt && a.subscriptionStoppedAt <= todayStr)
+      continue
+    const price = Number(a.subscriptionPrice)
+    subscriptionDailyCost += calcSubscriptionDailyCost(price, a.billingCycle)
+    if (a.billingCycle === 'monthly')
+      subscriptionMonthlyCost += price
+    else if (a.billingCycle === 'quarterly')
+      subscriptionMonthlyCost += price / 3
+    else subscriptionMonthlyCost += price / 12
   }
-  const monthlyEstimate = Math.round(totalDailyCost * 30)
-  const yearlyEstimate = Math.round(totalDailyCost * 365)
-  const totalSpent = allAssets
-    .filter(a => a.purchasePrice && !a.tradedInAt)
-    .reduce((sum, a) => sum + Number(a.purchasePrice), 0)
+
+  // 4b. 买断每日花费：已回收的不计入（以旧换新在累计支出中单独处理）
+  let oneTimeDailyCost = 0
+  for (const a of allAssets) {
+    if (a.assetType !== 'one_time' || !a.purchasePrice || !a.purchaseDate || a.tradedInAt)
+      continue
+    oneTimeDailyCost += calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
+  }
+
+  const totalDailyCost = subscriptionDailyCost + oneTimeDailyCost
+  const monthlyEstimate = Math.round(subscriptionMonthlyCost + oneTimeDailyCost * 30)
+  const yearlyEstimate = Math.round(subscriptionMonthlyCost * 12 + oneTimeDailyCost * 365)
+
+  // 4c. 累计支出：本年订阅续费 + 本年买断费用
+  const yearStart = format(startOfYear(today), 'yyyy-MM-dd')
+
+  const yearRenewals = await db
+    .select({ price: subscriptionRenewals.price })
+    .from(subscriptionRenewals)
+    .innerJoin(assets, eq(subscriptionRenewals.assetId, assets.id))
+    .where(and(
+      eq(assets.userId, userId),
+      isNull(assets.deletedAt),
+      gte(subscriptionRenewals.startDate, yearStart),
+      lte(subscriptionRenewals.startDate, todayStr),
+    ))
+
+  const subscriptionSpent = yearRenewals.reduce((sum, r) => sum + Number(r.price), 0)
+
+  // 本年新购入的买断资产（未回收）
+  const yearNewOneTime = allAssets.filter(a =>
+    a.assetType === 'one_time'
+    && a.purchasePrice
+    && a.purchaseDate
+    && !a.tradedInAt
+    && a.purchaseDate >= yearStart
+    && a.purchaseDate <= todayStr,
+  )
+
+  // 本年发生以旧换新的旧资产（按回收日期计入，而非购买日期）
+  const yearTradedIn = allAssets.filter(a =>
+    a.assetType === 'one_time'
+    && a.purchasePrice
+    && a.tradedInAt
+    && a.tradeInPrice
+    && a.tradedInAt >= yearStart
+    && a.tradedInAt <= todayStr,
+  )
+
+  const oneTimeSpent = yearNewOneTime.reduce((sum, a) => sum + Number(a.purchasePrice), 0)
+    + yearTradedIn.reduce((sum, a) => sum + Number(a.purchasePrice) - Number(a.tradeInPrice), 0)
+
+  const totalSpent = subscriptionSpent + oneTimeSpent
   const assetCount = activeAssets.length
 
   // 5. 分类花费

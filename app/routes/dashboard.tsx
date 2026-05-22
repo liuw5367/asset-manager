@@ -37,7 +37,7 @@ export default function Dashboard() {
   const { kpi, categorySpending, monthlyTrend, expiring } = data
 
   const kpis = [
-    { label: '每日花费', value: kpi.totalDailyCost.toFixed(2), subtitle: '元/天' },
+    { label: '每日估算', value: kpi.totalDailyCost.toFixed(2), subtitle: '元/天' },
     { label: '月度估算', value: kpi.monthlyEstimate.toLocaleString(), subtitle: '元/月' },
     { label: '年度估算', value: kpi.yearlyEstimate.toLocaleString(), subtitle: '元/年' },
     { label: '累计支出', value: kpi.totalSpent.toLocaleString(), subtitle: `${kpi.assetCount} 项资产` },
