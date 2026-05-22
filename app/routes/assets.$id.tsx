@@ -75,19 +75,34 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(userId),
   ])
 
+  // 加载关联的旧设备（以旧换新场景）
+  let tradedFromAsset = null
+  if (asset.tradedFromAssetId) {
+    const { getTradedFromAsset } = await import('~/db/queries/assets')
+    tradedFromAsset = await getTradedFromAsset(asset.tradedFromAssetId)
+  }
+
   // 计算每日成本
   let dailyCost = 0
-  if (asset.assetType === 'one_time' && asset.purchasePrice && asset.purchaseDate) {
+  let holdingDays = 0
+  if (asset.tradedInAt) {
+    // 旧设备已换购：按回收日期冻结计算（T-03）
+    if (asset.purchasePrice && asset.purchaseDate) {
+      holdingDays = Math.max(1, Math.floor((new Date(asset.tradedInAt).getTime() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      const holdingCost = Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)
+      dailyCost = holdingDays > 0 ? holdingCost / holdingDays : 0
+    }
+  }
+  else if (asset.assetType === 'one_time' && asset.purchasePrice && asset.purchaseDate) {
     dailyCost = calcOneTimeDailyCost(Number(asset.purchasePrice), asset.purchaseDate)
+    holdingDays = Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
   }
   else if (asset.assetType === 'subscription' && asset.subscriptionPrice && asset.billingCycle) {
     dailyCost = calcSubscriptionDailyCost(Number(asset.subscriptionPrice), asset.billingCycle)
+    holdingDays = asset.purchaseDate
+      ? Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0
   }
-
-  // 计算持有天数
-  const holdingDays = asset.purchaseDate
-    ? Math.max(1, Math.floor((Date.now() - new Date(asset.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
-    : 0
 
   return {
     asset,
@@ -100,6 +115,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     allTags,
     paymentTypes,
     paymentAccounts,
+    tradedFromAsset,
   }
 }
 
@@ -172,6 +188,7 @@ export default function AssetsDetail() {
     allTags,
     paymentTypes,
     paymentAccounts,
+    tradedFromAsset,
   } = useLoaderData<typeof loader>()
   const navigate = useNavigate()
   const submit = useSubmit()
@@ -316,12 +333,14 @@ export default function AssetsDetail() {
                 onClick: () => setStopSubDialogOpen(true),
               }]
             : []),
-          {
-            label: '删除资产',
-            icon: IconTrash,
-            variant: 'destructive' as const,
-            onClick: () => setDeleteDialogOpen(true),
-          },
+          ...(!asset.tradedInAt
+            ? [{
+                label: '删除资产',
+                icon: IconTrash,
+                variant: 'destructive' as const,
+                onClick: () => setDeleteDialogOpen(true),
+              }]
+            : []),
         ].filter(Boolean) as { label: string, icon?: typeof IconTrash, variant?: 'default' | 'destructive', onClick: () => void }[]}
       />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -505,6 +524,27 @@ export default function AssetsDetail() {
             停止日期：
             {asset.subscriptionStoppedAt}
           </div>
+        </div>
+      )}
+
+      {/* Trade-in card for old device (T-02) */}
+      {asset.tradedInAt && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>已换购</div>
+          <DetailRow label="回收价格" value={asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'} />
+          <DetailRow label="回收日期" value={asset.tradedInAt} />
+          <DetailRow label="持有成本" value={asset.purchasePrice ? (Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)).toLocaleString() : '—'} />
+          <DetailRow label="持有天数" value={`${holdingDays} 天`} />
+          <DetailRow label="持有成本/天" value={`${dailyCost.toFixed(2)}/天`} primary />
+        </div>
+      )}
+
+      {/* Trade-in info for new device (T-05) */}
+      {!asset.tradedInAt && tradedFromAsset && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
+          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>以旧换新购入</div>
+          <DetailRow label="旧设备回收价" value={tradedFromAsset.tradeInPrice ? Number(tradedFromAsset.tradeInPrice).toLocaleString() : '—'} />
+          <DetailRow label="实际支付价格" value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString() : '—'} primary />
         </div>
       )}
 

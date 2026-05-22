@@ -195,6 +195,58 @@ export async function stopSubscription(id: string, userId: string, stoppedAt: st
     .where(and(eq(assets.id, id), eq(assets.userId, userId)))
 }
 
+// ========== 以旧换新 ==========
+
+export async function markAssetAsTradedIn(id: string, userId: string, tradeInPrice: string, tradedInAt: string) {
+  await db
+    .update(assets)
+    .set({
+      tradedInAt,
+      tradeInPrice,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+export async function linkTradedFromAsset(newAssetId: string, oldAssetId: string) {
+  await db
+    .update(assets)
+    .set({
+      tradedFromAssetId: oldAssetId,
+      updatedAt: new Date(),
+    })
+    .where(eq(assets.id, newAssetId))
+}
+
+export async function getOrCreateTradeInTag(userId: string) {
+  const tagName = '以旧换新购买'
+  const existing = await db
+    .select()
+    .from(tags)
+    .where(and(eq(tags.userId, userId), eq(tags.name, tagName)))
+    .limit(1)
+
+  if (existing[0])
+    return existing[0]
+
+  const [tag] = await db
+    .insert(tags)
+    .values({ userId, name: tagName, color: '#7c6dea' })
+    .returning()
+
+  return tag
+}
+
+export async function getTradedFromAsset(assetId: string) {
+  const rows = await db
+    .select()
+    .from(assets)
+    .where(eq(assets.id, assetId))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
 // ========== 分类 ==========
 
 export async function getCategoriesByUserId(userId: string) {
@@ -317,6 +369,8 @@ export async function getAssetsWithCategoryName(userId: string) {
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
       purchaseDate: assets.purchaseDate,
+      tradedInAt: assets.tradedInAt,
+      tradeInPrice: assets.tradeInPrice,
       createdAt: assets.createdAt,
       categoryName: categories.name,
     })

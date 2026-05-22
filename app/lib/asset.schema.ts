@@ -36,9 +36,6 @@ export const assetFormSchema = z.object({
     if (!data.billingCycle) {
       ctx.addIssue({ code: 'custom', message: '请选择订阅周期', path: ['billingCycle'] })
     }
-    if (!data.nextRenewalDate) {
-      ctx.addIssue({ code: 'custom', message: '请选择下次续费日期', path: ['nextRenewalDate'] })
-    }
   }
 })
 

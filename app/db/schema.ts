@@ -94,6 +94,11 @@ export const assets = pgTable('assets', {
   // 软删除
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 
+  // 以旧换新
+  tradedInAt: date('traded_in_at'),
+  tradeInPrice: numeric('trade_in_price', { precision: 12, scale: 2 }),
+  tradedFromAssetId: uuid('traded_from_asset_id'),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })

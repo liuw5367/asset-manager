@@ -37,7 +37,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   // 计算每日成本
   const assetsWithCost = rawAssets.map((a) => {
     let dailyCost = 0
-    if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+    if (a.tradedInAt && a.purchasePrice && a.purchaseDate) {
+      // 已换购：冻结持有成本 = (购入价 - 回收价) / 持有天数
+      const holdingDays = Math.max(1, Math.floor((new Date(a.tradedInAt).getTime() - new Date(a.purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
+      const holdingCost = Number(a.purchasePrice) - Number(a.tradeInPrice || 0)
+      dailyCost = holdingCost / holdingDays
+    }
+    else if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
       dailyCost = calcOneTimeDailyCost(Number(a.purchasePrice), a.purchaseDate)
     }
     else if (a.assetType === 'subscription' && a.subscriptionPrice && a.billingCycle) {
@@ -260,6 +266,14 @@ export default function AssetsIndex() {
                     订阅
                   </span>
                 )}
+                {asset.tradedInAt && (
+                  <span
+                    className="rounded-md px-1.5 py-0.5 text-[10px]"
+                    style={{ background: 'var(--color-surface-strong)', color: 'var(--color-muted-soft)' }}
+                  >
+                    已换购
+                  </span>
+                )}
               </div>
             </div>
 
@@ -269,7 +283,9 @@ export default function AssetsIndex() {
                 {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--color-muted-soft)' }}>
-                {Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
+                {asset.tradedInAt && asset.purchasePrice
+                  ? (Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)).toLocaleString()
+                  : Number(asset.purchasePrice ?? asset.subscriptionPrice ?? 0).toLocaleString()}
               </div>
             </div>
           </button>

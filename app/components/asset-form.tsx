@@ -91,7 +91,6 @@ export function AssetForm({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(defaultValues?.categoryId || null)
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<AssetFormValues['billingCycle'] | null>(defaultValues?.billingCycle || null)
   const [selectedPurchaseDate, setSelectedPurchaseDate] = useState(defaultValues?.purchaseDate || '')
-  const [selectedNextRenewalDate, setSelectedNextRenewalDate] = useState(defaultValues?.nextRenewalDate || '')
   const [selectedSubscriptionStartDate, setSelectedSubscriptionStartDate] = useState(defaultValues?.subscriptionStartDate || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(defaultValues?.tagIds || [])
   const [selectedEmoji, setSelectedEmoji] = useState(defaultValues?.emoji || '📦')
@@ -358,6 +357,7 @@ export function AssetForm({
               className="mb-1"
               style={{ borderColor: fieldError('subscriptionPrice') ? 'var(--color-error)' : undefined }}
               type="number"
+              inputMode="decimal"
               step="0.01"
               placeholder="0.00"
               {...register('subscriptionPrice')}
@@ -394,17 +394,7 @@ export function AssetForm({
             </Select>
             {fieldError('billingCycle') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('billingCycle')}</p>}
 
-            <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>下次续费日期 *</Label>
-            <input type="hidden" {...register('nextRenewalDate')} value={selectedNextRenewalDate} />
-            <DatePicker
-              className="mb-1"
-              value={selectedNextRenewalDate}
-              onChange={(v) => {
-                setSelectedNextRenewalDate(v)
-                setValue('nextRenewalDate', v)
-              }}
-            />
-            {fieldError('nextRenewalDate') && <p className="mb-2 text-[12px]" style={{ color: 'var(--color-error)' }}>{fieldError('nextRenewalDate')}</p>}
+            {/* 下次续费日期由系统自动计算，不再手动输入 */}
 
             <Label className="mb-1.5 mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>订阅开始日期</Label>
             <input type="hidden" {...register('subscriptionStartDate')} value={selectedSubscriptionStartDate} />
