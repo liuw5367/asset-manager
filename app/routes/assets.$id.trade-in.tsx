@@ -81,7 +81,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     assetType === 'one_time'
       ? {
           ...baseData,
-          purchasePrice: formData.get('actualSpend') as string,
+          purchasePrice: formData.get('newPrice') as string,
           purchaseDate: tradeInDate,
         }
       : {
@@ -126,6 +126,7 @@ export default function AssetsTradeIn() {
   function handleAssetFormSubmit(fd: FormData) {
     fd.append('tradeInDate', tradeInDate)
     fd.append('tradeInPrice', tradeInPrice || '0')
+    fd.append('newPrice', newPrice || '0')
     fd.append('actualSpend', String(actualSpend))
     submit(fd, { method: 'post' })
   }
@@ -154,9 +155,11 @@ export default function AssetsTradeIn() {
         submitRef={submitRef}
         topContent={(
           <>
-            <div className="mb-1 flex items-center gap-3 text-base font-semibold" style={{ color: 'var(--color-ink)' }}>
-              <span>旧设备回收</span>
-              <div className="h-px flex-1" style={{ background: 'var(--color-hairline)' }} />
+            <div
+              className="mb-3 text-sm font-medium uppercase tracking-wide"
+              style={{ color: 'var(--color-muted-soft)' }}
+            >
+              旧设备回收
             </div>
             <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
               <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
