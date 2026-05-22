@@ -8,6 +8,7 @@ import { Button } from '~/components/ui/button'
 import { DatePicker } from '~/components/ui/date-picker'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
+import { MultiSelect } from '~/components/ui/multi-select'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
@@ -470,24 +471,13 @@ export function AssetForm({
 
         {/* Tags */}
         <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>标签</Label>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {tags.map(tag => (
-            <Button
-              key={tag.id}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => toggleTag(tag.id)}
-              className="h-8 rounded-full px-3 text-[13px] font-medium"
-              style={{
-                background: selectedTags.includes(tag.id) ? `${tag.color}22` : 'var(--color-surface-strong)',
-                color: selectedTags.includes(tag.id) ? tag.color : 'var(--color-body)',
-                border: `1px solid ${selectedTags.includes(tag.id) ? tag.color : 'transparent'}`,
-              }}
-            >
-              {tag.name}
-            </Button>
-          ))}
+        <div className="mb-3">
+          <MultiSelect
+            items={tags.map(tag => ({ value: tag.id, label: tag.name, color: tag.color }))}
+            selected={selectedTags}
+            onToggle={toggleTag}
+            placeholder="可选"
+          />
         </div>
 
         {/* Notes */}
