@@ -115,7 +115,7 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3">
               {categorySpending.map(cat => (
                 <div key={cat.name} className="flex items-center gap-3">
-                  <span className="w-[72px] shrink-0 text-[13px]" style={{ color: 'var(--color-body)' }}>
+                  <span className="w-[96px] shrink-0 whitespace-nowrap text-[13px]" style={{ color: 'var(--color-body)' }}>
                     {cat.emoji}
                     {' '}
                     {cat.name}
@@ -178,7 +178,7 @@ export default function Dashboard() {
                 axisLine={false}
                 tickMargin={8}
                 fontSize={11}
-                width={40}
+                width={50}
               />
               <ChartTooltip
                 content={(
