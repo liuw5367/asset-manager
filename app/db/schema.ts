@@ -80,6 +80,7 @@ export const assets = pgTable('assets', {
   nextRenewalDate: date('next_renewal_date'),
   subscriptionStartDate: date('subscription_start_date'),
   subscriptionStatus: text('subscription_status', { enum: ['active', 'cancelled', 'expired'] }).default('active'),
+  subscriptionStoppedAt: date('subscription_stopped_at'),
 
   // 通用
   paymentTypeId: uuid('payment_type_id'),

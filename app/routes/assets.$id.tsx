@@ -1,5 +1,6 @@
 import type { Route } from './+types/assets.$id'
-import { IconLoader2, IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconCalendarOff, IconLoader2, IconPencil, IconTrash } from '@tabler/icons-react'
+import { addMonths, addYears, format, isAfter } from 'date-fns'
 import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
@@ -118,6 +119,13 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect('/assets', { headers })
   }
 
+  if (intent === 'stop-subscription') {
+    const { stopSubscription } = await import('~/db/queries/assets')
+    const stoppedAt = formData.get('stoppedAt') as string
+    await stopSubscription(assetId, user.id, stoppedAt)
+    return { ok: true }
+  }
+
   if (intent === 'add-repair') {
     await createRepairRecord({
       assetId,
@@ -194,6 +202,41 @@ export default function AssetsDetail() {
   const [subReminder, setSubReminder] = useState('跟随全局（7天）')
   const [warrantyReminder, setWarrantyReminder] = useState('跟随全局（14天）')
 
+  // 停止订阅
+  const [stopSubDialogOpen, setStopSubDialogOpen] = useState(false)
+  const [stopSubDate, setStopSubDate] = useState(todayDate)
+
+  // 计算下次续费日期（D-05）
+  function calcNextRenewalDate(): string | null {
+    if (asset.assetType !== 'subscription' || !asset.subscriptionStartDate || !asset.billingCycle)
+      return null
+    const start = new Date(asset.subscriptionStartDate)
+    const today = new Date()
+    let next = new Date(start)
+    if (asset.billingCycle === 'monthly') {
+      while (!isAfter(next, today))
+        next = addMonths(next, 1)
+    }
+    else if (asset.billingCycle === 'quarterly') {
+      while (!isAfter(next, today))
+        next = addMonths(next, 3)
+    }
+    else {
+      while (!isAfter(next, today))
+        next = addYears(next, 1)
+    }
+    return format(next, 'yyyy-MM-dd')
+  }
+  const nextRenewalDate = calcNextRenewalDate()
+
+  function handleStopSubscription() {
+    const fd = new FormData()
+    fd.append('intent', 'stop-subscription')
+    fd.append('stoppedAt', stopSubDate)
+    submit(fd, { method: 'post' })
+    setStopSubDialogOpen(false)
+  }
+
   function handleDelete() {
     const fd = new FormData()
     fd.append('intent', 'delete')
@@ -260,17 +303,26 @@ export default function AssetsDetail() {
           to: `/assets/${asset.id}/edit`,
         }}
         moreItems={[
-          {
-            label: '以旧换新',
-            onClick: () => navigate(`/assets/${asset.id}/trade-in`),
-          },
+          ...(asset.assetType === 'one_time'
+            ? [{
+                label: '以旧换新',
+                onClick: () => navigate(`/assets/${asset.id}/trade-in`),
+              }]
+            : []),
+          ...(asset.assetType === 'subscription' && asset.subscriptionStatus === 'active'
+            ? [{
+                label: '停止订阅',
+                icon: IconCalendarOff,
+                onClick: () => setStopSubDialogOpen(true),
+              }]
+            : []),
           {
             label: '删除资产',
             icon: IconTrash,
-            variant: 'destructive',
+            variant: 'destructive' as const,
             onClick: () => setDeleteDialogOpen(true),
           },
-        ]}
+        ].filter(Boolean) as { label: string, icon?: typeof IconTrash, variant?: 'default' | 'destructive', onClick: () => void }[]}
       />
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
@@ -383,14 +435,6 @@ export default function AssetsDetail() {
                   : asset.billingCycle === 'quarterly' ? '季付' : '年付'
               }
             />
-            <DetailRow
-              label="订阅周期"
-              value={
-                asset.billingCycle === 'monthly'
-                  ? '月付'
-                  : asset.billingCycle === 'quarterly' ? '季付' : '年付'
-              }
-            />
             {asset.subscriptionPrice && (
               <DetailRow
                 label="订阅金额"
@@ -402,15 +446,18 @@ export default function AssetsDetail() {
               />
             )}
             <DetailRow label="每日成本" value={`${dailyCost.toFixed(2)}/天`} primary />
-            {asset.nextRenewalDate && (
-              <DetailRow label="下次续费" value={asset.nextRenewalDate} />
+            {nextRenewalDate && (
+              <DetailRow label="下次续费" value={nextRenewalDate} />
             )}
             <DetailRow
               label="状态"
               value={(
                 <span
                   className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-medium"
-                  style={{ background: 'var(--color-success)', color: '#fff' }}
+                  style={{
+                    background: asset.subscriptionStatus === 'active' ? 'var(--color-success)' : 'var(--color-muted)',
+                    color: '#fff',
+                  }}
                 >
                   {asset.subscriptionStatus === 'active' ? '活跃' : asset.subscriptionStatus === 'cancelled' ? '已取消' : '已过期'}
                 </span>
@@ -446,6 +493,20 @@ export default function AssetsDetail() {
           <DetailRow label="备注" value={asset.notes} muted />
         )}
       </div>
+
+      {/* Subscription stopped card */}
+      {asset.assetType === 'subscription' && asset.subscriptionStatus === 'cancelled' && asset.subscriptionStoppedAt && (
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
+          <div className="flex items-center gap-2">
+            <IconCalendarOff size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>订阅已停止</span>
+          </div>
+          <div className="mt-2 text-[13px]" style={{ color: 'var(--color-body)' }}>
+            停止日期：
+            {asset.subscriptionStoppedAt}
+          </div>
+        </div>
+      )}
 
       {/* Warranty */}
       <Section
@@ -701,6 +762,43 @@ export default function AssetsDetail() {
               disabled={isSubmitting}
             >
               保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stop Subscription Dialog */}
+      <Dialog open={stopSubDialogOpen} onOpenChange={setStopSubDialogOpen}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>停止订阅</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-[14px]" style={{ color: 'var(--color-body)' }}>
+              选择停止订阅的日期。停止后将不再计算每日成本。
+            </p>
+            <div>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>停止日期 *</Label>
+              <DatePicker value={stopSubDate} onChange={setStopSubDate} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 border-[var(--color-hairline)] bg-[var(--color-canvas)] px-4 text-[14px] text-[var(--color-body)] hover:bg-[var(--color-surface-soft)]"
+              onClick={() => setStopSubDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="h-10 !bg-[var(--color-primary)] px-4 text-[14px] !text-white hover:!bg-[var(--color-primary-active)]"
+              onClick={handleStopSubscription}
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
+              确认停止
             </Button>
           </DialogFooter>
         </DialogContent>

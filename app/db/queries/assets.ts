@@ -182,6 +182,19 @@ export async function softDeleteAsset(id: string, userId: string) {
     .where(and(eq(assets.id, id), eq(assets.userId, userId)))
 }
 
+// ========== 停止订阅 ==========
+
+export async function stopSubscription(id: string, userId: string, stoppedAt: string) {
+  await db
+    .update(assets)
+    .set({
+      subscriptionStatus: 'cancelled',
+      subscriptionStoppedAt: stoppedAt,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
 // ========== 分类 ==========
 
 export async function getCategoriesByUserId(userId: string) {
