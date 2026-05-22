@@ -580,13 +580,21 @@ export default function AssetsDetail() {
 
       {/* Trade-in card for old device (T-02) */}
       {asset.tradedInAt && (
-        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-surface-soft)' }}>
-          <div className="mb-2 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>已换购</div>
-          <DetailRow label="回收价格" value={asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'} />
-          <DetailRow label="回收日期" value={asset.tradedInAt} />
-          <DetailRow label="持有成本" value={asset.purchasePrice ? (Number(asset.purchasePrice) - Number(asset.tradeInPrice || 0)).toLocaleString() : '—'} />
-          <DetailRow label="持有天数" value={`${holdingDays} 天`} />
-          <DetailRow label="持有成本/天" value={`${dailyCost.toFixed(2)}/天`} primary />
+        <div className="mt-3 rounded-xl p-4" style={{ background: 'var(--color-primary-muted)' }}>
+          <div className="flex items-center gap-2">
+            <IconRefresh size={16} style={{ color: 'var(--color-primary)' }} />
+            <span className="text-[14px] font-medium" style={{ color: 'var(--color-primary)' }}>已换购</span>
+          </div>
+          <div className="mt-2 space-y-1 text-[13px]" style={{ color: 'var(--color-body)' }}>
+            <div>
+              回收价格：
+              {asset.tradeInPrice ? Number(asset.tradeInPrice).toLocaleString() : '—'}
+            </div>
+            <div>
+              回收日期：
+              {asset.tradedInAt}
+            </div>
+          </div>
         </div>
       )}
 

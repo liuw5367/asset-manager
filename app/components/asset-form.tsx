@@ -90,7 +90,8 @@ export function AssetForm({
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState<string | null>(defaultValues?.paymentAccountId || null)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(defaultValues?.categoryId || null)
   const [selectedBillingCycle, setSelectedBillingCycle] = useState<AssetFormValues['billingCycle'] | null>(defaultValues?.billingCycle || null)
-  const [selectedPurchaseDate, setSelectedPurchaseDate] = useState(defaultValues?.purchaseDate || '')
+  const [today] = useState(() => new Date().toISOString().split('T')[0])
+  const [selectedPurchaseDate, setSelectedPurchaseDate] = useState(defaultValues?.purchaseDate || today)
   const [selectedSubscriptionStartDate, setSelectedSubscriptionStartDate] = useState(defaultValues?.subscriptionStartDate || '')
   const [selectedTags, setSelectedTags] = useState<string[]>(defaultValues?.tagIds || [])
   const [selectedEmoji, setSelectedEmoji] = useState(defaultValues?.emoji || '📦')
@@ -106,6 +107,7 @@ export function AssetForm({
     setValue,
     formState: { errors },
   } = useForm<AssetFormValues>({
+    mode: 'onChange',
     defaultValues: {
       name: defaultValues?.name || '',
       emoji: defaultValues?.emoji || '📦',
@@ -117,7 +119,7 @@ export function AssetForm({
       paymentAccountId: defaultValues?.paymentAccountId || '',
       purchasePrice: defaultValues?.purchasePrice || '',
       currentValue: defaultValues?.currentValue || '',
-      purchaseDate: defaultValues?.purchaseDate || '',
+      purchaseDate: defaultValues?.purchaseDate || today,
       subscriptionPrice: defaultValues?.subscriptionPrice || '',
       billingCycle: defaultValues?.billingCycle || undefined,
       nextRenewalDate: defaultValues?.nextRenewalDate || '',
