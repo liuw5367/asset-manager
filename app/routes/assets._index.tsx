@@ -260,18 +260,26 @@ export default function AssetsIndex() {
                 )}
                 {asset.assetType === 'subscription' && (
                   <span
-                    className="rounded-md px-1.5 py-0.5 text-[10px]"
-                    style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}
+                    className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: '#e0edff', color: '#2563eb' }}
                   >
                     订阅
                   </span>
                 )}
                 {asset.tradedInAt && (
                   <span
-                    className="rounded-md px-1.5 py-0.5 text-[10px]"
-                    style={{ background: 'var(--color-surface-strong)', color: 'var(--color-muted-soft)' }}
+                    className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: '#fce8e8', color: '#dc2626' }}
                   >
                     已换购
+                  </span>
+                )}
+                {asset.tradedFromAssetId && !asset.tradedInAt && (
+                  <span
+                    className="rounded-md px-1.5 py-0.5 text-[10px] font-medium"
+                    style={{ background: '#ede9fe', color: '#7c3aed' }}
+                  >
+                    以旧换新
                   </span>
                 )}
               </div>
