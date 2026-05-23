@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db } from '~/db'
 import {
   assets,
@@ -195,6 +195,17 @@ export async function stopSubscription(id: string, userId: string, stoppedAt: st
     .where(and(eq(assets.id, id), eq(assets.userId, userId)))
 }
 
+export async function resumeSubscription(id: string, userId: string) {
+  await db
+    .update(assets)
+    .set({
+      subscriptionStatus: 'active',
+      subscriptionStoppedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
 // ========== 以旧换新 ==========
 
 export async function markAssetAsTradedIn(id: string, userId: string, tradeInPrice: string, tradedInAt: string) {
@@ -241,7 +252,26 @@ export async function getTradedFromAsset(assetId: string) {
   const rows = await db
     .select()
     .from(assets)
-    .where(eq(assets.id, assetId))
+    .where(and(eq(assets.id, assetId), isNull(assets.deletedAt)))
+    .limit(1)
+
+  return rows[0] ?? null
+}
+
+export async function getTradeToAsset(oldAssetId: string, userId: string) {
+  const rows = await db
+    .select({
+      id: assets.id,
+      name: assets.name,
+      assetType: assets.assetType,
+      purchasePrice: assets.purchasePrice,
+    })
+    .from(assets)
+    .where(and(
+      eq(assets.userId, userId),
+      eq(assets.tradedFromAssetId, oldAssetId),
+      isNull(assets.deletedAt),
+    ))
     .limit(1)
 
   return rows[0] ?? null
@@ -402,13 +432,14 @@ export async function getAssetsWithCategoryName(userId: string) {
       tradeInPrice: assets.tradeInPrice,
       tradedFromAssetId: assets.tradedFromAssetId,
       subscriptionStatus: assets.subscriptionStatus,
+      subscriptionStoppedAt: assets.subscriptionStoppedAt,
       createdAt: assets.createdAt,
       categoryName: categories.name,
     })
     .from(assets)
     .leftJoin(categories, eq(assets.categoryId, categories.id))
     .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
-    .orderBy(assets.createdAt)
+    .orderBy(desc(assets.createdAt))
 }
 
 // ========== 获取用户所有资产标签关联 ==========

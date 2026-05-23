@@ -12,6 +12,7 @@ import {
   useNavigation,
   useRouteError,
 } from 'react-router'
+import { Toaster } from '~/components/ui/sonner'
 import 'nprogress/nprogress.css'
 import './app.css'
 
@@ -49,6 +50,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
+        <Toaster position="top-center" richColors />
         <ScrollRestoration />
         <Scripts />
       </body>

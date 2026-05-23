@@ -1,6 +1,6 @@
 import type { Route } from './+types/assets.new'
 import { useRef } from 'react'
-import { redirect, useLoaderData, useSubmit } from 'react-router'
+import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
 import { SubPageHeader } from '~/components/page-header'
 import {
@@ -10,9 +10,16 @@ import {
   getPaymentTypesByUserId,
   getTagsByUserId,
 } from '~/db/queries/assets'
+import { getAssetDetailPath } from '~/lib/asset-meta'
 import { assetFormSchema } from '~/lib/asset.schema'
 
 import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+type FormMode = 'asset' | 'subscription'
+
+function getModeFromPath(pathname: string): FormMode {
+  return pathname.startsWith('/subscriptions') ? 'subscription' : 'asset'
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
@@ -28,7 +35,9 @@ export async function loader({ request }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(userId),
   ])
 
-  return { categories, tags, paymentTypes, paymentAccounts }
+  const mode = getModeFromPath(new URL(request.url).pathname)
+
+  return { categories, tags, paymentTypes, paymentAccounts, mode }
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -40,7 +49,8 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData()
   const raw = Object.fromEntries(formData)
   const tagIds = formData.getAll('tagIds').map(String)
-  const assetType = raw.assetType as 'one_time' | 'subscription'
+  const mode = getModeFromPath(new URL(request.url).pathname)
+  const assetType = mode === 'subscription' ? 'subscription' : 'one_time'
 
   const baseData = {
     name: raw.name as string,
@@ -86,20 +96,23 @@ export async function action({ request }: Route.ActionArgs) {
     subscriptionStartDate: data.subscriptionStartDate,
   })
 
-  return redirect(`/assets/${assetId}`, { headers })
+  return redirect(getAssetDetailPath({ id: assetId, assetType: data.assetType }), { headers })
 }
 
 export default function AssetsNew() {
-  const { categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
+  const { categories, tags, paymentTypes, paymentAccounts, mode } = useLoaderData<typeof loader>()
+  const actionData = useActionData<typeof action>()
   const submit = useSubmit()
   const submitRef = useRef<HTMLButtonElement>(null)
+
+  const isSubscription = mode === 'subscription'
 
   return (
     <div>
       <SubPageHeader
         backTo="/assets"
         backLabel="返回"
-        title="新建资产"
+        title={isSubscription ? '新增订阅' : '新增资产'}
         primaryAction={{
           label: '保存',
           onClick: () => submitRef.current?.click(),
@@ -110,9 +123,10 @@ export default function AssetsNew() {
         tags={tags}
         paymentTypes={paymentTypes}
         paymentAccounts={paymentAccounts}
-        showSubscriptionToggle
-        submitLabel="保存资产"
+        mode={mode}
         hideHeader
+        submitLabel={isSubscription ? '保存订阅' : '保存资产'}
+        errors={actionData?.errors}
         onSubmit={fd => submit(fd, { method: 'post' })}
         submitRef={submitRef}
       />

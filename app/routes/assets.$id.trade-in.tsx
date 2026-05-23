@@ -147,7 +147,7 @@ export default function AssetsTradeIn() {
         tags={tags}
         paymentTypes={paymentTypes}
         paymentAccounts={paymentAccounts}
-        showSubscriptionToggle={false}
+        mode="asset"
         hideOneTimeFields
         hideHeader
         submitLabel="完成换新"
@@ -163,6 +163,14 @@ export default function AssetsTradeIn() {
             </div>
             <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
               <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
+              <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+                购买价（只读）
+              </Label>
+              <Input
+                className="mb-3"
+                readOnly
+                value={asset.purchasePrice ? Number(asset.purchasePrice).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+              />
               <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
                 回收价 *
               </Label>

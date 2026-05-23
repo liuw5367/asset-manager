@@ -1,84 +1,61 @@
-import type { Route } from './+types/assets.$id.edit'
-import { IconPencil } from '@tabler/icons-react'
+import type { Route } from './+types/subscriptions.new'
 import { useRef } from 'react'
 import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
 import { SubPageHeader } from '~/components/page-header'
 import {
-  getAssetById,
-  getAssetWithTags,
+  createAsset,
   getCategoriesByUserId,
   getPaymentAccountsByUserId,
   getPaymentTypesByUserId,
   getTagsByUserId,
-  updateAsset,
 } from '~/db/queries/assets'
-import { getAssetDetailPath, getAssetEditPath } from '~/lib/asset-meta'
+import { getAssetDetailPath } from '~/lib/asset-meta'
 import { assetFormSchema } from '~/lib/asset.schema'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
-type FormMode = 'asset' | 'subscription'
-
-function getModeFromPath(pathname: string): FormMode {
-  return pathname.startsWith('/subscriptions') ? 'subscription' : 'asset'
-}
-
-export async function loader({ request, params }: Route.LoaderArgs) {
+export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
     throw redirect('/login')
 
   const userId = user.id
-  const assetId = params.id
-
-  const asset = await getAssetById(assetId, userId)
-  if (!asset)
-    throw new Response('Not Found', { status: 404 })
-
-  const [tagIds, categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
-    getAssetWithTags(assetId),
+  const [categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
     getCategoriesByUserId(userId),
     getTagsByUserId(userId),
     getPaymentTypesByUserId(userId),
     getPaymentAccountsByUserId(userId),
   ])
 
-  const mode = getModeFromPath(new URL(request.url).pathname)
-  const expectedMode: FormMode = asset.assetType === 'subscription' ? 'subscription' : 'asset'
-  if (mode !== expectedMode)
-    throw redirect(getAssetEditPath(asset))
-
-  return { asset, tagIds, categories, tags, paymentTypes, paymentAccounts, mode }
+  return { categories, tags, paymentTypes, paymentAccounts }
 }
 
-export async function action({ request, params }: Route.ActionArgs) {
+export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
     throw redirect('/login')
 
-  const mode = getModeFromPath(new URL(request.url).pathname)
   const formData = await request.formData()
   const raw = Object.fromEntries(formData)
   const tagIds = formData.getAll('tagIds').map(String)
-  const assetType = mode === 'subscription' ? 'subscription' : 'one_time'
 
   const baseData = {
     name: raw.name as string,
     emoji: (raw.emoji as string) || '📦',
     categoryId: raw.categoryId as string,
-    assetType,
+    assetType: 'subscription' as const,
     paymentTypeId: (raw.paymentTypeId as string) || undefined,
     paymentAccountId: (raw.paymentAccountId as string) || undefined,
     tagIds,
     notes: (raw.notes as string) || undefined,
-    purchasePrice: (raw.purchasePrice as string) || undefined,
-    currentValue: (raw.currentValue as string) || undefined,
+    purchasePrice: undefined,
+    currentValue: undefined,
     purchaseDate: (raw.purchaseDate as string) || undefined,
     subscriptionPrice: (raw.subscriptionPrice as string) || undefined,
     billingCycle: (raw.billingCycle as 'monthly' | 'quarterly' | 'yearly') || undefined,
-    nextRenewalDate: (raw.nextRenewalDate as string) || undefined,
+    nextRenewalDate: undefined,
     subscriptionStartDate: (raw.subscriptionStartDate as string) || undefined,
   }
 
@@ -87,7 +64,8 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { errors: parsed.error.flatten().fieldErrors }
 
   const data = parsed.data
-  await updateAsset(params.id, user.id, {
+  const assetId = await createAsset({
+    userId: user.id,
     name: data.name,
     emoji: data.emoji,
     categoryId: data.categoryId,
@@ -96,35 +74,29 @@ export async function action({ request, params }: Route.ActionArgs) {
     paymentAccountId: data.paymentAccountId,
     notes: data.notes,
     tagIds: data.tagIds,
-    purchasePrice: data.purchasePrice,
-    currentValue: data.currentValue,
     purchaseDate: data.purchaseDate,
     subscriptionPrice: data.subscriptionPrice,
     billingCycle: data.billingCycle,
-    nextRenewalDate: data.nextRenewalDate,
     subscriptionStartDate: data.subscriptionStartDate,
   })
 
-  return redirect(getAssetDetailPath({ id: params.id, assetType: data.assetType }), { headers })
+  return redirect(getAssetDetailPath({ id: assetId, assetType: 'subscription' }), { headers })
 }
 
-export default function AssetsEdit() {
-  const { asset, tagIds, categories, tags, paymentTypes, paymentAccounts, mode } = useLoaderData<typeof loader>()
+export default function SubscriptionsNew() {
+  const { categories, tags, paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
   const actionData = useActionData<typeof action>()
   const submit = useSubmit()
   const submitRef = useRef<HTMLButtonElement>(null)
 
-  const isSubscription = mode === 'subscription'
-
   return (
     <div>
       <SubPageHeader
-        backTo={getAssetDetailPath(asset)}
-        backLabel="返回详情"
-        title={isSubscription ? '编辑订阅' : '编辑资产'}
+        backTo="/assets"
+        backLabel="返回"
+        title="新增订阅"
         primaryAction={{
           label: '保存',
-          icon: IconPencil,
           onClick: () => submitRef.current?.click(),
         }}
       />
@@ -133,26 +105,9 @@ export default function AssetsEdit() {
         tags={tags}
         paymentTypes={paymentTypes}
         paymentAccounts={paymentAccounts}
-        mode={mode}
-        defaultValues={{
-          name: asset.name,
-          emoji: asset.emoji,
-          categoryId: asset.categoryId || '',
-          assetType: asset.assetType,
-          tagIds,
-          notes: asset.notes || '',
-          paymentTypeId: asset.paymentTypeId || '',
-          paymentAccountId: asset.paymentAccountId || '',
-          purchasePrice: asset.purchasePrice || '',
-          currentValue: asset.currentValue || '',
-          purchaseDate: asset.purchaseDate || '',
-          subscriptionPrice: asset.subscriptionPrice || '',
-          billingCycle: asset.billingCycle || undefined,
-          nextRenewalDate: asset.nextRenewalDate || '',
-          subscriptionStartDate: asset.subscriptionStartDate || '',
-        }}
+        mode="subscription"
         hideHeader
-        submitLabel={isSubscription ? '保存订阅' : '保存资产'}
+        submitLabel="保存订阅"
         errors={actionData?.errors}
         onSubmit={fd => submit(fd, { method: 'post' })}
         submitRef={submitRef}
