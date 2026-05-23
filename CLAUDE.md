@@ -1,88 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to agent when working with code in this repository.
 
 ## 语言规则
 
 始终使用中文回复用户。
 
-## Project Overview
+## 架构要点
 
-Holdly is a personal asset holding cost tracking app. It tracks daily cost of ownership for one-time purchases and subscriptions. Single currency, no currency symbols displayed.
+### 路由与数据层
 
-## Tech Stack
+- 路由定义在 `app/routes.ts`，使用 React Router v7 配置式路由。每个路由文件导出 `loader`（服务端数据）和 `action`（变更操作）。
+- 认证路由共享 `app-shell.tsx` 布局，loader 中检查 Supabase session，未登录重定向到 `/login`。
+- **优先客户端渲染**，loader/action 仅作数据接口，不做 SSR 页面渲染。
 
-- **Frontend**: React Router v7 (Remix mode) + Vite + TypeScript
-- **UI**: shadcn/ui + Tailwind v4 + Radix UI + Tabler Icons
-- **ORM**: Drizzle ORM (drizzle-kit migrations) on Supabase (PostgreSQL)
-- **Auth**: Supabase Auth (GitHub/Google OAuth + email/password)
-- **State**: react-hook-form + Zod (forms/validation), TanStack Query (client cache), Zustand (global state)
-- **Utilities**: date-fns, currency.js (precise math), Recharts, Sonner (toasts), framer-motion, nuqs (URL state)
-- **Email**: Resend (subscription renewal / warranty expiry reminders via Vercel Cron)
-- **Lint**: ESLint via @antfu/eslint-config (React + TypeScript)
-- **Test**: Vitest + React Testing Library
-- **Deploy**: Vercel
+### 数据库约定
 
-## Commands
+- Drizzle schema 定义在 `app/db/schema.ts`（11 张表），查询在 `app/db/queries/`。
+- **无外键约束**：表中存储关联字段（如 `user_id`、`asset_id`）但不声明 `REFERENCES`，关联查询由 Drizzle ORM 在应用层处理。建表 SQL 见 `docs/db-init.sql`。
+- **软删除**：所有查询必须过滤 `deleted_at IS NULL`，禁止硬删除用户数据。
+- **金额计算**：使用 `currency.js` 做精确计算，禁止裸浮点数运算。核心逻辑见 `app/lib/cost.ts`。
 
-```bash
-pnpm dev          # Start Vite dev server
-pnpm build        # Production build
-pnpm lint         # ESLint check
-pnpm lint:fix     # ESLint auto-fix
-pnpm test         # Run Vitest
-pnpm typecheck    # TypeScript type check
-pnpm db:generate  # Generate Drizzle migration
-pnpm db:push      # Push schema to Supabase
-```
+### UI 规范
 
-## Architecture
+- 使用 shadcn/ui 组件 + Tailwind v4，避免使用原生 HTML 元素（`<button>`、`<input>`）。
+- **认证页面例外**：`/login`、`/register`、`/forgot-password` 使用原生 HTML 元素 + CSS 变量（`--color-*`），不使用 shadcn 组件。设计规范见 `docs/DESIGN.md`。
+- `app/components/ui/` 下的文件允许自由 re-export（ESLint 规则 `react-refresh/only-export-components` 已禁用）。
+- 按钮异步操作必须有独立 loading 状态（`disabled` + spinner），禁止因一个按钮 loading 而禁用全页按钮。
+- 路由切换时顶部显示 NProgress 进度条。
+- 响应式：桌面端侧边栏，移动端底部 Tab + FAB。
 
-### Route-based code organization (React Router v7 file conventions)
+### 认证
 
-Routes live in `app/routes/`. Each route exports `loader` (server data) and `action` (mutations). Authenticated routes share a layout route that wraps Supabase session checks.
+Supabase Auth，每请求创建 client（`app/lib/supabase.server.ts`）。支持 GitHub/Google OAuth + 邮箱密码。用户注册时通过数据库触发器自动初始化 profile、预设分类和支付方式。
 
-### Data layer
+### 邮件提醒
 
-- **Schema**: Drizzle schema files define all tables (profiles, categories, tags, payment_types, payment_accounts, assets, asset_tags, warranties, repair_records, subscription_renewals, reminder_jobs).
-- **No database foreign keys**: Tables store关联字段（如 `user_id`, `asset_id`）但不声明 `REFERENCES` / 外键约束。所有关联查询由 Drizzle ORM 在应用层处理。建表 SQL 见 `docs/db-init.sql`。
-- **Soft delete**: All queries filter `deleted_at IS NULL`. Never hard-delete user data.
-- **Business logic**: Daily cost calculations and trade-in math use `currency.js` for precision — never use raw floating point for financial fields.
+Vercel Cron → API route → Resend 发送。两种提醒：订阅续费和保修到期。
 
-### Rendering strategy
+## 开发流程
 
-- **Prefer client-side rendering**. Minimize SSR usage — only use `loader` for auth checks and critical data fetching. All mutations go through `action` (server-side).
-- API routes (via `loader`/`action`) serve as the data layer. Avoid exposing server rendering for pages that don't need SEO.
+1. 开发前先创建 GitHub Issue，需求细节参考 `docs/holdly-requirements.md`。
+2. 提交前必须通过 `pnpm typecheck` 和 `pnpm lint`，零错误。
+3. 推送后创建 PR，合并前运行 `/check` 做最终审查。
 
-### UI conventions
+## 关键文件
 
-- `app/components/ui/` holds shadcn/ui primitives. These files may re-export freely (eslint rule `react-refresh/only-export-components` is disabled for this directory).
-- **Component library**: Use shadcn/ui components + Tailwind CSS v4 for all UI. Avoid raw HTML elements (`<button>`, `<input>`) — use shadcn equivalents (`Button`, `Input`, `Card`, etc.). Gradually migrate existing prototype code to shadcn components.
-- **Auth pages exception**: `/login`、`/register`、`/forgot-password` 使用原始 HTML 元素（`<button>`、`<input>`、`<label>`）配合项目设计 token（`--color-*`），不使用 shadcn 组件。设计规范见 `docs/DESIGN.md`。
-- **Button loading**: Every interactive button must have an independent loading state. Use the `disabled` + spinner pattern during async operations. Never disable all buttons on a page because one is loading.
-- **Navigation progress bar**: Show a thin progress bar at the top of the page during route transitions. Use `NProgress` or a CSS-based equivalent integrated with React Router navigation events.
-- Responsive layout: sidebar on desktop, bottom tab bar + FAB on mobile.
-- Theme: next-themes (light/dark/system) with CSS custom properties.
-
-### Auth flow
-
-Supabase Auth with server-side sessions. The supabase client is created per-request in loaders/actions. Protected routes check session in a shared layout loader and redirect to `/login`.
-
-### Email reminders
-
-Scheduled via Vercel Cron → API route → Resend sends email. Two reminder types: subscription renewal and warranty expiry.
-
-## Development Workflow
-
-1. **Create Issue**: Before writing code, create a GitHub issue with detailed requirements, acceptance criteria, and relevant page/field specs from `docs/holdly-requirements.md`.
-2. **Branch**: Create a feature branch from `main` linked to the issue.
-3. **Develop**: Update issue status to "In Progress" when starting. If requirements change during development, update the issue with detailed changes.
-4. **Pre-commit Gate**: Before committing, run `pnpm typecheck` and `pnpm lint` — both must pass with zero errors. Never commit code that fails type checking or linting.
-5. **Commit & Push**: After pre-commit checks pass, commit and push code.
-6. **Close Issue**: Update issue status to "Done" / "Closed" after merge.
-7. **Push & PR**: Push the branch and create a PR. Run `/check` for final review before merging.
-
-## Key References
-
-- `docs/holdly-requirements.md` — Full product spec, data models, page requirements, validation rules, design tokens, phased delivery plan.
-- `docs/holdly-prototype.html` — Interactive HTML prototype for all screens (UI reference).
+| 路径 | 用途 |
+|---|---|
+| `app/routes.ts` | 路由配置 |
+| `app/db/schema.ts` | Drizzle schema（11 张表） |
+| `app/db/queries/` | 数据库查询 |
+| `app/lib/supabase.server.ts` | Supabase 服务端 client |
+| `app/lib/cost.ts` | 每日持有成本计算 |
+| `app/lib/asset.schema.ts` | 资产表单 Zod schema |
+| `app/components/layout/app-shell.tsx` | 认证布局壳 |
+| `app/components/ui/` | shadcn/ui 组件 |
+| `docs/holdly-requirements.md` | 完整产品需求 |
+| `docs/holdly-prototype.html` | HTML 交互原型 |
+| `docs/DESIGN.md` | 认证页面设计规范 |
+| `docs/DESIGN-CLAUDE.md` | 品牌设计体系 |
+| `docs/db-init.sql` | 数据库初始化 SQL |
