@@ -230,7 +230,7 @@ export default function AssetDetailPage() {
 
   const assetStatus = asset.tradedInAt ? (tradeToAsset ? '已换新' : '已卖出') : '持有中'
   const isTradeInOldAsset = Boolean(asset.tradedInAt && tradeToAsset)
-  const isTradeInNewAsset = Boolean(tradedFromAsset && !asset.tradedInAt)
+  const isTradeInNewAsset = Boolean(tradedFromAsset)
   const isSoldOldAsset = Boolean(asset.tradedInAt && !tradeToAsset)
 
   function handleDelete() {
@@ -365,14 +365,14 @@ export default function AssetDetailPage() {
   }
 
   if (isTradeInNewAsset && tradedFromAsset) {
-    if (tradedFromAsset.tradeInPrice)
-      statusRows.push({ label: '卖出价格', value: formatInteger(tradedFromAsset.tradeInPrice) })
-    if (tradedFromAsset.tradedInAt)
-      statusRows.push({ label: '卖出日期', value: tradedFromAsset.tradedInAt })
-    if (tradedFromAsset.purchasePrice && tradedFromAsset.tradeInPrice) {
+    if (asset.tradeInPrice)
+      statusRows.push({ label: '卖出价格', value: formatInteger(asset.tradeInPrice) })
+    if (asset.tradedInAt)
+      statusRows.push({ label: '卖出日期', value: asset.tradedInAt })
+    if (asset.purchasePrice && asset.tradeInPrice) {
       statusRows.push({
         label: '卖出差值',
-        value: formatInteger(subAmount(tradedFromAsset.purchasePrice, tradedFromAsset.tradeInPrice)),
+        value: formatInteger(subAmount(asset.purchasePrice, asset.tradeInPrice)),
       })
     }
     statusRows.push({
