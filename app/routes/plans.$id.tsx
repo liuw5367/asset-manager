@@ -63,7 +63,7 @@ export default function PlansDetail() {
             style={{ color: 'var(--color-primary)' }}
           >
             <IconPencil size={14} />
-            编辑计划
+            编辑
           </Link>
           <div className="relative">
             <button

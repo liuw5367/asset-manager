@@ -49,7 +49,7 @@ export default function PlansRecordsMonth() {
           {year}
           年
           {monthNum}
-          月 · 记录详情
+          月
         </h1>
         <div className="flex items-center gap-3">
           <Link

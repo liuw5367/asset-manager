@@ -24,7 +24,8 @@ interface DefaultItemForm {
 
 export default function PlansEdit() {
   const { id } = useParams()
-  const plan = getPlanById(id!)
+  const plan = id ? getPlanById(id) : undefined
+  const isCreateMode = !plan
 
   const [emoji, setEmoji] = useState(plan?.emoji ?? '💰')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -52,7 +53,7 @@ export default function PlansEdit() {
       {/* Top bar */}
       <div className="mb-6 flex items-center justify-between">
         <Link
-          to={`/plans/${id}`}
+          to={isCreateMode ? '/plans' : `/plans/${id}`}
           className="flex items-center gap-1 text-sm transition-colors"
           style={{ color: 'var(--color-primary)' }}
         >
@@ -63,7 +64,7 @@ export default function PlansEdit() {
           className="text-sm font-medium"
           style={{ color: 'var(--color-ink)' }}
         >
-          编辑计划
+          {isCreateMode ? '新建计划' : '编辑计划'}
         </h1>
         <button
           type="button"

@@ -137,7 +137,7 @@ export default function AssetsIndex() {
 
   return (
     <div className="pb-8 pt-6">
-      <MainPageHeader title="资产" actions={[{ label: '+ 资产', to: '/assets/new' }, { label: '+ 订阅', to: '/subscriptions/new' }]} />
+      <MainPageHeader title="资产管理" actions={[{ label: '+ 资产', to: '/assets/new' }, { label: '+ 订阅', to: '/subscriptions/new' }]} />
 
       <div className="mb-4">
         <div className="relative">
