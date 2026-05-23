@@ -11,7 +11,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '~/components/ui/sheet'
-import { ToggleGroup, ToggleGroupItem } from '~/components/ui/toggle-group'
 import {
   getAssetsWithCategoryName,
   getAssetTagsByUserId,
@@ -103,7 +102,7 @@ export default function AssetsIndex() {
         ? true
         : activeType === 'ended'
           ? ended
-          : a.assetType === activeType
+          : a.assetType === activeType && !ended
 
       const matchesCategory = !selectedCategory || a.categoryId === selectedCategory
       const matchesTag = !selectedTag || (assetTagMap[a.id] || []).some(t => t.id === selectedTag)
@@ -164,29 +163,30 @@ export default function AssetsIndex() {
         </div>
       </div>
 
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <ToggleGroup
-          value={activeType ? [activeType] : []}
-          onValueChange={(values: string[]) => {
-            const next = values[0] as TypeFilter | undefined
-            setActiveType(next || null)
-          }}
-          variant="outline"
-          spacing={2}
-          className="rounded-full"
-        >
-          <ToggleGroupItem value="one_time" className="h-8 rounded-full px-3 text-[13px]">买断</ToggleGroupItem>
-          <ToggleGroupItem value="subscription" className="h-8 rounded-full px-3 text-[13px]">订阅</ToggleGroupItem>
-          <ToggleGroupItem value="ended" className="h-8 rounded-full px-3 text-[13px]">已取消</ToggleGroupItem>
-        </ToggleGroup>
-
-        <div className="flex gap-1.5">
+      <div className="mb-3 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max items-center gap-1.5 pr-1">
+          {([
+            { key: 'one_time', label: '买断' },
+            { key: 'subscription', label: '订阅' },
+            { key: 'ended', label: '已取消' },
+          ] as const).map(item => (
+            <Button
+              key={item.key}
+              type="button"
+              size="sm"
+              onClick={() => setActiveType(prev => prev === item.key ? null : item.key)}
+              className="h-8 rounded-full px-3 text-[13px]"
+              variant={activeType === item.key ? 'default' : 'outline'}
+            >
+              {item.label}
+            </Button>
+          ))}
           <Button
             type="button"
-            variant="outline"
             size="sm"
             onClick={() => setSheetType('tag')}
             className="h-8 rounded-full px-3 text-[13px]"
+            variant={selectedTag ? 'default' : 'outline'}
           >
             {activeTagName || '标签'}
             {selectedTag
@@ -203,10 +203,10 @@ export default function AssetsIndex() {
           </Button>
           <Button
             type="button"
-            variant="outline"
             size="sm"
             onClick={() => setSheetType('sort')}
             className="h-8 rounded-full px-3 text-[13px]"
+            variant={sortOption === 'default' ? 'outline' : 'default'}
           >
             {sortLabels[sortOption]}
             <IconChevronDown size={14} />
@@ -214,7 +214,7 @@ export default function AssetsIndex() {
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <Button
           type="button"
           variant={selectedCategory ? 'outline' : 'default'}

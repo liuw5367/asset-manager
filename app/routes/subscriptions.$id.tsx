@@ -241,29 +241,29 @@ export default function SubscriptionDetailPage() {
       </SectionCard>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>
           <IconPencil size={14} data-icon="inline-start" />
           编辑订阅
         </Button>
-        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setReminderDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={() => setReminderDialogOpen(true)}>
           <IconBell size={14} data-icon="inline-start" />
           提醒设置
         </Button>
         {ended
           ? (
-              <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={onResume} disabled={isSubmitting}>
+              <Button className="h-10 text-[13px]" variant="default" onClick={onResume} disabled={isSubmitting}>
                 {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
                 {!isSubmitting && <IconPlayerPlay size={14} data-icon="inline-start" />}
                 恢复订阅
               </Button>
             )
           : (
-              <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setCancelDialogOpen(true)}>
+              <Button className="h-10 text-[13px]" variant="default" onClick={() => setCancelDialogOpen(true)}>
                 <IconPlayerStop size={14} data-icon="inline-start" />
                 取消订阅
               </Button>
             )}
-        <Button className="col-span-2 h-10 bg-[var(--color-error)] text-[13px] text-white hover:opacity-90" onClick={() => setDeleteDialogOpen(true)}>
+        <Button className="col-span-2 h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           <IconTrash size={14} data-icon="inline-start" />
           删除订阅
         </Button>
@@ -281,11 +281,11 @@ export default function SubscriptionDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10 bg-[var(--color-surface-strong)]" onClick={() => setCancelDialogOpen(false)}>
+            <Button className="h-10" variant="secondary" onClick={() => setCancelDialogOpen(false)}>
               <IconX size={14} data-icon="inline-start" />
               取消
             </Button>
-            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={onCancel} disabled={isSubmitting}>
+            <Button className="h-10" variant="default" onClick={onCancel} disabled={isSubmitting}>
               {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
               {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
               确认取消
@@ -306,7 +306,7 @@ export default function SubscriptionDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={() => setReminderDialogOpen(false)}>
+            <Button className="h-10" variant="default" onClick={() => setReminderDialogOpen(false)}>
               <IconCheck size={14} data-icon="inline-start" />
               保存
             </Button>
@@ -325,11 +325,11 @@ export default function SubscriptionDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-10 bg-[var(--color-surface-strong)]">
+            <AlertDialogCancel className="h-10" variant="secondary">
               <IconX size={14} data-icon="inline-start" />
               取消
             </AlertDialogCancel>
-            <AlertDialogAction className="h-10 bg-[var(--color-error)] text-white hover:opacity-90" onClick={onDelete}>
+            <AlertDialogAction className="h-10" variant="destructive" onClick={onDelete}>
               <IconTrash size={14} data-icon="inline-start" />
               删除
             </AlertDialogAction>

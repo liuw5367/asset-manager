@@ -483,14 +483,14 @@ export default function AssetDetailPage() {
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {!warranty && (
-          <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setWarrantyDialogOpen(true)}>
+          <Button className="h-10 text-[13px]" variant="default" onClick={() => setWarrantyDialogOpen(true)}>
             <IconPencil size={14} data-icon="inline-start" />
             编辑保修
           </Button>
         )}
         {repairRecords.length === 0 && (
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger render={<Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" />}>
+            <SheetTrigger render={<Button className="h-10 text-[13px]" variant="default" />}>
               <IconPlus size={14} data-icon="inline-start" />
               添加维修
             </SheetTrigger>
@@ -526,7 +526,7 @@ export default function AssetDetailPage() {
                     <Switch checked={repairIsDone} onCheckedChange={setRepairIsDone} />
                   </div>
                 </Field>
-                <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={handleAddRepair} disabled={isSubmitting}>
+                <Button className="h-10 text-[13px]" variant="default" onClick={handleAddRepair} disabled={isSubmitting}>
                   {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
                   {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
                   保存
@@ -535,27 +535,27 @@ export default function AssetDetailPage() {
             </SheetContent>
           </Sheet>
         )}
-        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => navigate(`/assets/${asset.id}/edit`)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={() => navigate(`/assets/${asset.id}/edit`)}>
           <IconPencil size={14} data-icon="inline-start" />
           编辑资产
         </Button>
-        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setReminderDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={() => setReminderDialogOpen(true)}>
           <IconBell size={14} data-icon="inline-start" />
           提醒设置
         </Button>
         {!asset.tradedInAt && (
-          <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setSellDialogOpen(true)}>
+          <Button className="h-10 text-[13px]" variant="default" onClick={() => setSellDialogOpen(true)}>
             <IconCoin size={14} data-icon="inline-start" />
             卖出资产
           </Button>
         )}
         {!asset.tradedInAt && (
-          <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => navigate(`/assets/${asset.id}/trade-in`)}>
+          <Button className="h-10 text-[13px]" variant="default" onClick={() => navigate(`/assets/${asset.id}/trade-in`)}>
             <IconRefresh size={14} data-icon="inline-start" />
             以旧换新
           </Button>
         )}
-        <Button className="col-span-2 h-10 bg-[var(--color-error)] text-[13px] text-white hover:opacity-90" onClick={() => setDeleteDialogOpen(true)}>
+        <Button className="col-span-2 h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           <IconTrash size={14} data-icon="inline-start" />
           删除资产
         </Button>
@@ -572,11 +572,11 @@ export default function AssetDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="h-10 bg-[var(--color-surface-strong)]">
+            <AlertDialogCancel className="h-10" variant="secondary">
               <IconX size={14} data-icon="inline-start" />
               取消
             </AlertDialogCancel>
-            <AlertDialogAction className="h-10 bg-[var(--color-error)] text-white hover:opacity-90" onClick={handleDelete}>
+            <AlertDialogAction className="h-10" variant="destructive" onClick={handleDelete}>
               <IconTrash size={14} data-icon="inline-start" />
               删除
             </AlertDialogAction>
@@ -604,11 +604,11 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10 bg-[var(--color-surface-strong)]" onClick={() => setWarrantyDialogOpen(false)}>
+            <Button className="h-10" variant="secondary" onClick={() => setWarrantyDialogOpen(false)}>
               <IconX size={14} data-icon="inline-start" />
               取消
             </Button>
-            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={handleSaveWarranty} disabled={isSubmitting}>
+            <Button className="h-10" variant="default" onClick={handleSaveWarranty} disabled={isSubmitting}>
               <IconCheck size={14} data-icon="inline-start" />
               保存
             </Button>
@@ -632,11 +632,11 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10 bg-[var(--color-surface-strong)]" onClick={() => setSellDialogOpen(false)}>
+            <Button className="h-10" variant="secondary" onClick={() => setSellDialogOpen(false)}>
               <IconX size={14} data-icon="inline-start" />
               取消
             </Button>
-            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={handleSell} disabled={isSubmitting}>
+            <Button className="h-10" variant="default" onClick={handleSell} disabled={isSubmitting}>
               <IconCheck size={14} data-icon="inline-start" />
               确认
             </Button>
@@ -656,7 +656,7 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={() => setReminderDialogOpen(false)}>
+            <Button className="h-10" variant="default" onClick={() => setReminderDialogOpen(false)}>
               <IconCheck size={14} data-icon="inline-start" />
               保存
             </Button>
