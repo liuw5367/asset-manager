@@ -212,6 +212,7 @@ export default function SubscriptionDetailPage() {
         title=""
         primaryAction={{
           label: '编辑',
+          icon: IconPencil,
           to: `/subscriptions/${asset.id}/edit`,
         }}
       />
@@ -228,7 +229,7 @@ export default function SubscriptionDetailPage() {
         )}
       </div>
 
-      <SectionCard title="信息">
+      <SectionCard>
         {basicRows.map((row, index) => (
           <DetailRow key={row.label} label={row.label} value={row.value} primary={row.primary} isLast={index === basicRows.length - 1} />
         ))}
@@ -263,7 +264,7 @@ export default function SubscriptionDetailPage() {
                 取消订阅
               </Button>
             )}
-        <Button className="col-span-2 h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           <IconTrash size={14} data-icon="inline-start" />
           删除订阅
         </Button>
@@ -345,13 +346,13 @@ function SectionCard({
   className,
   children,
 }: {
-  title: string
+  title?: string
   className?: string
   children: React.ReactNode
 }) {
   return (
     <section className={className}>
-      <h3 className="mb-2 text-[15px] font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</h3>
+      {title && <h3 className="mb-2 text-[15px] font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</h3>}
       <div className="rounded-xl border px-4" style={{ borderColor: 'var(--color-hairline)', background: 'var(--color-surface-card)' }}>
         {children}
       </div>

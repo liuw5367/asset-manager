@@ -137,18 +137,7 @@ export default function AssetsIndex() {
 
   return (
     <div className="pb-8 pt-6">
-      <MainPageHeader title="资产" />
-
-      <div className="mb-4 flex items-center gap-2">
-        <Button className="h-10 flex-1 rounded-full" onClick={() => navigate('/assets/new')}>
-          <IconPlus data-icon="inline-start" />
-          资产
-        </Button>
-        <Button className="h-10 flex-1 rounded-full" variant="outline" onClick={() => navigate('/subscriptions/new')}>
-          <IconPlus data-icon="inline-start" />
-          订阅
-        </Button>
-      </div>
+      <MainPageHeader title="资产" actions={[{ label: '+ 资产', to: '/assets/new' }, { label: '+ 订阅', to: '/subscriptions/new' }]} />
 
       <div className="mb-4">
         <div className="relative">
@@ -265,34 +254,44 @@ export default function AssetsIndex() {
                 {asset.emoji}
               </span>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                    {asset.name}
-                  </span>
-                  {isEnded && (
-                    <span className="inline-block h-2.5 w-2.5 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)]" style={{ background: '#dc2626' }} />
-                  )}
+              <div className="min-w-0 flex-1 ">
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="truncate text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
+                      {asset.name}
+                    </span>
+                    {isEnded && (
+                      <span className="inline-block size-2 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] bg-red-500 opacity-85" />
+                    )}
+                  </div>
+
+                  <div className="shrink-0 text-right text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
+                    {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
+                  </div>
                 </div>
-                <div className="truncate text-[12px]" style={{ color: 'var(--color-muted)' }}>
-                  {asset.assetType === 'subscription' ? '订阅' : '买断'}
-                  {' · '}
-                  {asset.categoryName || '未分类'}
-                  {tagsText ? ` · ${tagsText}` : ''}
-                </div>
-                <div className="mt-0.5 text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-                  {(asset.purchasePrice || asset.subscriptionPrice)
-                    ? Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')
-                    : '—'}
-                  {' / '}
-                  {holdingDays}
-                  天
+
+                <div className="mt-0.5">
+                  <div className="flex justify-between">
+                    <div className="truncate text-[12px]" style={{ color: 'var(--color-muted)' }}>
+                      {asset.assetType === 'subscription' ? '订阅' : '买断'}
+                      {' · '}
+                      {asset.categoryName || '未分类'}
+                      {tagsText ? ` · ${tagsText}` : ''}
+                    </div>
+
+                    <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+                      {(asset.purchasePrice || asset.subscriptionPrice)
+                        ? `${Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')}¥`
+                        : '—'}
+                      {' · '}
+                      {asset.assetType === 'subscription' ? '订阅' : '购买'}
+                      {holdingDays}
+                      天
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="shrink-0 text-right text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
-              </div>
             </button>
           )
         })}

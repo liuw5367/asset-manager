@@ -1,5 +1,5 @@
 import type { Route } from './+types/subscriptions.$id.edit'
-import { IconPencil } from '@tabler/icons-react'
+import { IconCheck, IconDeviceFloppy, IconPencil } from '@tabler/icons-react'
 import { useRef } from 'react'
 import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
@@ -103,11 +103,11 @@ export default function SubscriptionsEdit() {
     <div>
       <SubPageHeader
         backTo={getAssetDetailPath(asset)}
-        backLabel="返回详情"
+        backLabel="返回"
         title="编辑订阅"
         primaryAction={{
           label: '保存',
-          icon: IconPencil,
+          icon: IconCheck,
           onClick: () => submitRef.current?.click(),
         }}
       />

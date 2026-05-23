@@ -1,4 +1,5 @@
 import type { Route } from './+types/assets.$id.trade-in'
+import { IconCheck, IconDeviceFloppy, IconPencil } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
@@ -135,10 +136,11 @@ export default function AssetsTradeIn() {
     <div>
       <SubPageHeader
         backTo={`/assets/${asset.id}`}
-        backLabel="返回详情"
+        backLabel="返回"
         title="以旧换新"
         primaryAction={{
-          label: '保存',
+          label: '换新',
+          icon: IconCheck,
           onClick: () => submitRef.current?.click(),
         }}
       />
@@ -164,7 +166,7 @@ export default function AssetsTradeIn() {
             <div className="mb-4 rounded-lg p-4" style={{ background: 'var(--color-surface-soft)' }}>
               <p className="mb-3 text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>{asset.name}</p>
               <Label className="mb-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
-                购买价（只读）
+                购买价
               </Label>
               <Input
                 className="mb-3"

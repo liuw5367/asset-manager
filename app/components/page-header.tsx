@@ -112,9 +112,11 @@ interface MainPageAction {
 interface MainPageHeaderProps {
   title: string
   action?: MainPageAction
+  actions?: MainPageAction[]
 }
 
-export function MainPageHeader({ title, action }: MainPageHeaderProps) {
+export function MainPageHeader({ title, action, actions }: MainPageHeaderProps) {
+  const list = (action ? [action] : actions) || []
   return (
     <div className="mb-5 flex items-center justify-between">
       <h1
@@ -123,14 +125,20 @@ export function MainPageHeader({ title, action }: MainPageHeaderProps) {
       >
         {title}
       </h1>
-      {action && (
-        <Link
-          to={action.to}
-          className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition-opacity hover:opacity-80"
-          style={{ background: 'var(--color-primary)', color: '#fff' }}
-        >
-          {action.label}
-        </Link>
+
+      {list.length > 0 && (
+        <div className="flex gap-2">
+          {list.map(action => (
+            <Link
+              key={action.label}
+              to={action.to}
+              className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition-opacity hover:opacity-80"
+              style={{ background: 'var(--color-primary)', color: '#fff' }}
+            >
+              {action.label}
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   )

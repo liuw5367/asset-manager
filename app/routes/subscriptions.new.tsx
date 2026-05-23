@@ -1,4 +1,5 @@
 import type { Route } from './+types/subscriptions.new'
+import { IconCheck, IconDeviceFloppy } from '@tabler/icons-react'
 import { useRef } from 'react'
 import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
@@ -97,6 +98,7 @@ export default function SubscriptionsNew() {
         title="新增订阅"
         primaryAction={{
           label: '保存',
+          icon: IconCheck,
           onClick: () => submitRef.current?.click(),
         }}
       />

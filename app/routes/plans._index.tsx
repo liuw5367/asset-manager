@@ -6,7 +6,7 @@ export default function PlansIndex() {
   return (
     <div className="pt-6 pb-8">
       {/* Page Header */}
-      <MainPageHeader title="月度财务计划" action={{ label: '+ 创建计划', to: '/plans/new' }} />
+      <MainPageHeader title="月度财务计划" action={{ label: '+ 计划', to: '/plans/new' }} />
 
       {/* Plan Cards */}
       <div className="flex flex-col gap-3">

@@ -1,7 +1,7 @@
 import type { Route } from './+types/assets.$id'
 import { IconBell, IconCheck, IconCoin, IconLoader2, IconPencil, IconPlus, IconRefresh, IconTrash, IconX } from '@tabler/icons-react'
 import currency from 'currency.js'
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
 import {
@@ -231,7 +231,7 @@ export default function AssetDetailPage() {
   const assetStatus = asset.tradedInAt ? (tradeToAsset ? '已换新' : '已卖出') : '持有中'
   const isTradeInOldAsset = Boolean(asset.tradedInAt && tradeToAsset)
   const isTradeInNewAsset = Boolean(tradedFromAsset)
-  const isSoldOldAsset = Boolean(asset.tradedInAt && !tradeToAsset)
+  // const isSoldOldAsset = Boolean(asset.tradedInAt && !tradeToAsset)
 
   function handleDelete() {
     const fd = new FormData()
@@ -364,7 +364,7 @@ export default function AssetDetailPage() {
     }
   }
 
-  if (isTradeInNewAsset && tradedFromAsset) {
+  if (!isTradeInOldAsset) {
     if (asset.tradeInPrice)
       statusRows.push({ label: '卖出价格', value: formatInteger(asset.tradeInPrice) })
     if (asset.tradedInAt)
@@ -375,6 +375,9 @@ export default function AssetDetailPage() {
         value: formatInteger(subAmount(asset.purchasePrice, asset.tradeInPrice)),
       })
     }
+  }
+
+  if (isTradeInNewAsset && tradedFromAsset) {
     statusRows.push({
       label: '回收资产',
       value: (
@@ -389,23 +392,11 @@ export default function AssetDetailPage() {
     })
     if (tradedFromAsset.tradeInPrice)
       statusRows.push({ label: '回收价格', value: formatInteger(tradedFromAsset.tradeInPrice) })
+
     if (asset.purchasePrice && tradedFromAsset.tradeInPrice) {
       statusRows.push({
         label: '换新支付',
         value: formatInteger(subAmount(asset.purchasePrice, tradedFromAsset.tradeInPrice)),
-      })
-    }
-  }
-
-  if (isSoldOldAsset) {
-    if (asset.tradeInPrice)
-      statusRows.push({ label: '卖出价格', value: formatInteger(asset.tradeInPrice) })
-    if (asset.tradedInAt)
-      statusRows.push({ label: '卖出日期', value: asset.tradedInAt })
-    if (asset.purchasePrice && asset.tradeInPrice) {
-      statusRows.push({
-        label: '卖出差值',
-        value: formatInteger(subAmount(asset.purchasePrice, asset.tradeInPrice)),
       })
     }
   }
@@ -418,6 +409,7 @@ export default function AssetDetailPage() {
         title=""
         primaryAction={{
           label: '编辑',
+          icon: IconPencil,
           to: `/assets/${asset.id}/edit`,
         }}
       />
@@ -434,7 +426,7 @@ export default function AssetDetailPage() {
         )}
       </div>
 
-      <SectionCard title="信息">
+      <SectionCard>
         {basicRows.map((row, index) => (
           <DetailRow key={row.label} label={row.label} value={row.value} primary={row.primary} isLast={index === basicRows.length - 1} />
         ))}
@@ -447,7 +439,7 @@ export default function AssetDetailPage() {
       </SectionCard>
 
       {warranty && (
-        <SectionCard title="保修" className="mt-3">
+        <SectionCard title="保修" className="mt-3" action={<span onClick={() => setWarrantyDialogOpen(true)}>编辑保修</span>}>
           <DetailRow label="保修开始" value={warranty.startDate} />
           <DetailRow label="保修结束" value={warranty.endDate} />
           {warranty.notes
@@ -457,7 +449,7 @@ export default function AssetDetailPage() {
       )}
 
       {repairRecords.length > 0 && (
-        <SectionCard title="维修信息" className="mt-3">
+        <SectionCard title="维修信息" className="mt-3" action={<span onClick={() => setSheetOpen(true)}>添加维修</span>}>
           {repairRecords.map((record, index) => (
             <div key={record.id} className={`py-2 ${index < repairRecords.length - 1 ? 'border-b' : ''}`} style={{ borderColor: 'var(--color-hairline)' }}>
               <div className="text-[13px]" style={{ color: 'var(--color-muted)' }}>{record.repairDate}</div>
@@ -555,7 +547,7 @@ export default function AssetDetailPage() {
             以旧换新
           </Button>
         )}
-        <Button className="col-span-2 h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
           <IconTrash size={14} data-icon="inline-start" />
           删除资产
         </Button>
@@ -669,16 +661,23 @@ export default function AssetDetailPage() {
 
 function SectionCard({
   title,
+  action,
   className,
   children,
 }: {
-  title: string
+  title?: string
+  action?: React.ReactNode
   className?: string
   children: React.ReactNode
 }) {
   return (
     <section className={className}>
-      <h3 className="mb-2 text-[15px] font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</h3>
+      {title && (
+        <div className="flex items-center justify-between mb-2">
+          <h3 className=" text-[15px] font-semibold" style={{ color: 'var(--color-ink)' }}>{title}</h3>
+          <span className="text-[12px]  text-primary">{action}</span>
+        </div>
+      )}
       <div className="rounded-xl border px-4" style={{ borderColor: 'var(--color-hairline)', background: 'var(--color-surface-card)' }}>
         {children}
       </div>
