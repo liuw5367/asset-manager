@@ -208,11 +208,10 @@ export default function SubscriptionDetailPage() {
     <div className="pb-8">
       <SubPageHeader
         backTo="/assets"
-        backLabel="资产"
-        title="订阅详情"
+        backLabel="返回"
+        title=""
         primaryAction={{
-          label: '编辑订阅',
-          icon: IconPencil,
+          label: '编辑',
           to: `/subscriptions/${asset.id}/edit`,
         }}
       />
@@ -242,30 +241,30 @@ export default function SubscriptionDetailPage() {
       </SectionCard>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>
-          <IconPencil data-icon="inline-start" />
+        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>
+          <IconPencil size={14} data-icon="inline-start" />
           编辑订阅
         </Button>
-        <Button variant="outline" onClick={() => setReminderDialogOpen(true)}>
-          <IconBell data-icon="inline-start" />
+        <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setReminderDialogOpen(true)}>
+          <IconBell size={14} data-icon="inline-start" />
           提醒设置
         </Button>
         {ended
           ? (
-              <Button variant="outline" onClick={onResume} disabled={isSubmitting}>
-                {isSubmitting && <IconLoader2 className="animate-spin" />}
-                {!isSubmitting && <IconPlayerPlay data-icon="inline-start" />}
+              <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={onResume} disabled={isSubmitting}>
+                {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+                {!isSubmitting && <IconPlayerPlay size={14} data-icon="inline-start" />}
                 恢复订阅
               </Button>
             )
           : (
-              <Button variant="outline" onClick={() => setCancelDialogOpen(true)}>
-                <IconPlayerStop data-icon="inline-start" />
+              <Button className="h-10 bg-[var(--color-surface-strong)] text-[13px]" onClick={() => setCancelDialogOpen(true)}>
+                <IconPlayerStop size={14} data-icon="inline-start" />
                 取消订阅
               </Button>
             )}
-        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-          <IconTrash data-icon="inline-start" />
+        <Button className="col-span-2 h-10 bg-[var(--color-error)] text-[13px] text-white hover:opacity-90" onClick={() => setDeleteDialogOpen(true)}>
+          <IconTrash size={14} data-icon="inline-start" />
           删除订阅
         </Button>
       </div>
@@ -282,13 +281,13 @@ export default function SubscriptionDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
-              <IconX data-icon="inline-start" />
+            <Button className="h-10 bg-[var(--color-surface-strong)]" onClick={() => setCancelDialogOpen(false)}>
+              <IconX size={14} data-icon="inline-start" />
               取消
             </Button>
-            <Button onClick={onCancel} disabled={isSubmitting}>
-              {isSubmitting && <IconLoader2 className="animate-spin" />}
-              {!isSubmitting && <IconCheck data-icon="inline-start" />}
+            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={onCancel} disabled={isSubmitting}>
+              {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+              {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
               确认取消
             </Button>
           </DialogFooter>
@@ -303,12 +302,12 @@ export default function SubscriptionDetailPage() {
           <FieldGroup>
             <Field>
               <FieldLabel>订阅提醒</FieldLabel>
-              <Input value={subscriptionReminder} onChange={e => setSubscriptionReminder(e.target.value)} />
+              <Input placeholder="例如：7天前提醒" value={subscriptionReminder} onChange={e => setSubscriptionReminder(e.target.value)} />
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button onClick={() => setReminderDialogOpen(false)}>
-              <IconCheck data-icon="inline-start" />
+            <Button className="h-10 bg-[var(--color-primary)] text-white" onClick={() => setReminderDialogOpen(false)}>
+              <IconCheck size={14} data-icon="inline-start" />
               保存
             </Button>
           </DialogFooter>
@@ -326,12 +325,12 @@ export default function SubscriptionDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
-              <IconX data-icon="inline-start" />
+            <AlertDialogCancel className="h-10 bg-[var(--color-surface-strong)]">
+              <IconX size={14} data-icon="inline-start" />
               取消
             </AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete}>
-              <IconTrash data-icon="inline-start" />
+            <AlertDialogAction className="h-10 bg-[var(--color-error)] text-white hover:opacity-90" onClick={onDelete}>
+              <IconTrash size={14} data-icon="inline-start" />
               删除
             </AlertDialogAction>
           </AlertDialogFooter>
