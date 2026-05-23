@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets._index'
-import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
+import { IconChevronDown, IconPlus, IconSearch, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { redirect, useLoaderData, useNavigate } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
@@ -141,8 +141,14 @@ export default function AssetsIndex() {
       <MainPageHeader title="资产" />
 
       <div className="mb-4 flex items-center gap-2">
-        <Button className="flex-1" onClick={() => navigate('/assets/new')}>+ 资产</Button>
-        <Button className="flex-1" variant="outline" onClick={() => navigate('/subscriptions/new')}>+ 订阅</Button>
+        <Button className="h-10 flex-1 rounded-full" onClick={() => navigate('/assets/new')}>
+          <IconPlus data-icon="inline-start" />
+          资产
+        </Button>
+        <Button className="h-10 flex-1 rounded-full" variant="outline" onClick={() => navigate('/subscriptions/new')}>
+          <IconPlus data-icon="inline-start" />
+          订阅
+        </Button>
       </div>
 
       <div className="mb-4">
@@ -166,11 +172,12 @@ export default function AssetsIndex() {
             setActiveType(next || null)
           }}
           variant="outline"
-          spacing={1}
+          spacing={2}
+          className="rounded-full"
         >
-          <ToggleGroupItem value="one_time" className="px-3 text-[13px]">买断</ToggleGroupItem>
-          <ToggleGroupItem value="subscription" className="px-3 text-[13px]">订阅</ToggleGroupItem>
-          <ToggleGroupItem value="ended" className="px-3 text-[13px]">已结束</ToggleGroupItem>
+          <ToggleGroupItem value="one_time" className="h-8 rounded-full px-3 text-[13px]">买断</ToggleGroupItem>
+          <ToggleGroupItem value="subscription" className="h-8 rounded-full px-3 text-[13px]">订阅</ToggleGroupItem>
+          <ToggleGroupItem value="ended" className="h-8 rounded-full px-3 text-[13px]">已取消</ToggleGroupItem>
         </ToggleGroup>
 
         <div className="flex gap-1.5">
@@ -213,7 +220,7 @@ export default function AssetsIndex() {
           variant={selectedCategory ? 'outline' : 'default'}
           size="sm"
           onClick={() => setSelectedCategory(null)}
-          className="rounded-full"
+          className="h-8 rounded-full px-3 text-[13px]"
         >
           全部
         </Button>
@@ -224,7 +231,7 @@ export default function AssetsIndex() {
             variant={selectedCategory === cat.id ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSelectedCategory(cat.id)}
-            className="rounded-full"
+            className="h-8 rounded-full px-3 text-[13px]"
           >
             {cat.emoji}
             {' '}

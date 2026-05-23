@@ -1,5 +1,5 @@
 import type { Route } from './+types/subscriptions.$id'
-import { IconBell, IconLoader2, IconPlayerPlay, IconPlayerStop, IconTrash } from '@tabler/icons-react'
+import { IconBell, IconCheck, IconLoader2, IconPencil, IconPlayerPlay, IconPlayerStop, IconTrash, IconX } from '@tabler/icons-react'
 import { addMonths, addYears, format, isAfter } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
@@ -177,13 +177,13 @@ export default function SubscriptionDetailPage() {
   const ended = asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
 
   const basicRows = [
-    { label: '订阅周期', value: getBillingCycleLabel(asset.billingCycle) },
-    { label: '订阅金额', value: asset.subscriptionPrice ? formatInteger(asset.subscriptionPrice) : '—' },
+    asset.billingCycle ? { label: '订阅周期', value: getBillingCycleLabel(asset.billingCycle) } : null,
+    asset.subscriptionPrice ? { label: '订阅金额', value: formatInteger(asset.subscriptionPrice) } : null,
     { label: '每日成本', value: `${formatNumber(dailyCost)}/天`, primary: true },
-    { label: '下次续费日期', value: nextRenewalDate || '—' },
+    nextRenewalDate ? { label: '下次续费日期', value: nextRenewalDate } : null,
     paymentType ? { label: '支付类型', value: paymentType.name } : null,
     paymentAccount ? { label: '支付方式', value: paymentAccount.name } : null,
-    { label: '分类', value: category ? `${category.emoji} ${category.name}` : '—' },
+    category ? { label: '分类', value: `${category.emoji} ${category.name}` } : null,
   ].filter(Boolean) as Array<{ label: string, value: React.ReactNode, primary?: boolean }>
 
   const statusRows = [
@@ -195,7 +195,9 @@ export default function SubscriptionDetailPage() {
         </Badge>
       ),
     },
-    { label: '订阅日期', value: asset.purchaseDate || asset.subscriptionStartDate || '—' },
+    asset.purchaseDate || asset.subscriptionStartDate
+      ? { label: '订阅日期', value: asset.purchaseDate || asset.subscriptionStartDate || '' }
+      : null,
     { label: '订阅天数', value: `${holdingDays} 天` },
     ended && asset.subscriptionStoppedAt
       ? { label: '取消日期', value: asset.subscriptionStoppedAt }
@@ -210,6 +212,7 @@ export default function SubscriptionDetailPage() {
         title="订阅详情"
         primaryAction={{
           label: '编辑订阅',
+          icon: IconPencil,
           to: `/subscriptions/${asset.id}/edit`,
         }}
       />
@@ -239,7 +242,10 @@ export default function SubscriptionDetailPage() {
       </SectionCard>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>编辑订阅</Button>
+        <Button variant="outline" onClick={() => navigate(`/subscriptions/${asset.id}/edit`)}>
+          <IconPencil data-icon="inline-start" />
+          编辑订阅
+        </Button>
         <Button variant="outline" onClick={() => setReminderDialogOpen(true)}>
           <IconBell data-icon="inline-start" />
           提醒设置
@@ -248,7 +254,7 @@ export default function SubscriptionDetailPage() {
           ? (
               <Button variant="outline" onClick={onResume} disabled={isSubmitting}>
                 {isSubmitting && <IconLoader2 className="animate-spin" />}
-                <IconPlayerPlay data-icon="inline-start" />
+                {!isSubmitting && <IconPlayerPlay data-icon="inline-start" />}
                 恢复订阅
               </Button>
             )
@@ -276,9 +282,13 @@ export default function SubscriptionDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>取消</Button>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
+              <IconX data-icon="inline-start" />
+              取消
+            </Button>
             <Button onClick={onCancel} disabled={isSubmitting}>
               {isSubmitting && <IconLoader2 className="animate-spin" />}
+              {!isSubmitting && <IconCheck data-icon="inline-start" />}
               确认取消
             </Button>
           </DialogFooter>
@@ -297,7 +307,10 @@ export default function SubscriptionDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button onClick={() => setReminderDialogOpen(false)}>保存</Button>
+            <Button onClick={() => setReminderDialogOpen(false)}>
+              <IconCheck data-icon="inline-start" />
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -313,8 +326,14 @@ export default function SubscriptionDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete}>删除</AlertDialogAction>
+            <AlertDialogCancel>
+              <IconX data-icon="inline-start" />
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete}>
+              <IconTrash data-icon="inline-start" />
+              删除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

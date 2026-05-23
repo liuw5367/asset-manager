@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets.$id'
-import { IconBell, IconCoin, IconLoader2, IconRefresh, IconTrash } from '@tabler/icons-react'
+import { IconBell, IconCheck, IconCoin, IconLoader2, IconPencil, IconPlus, IconRefresh, IconTrash, IconX } from '@tabler/icons-react'
 import currency from 'currency.js'
 import { useMemo, useState } from 'react'
 import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
@@ -303,16 +303,19 @@ export default function AssetDetailPage() {
     setWarrantyDialogOpen(false)
   }
 
-  const basicRows = [
-    { label: '购入价', value: asset.purchasePrice ? formatInteger(asset.purchasePrice) : '—' },
-    { label: '持有天数', value: `${holdingDays} 天` },
-    { label: '每日成本', value: `${formatNumber(dailyCost)}/天`, primary: true },
-    { label: '支付类型', value: paymentType?.name || '—' },
-    { label: '支付方式', value: paymentAccount?.name || '—' },
-    { label: '分类', value: category ? `${category.emoji} ${category.name}` : '—' },
-  ]
+  const basicRows: Array<{ label: string, value: React.ReactNode, primary?: boolean }> = []
+  if (asset.purchasePrice)
+    basicRows.push({ label: '购入价', value: formatInteger(asset.purchasePrice) })
+  basicRows.push({ label: '持有天数', value: `${holdingDays} 天` })
+  basicRows.push({ label: '每日成本', value: `${formatNumber(dailyCost)}/天`, primary: true })
+  if (paymentType)
+    basicRows.push({ label: '支付类型', value: paymentType.name })
+  if (paymentAccount)
+    basicRows.push({ label: '支付方式', value: paymentAccount.name })
+  if (category)
+    basicRows.push({ label: '分类', value: `${category.emoji} ${category.name}` })
 
-  const statusRows = [
+  const statusRows: Array<{ label: string, value: React.ReactNode, primary?: boolean }> = [
     {
       label: '资产状态',
       value: (
@@ -321,62 +324,59 @@ export default function AssetDetailPage() {
         </Badge>
       ),
     },
-    { label: '购买日期', value: asset.purchaseDate || '—' },
-    tradedFromAsset
-      ? {
-          label: '回收资产',
-          value: (
-            <button className="text-primary" onClick={() => navigate(getAssetDetailPath(tradedFromAsset))}>
-              {tradedFromAsset.name}
-            </button>
-          ),
-        }
-      : null,
-    tradedFromAsset
-      ? {
-          label: '回收价格',
-          value: tradedFromAsset.tradeInPrice ? formatInteger(tradedFromAsset.tradeInPrice) : '—',
-        }
-      : null,
-    tradedFromAsset
-      ? {
-          label: '换新支付',
-          value: asset.purchasePrice && tradedFromAsset.tradeInPrice
-            ? formatInteger(subAmount(asset.purchasePrice, tradedFromAsset.tradeInPrice))
-            : '—',
-        }
-      : null,
-    assetStatus === '已卖出'
-      ? { label: '卖出日期', value: asset.tradedInAt || '—' }
-      : null,
-    assetStatus === '已卖出'
-      ? { label: '卖出价格', value: asset.tradeInPrice ? formatInteger(asset.tradeInPrice) : '—' }
-      : null,
-    tradeToAsset
-      ? {
-          label: '换新资产',
-          value: (
-            <button className="text-primary" onClick={() => navigate(getAssetDetailPath(tradeToAsset))}>
-              {tradeToAsset.name}
-            </button>
-          ),
-        }
-      : null,
-    tradeToAsset
-      ? {
-          label: '换新价格',
-          value: tradeToAsset.purchasePrice ? formatInteger(tradeToAsset.purchasePrice) : '—',
-        }
-      : null,
-    tradeToAsset
-      ? {
-          label: '换新支付',
-          value: asset.tradeInPrice
-            ? formatInteger(subAmount(tradeToAsset.purchasePrice || 0, asset.tradeInPrice))
-            : '—',
-        }
-      : null,
-  ].filter(Boolean) as Array<{ label: string, value: React.ReactNode, primary?: boolean }>
+  ]
+  if (asset.purchaseDate)
+    statusRows.push({ label: '购买日期', value: asset.purchaseDate })
+  if (tradedFromAsset) {
+    statusRows.push({
+      label: '回收资产',
+      value: (
+        <button
+          type="button"
+          className="font-medium text-primary"
+          onClick={() => navigate(getAssetDetailPath(tradedFromAsset))}
+        >
+          {tradedFromAsset.name}
+        </button>
+      ),
+    })
+    if (tradedFromAsset.tradeInPrice)
+      statusRows.push({ label: '回收价格', value: formatInteger(tradedFromAsset.tradeInPrice) })
+    if (asset.purchasePrice && tradedFromAsset.tradeInPrice) {
+      statusRows.push({
+        label: '换新支付',
+        value: formatInteger(subAmount(asset.purchasePrice, tradedFromAsset.tradeInPrice)),
+      })
+    }
+  }
+  if (assetStatus === '已卖出') {
+    if (asset.tradedInAt)
+      statusRows.push({ label: '卖出日期', value: asset.tradedInAt })
+    if (asset.tradeInPrice)
+      statusRows.push({ label: '卖出价格', value: formatInteger(asset.tradeInPrice) })
+  }
+  if (tradeToAsset) {
+    statusRows.push({
+      label: '换新资产',
+      value: (
+        <button
+          type="button"
+          className="font-medium text-primary"
+          onClick={() => navigate(getAssetDetailPath(tradeToAsset))}
+        >
+          {tradeToAsset.name}
+        </button>
+      ),
+    })
+    if (tradeToAsset.purchasePrice)
+      statusRows.push({ label: '换新价格', value: formatInteger(tradeToAsset.purchasePrice) })
+    if (asset.tradeInPrice) {
+      statusRows.push({
+        label: '换新支付',
+        value: formatInteger(subAmount(tradeToAsset.purchasePrice || 0, asset.tradeInPrice)),
+      })
+    }
+  }
 
   return (
     <div className="pb-8">
@@ -386,6 +386,7 @@ export default function AssetDetailPage() {
         title="资产详情"
         primaryAction={{
           label: '编辑资产',
+          icon: IconPencil,
           to: `/assets/${asset.id}/edit`,
         }}
       />
@@ -418,7 +419,9 @@ export default function AssetDetailPage() {
         <SectionCard title="保修" className="mt-3">
           <DetailRow label="保修开始" value={warranty.startDate} />
           <DetailRow label="保修结束" value={warranty.endDate} />
-          <DetailRow label="备注" value={warranty.notes || '—'} isLast />
+          {warranty.notes
+            ? <DetailRow label="备注" value={warranty.notes} isLast />
+            : <DetailRow label="保修状态" value="已设置" isLast />}
         </SectionCard>
       )}
 
@@ -433,8 +436,14 @@ export default function AssetDetailPage() {
                 {formatInteger(record.cost || 0)}
               </div>
               <div className="mt-1 flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => openEditRepair(record)}>编辑</Button>
-                <Button size="sm" variant="outline" onClick={() => handleDeleteRepair(record.id)}>删除</Button>
+                <Button size="sm" variant="outline" onClick={() => openEditRepair(record)}>
+                  <IconPencil data-icon="inline-start" />
+                  编辑
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleDeleteRepair(record.id)}>
+                  <IconTrash data-icon="inline-start" />
+                  删除
+                </Button>
               </div>
             </div>
           ))}
@@ -443,11 +452,17 @@ export default function AssetDetailPage() {
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {!warranty && (
-          <Button variant="outline" onClick={() => setWarrantyDialogOpen(true)}>编辑保修</Button>
+          <Button variant="outline" onClick={() => setWarrantyDialogOpen(true)}>
+            <IconPencil data-icon="inline-start" />
+            编辑保修
+          </Button>
         )}
         {repairRecords.length === 0 && (
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger render={<Button variant="outline" />}>添加维修</SheetTrigger>
+            <SheetTrigger render={<Button variant="outline" />}>
+              <IconPlus data-icon="inline-start" />
+              添加维修
+            </SheetTrigger>
             <SheetContent side="bottom" className="rounded-t-xl">
               <SheetHeader className="pb-1">
                 <SheetTitle>{editingRepairId ? '编辑维修' : '添加维修'}</SheetTitle>
@@ -482,13 +497,17 @@ export default function AssetDetailPage() {
                 </Field>
                 <Button onClick={handleAddRepair} disabled={isSubmitting}>
                   {isSubmitting && <IconLoader2 className="animate-spin" />}
+                  {!isSubmitting && <IconCheck data-icon="inline-start" />}
                   保存
                 </Button>
               </FieldGroup>
             </SheetContent>
           </Sheet>
         )}
-        <Button variant="outline" onClick={() => navigate(`/assets/${asset.id}/edit`)}>编辑资产</Button>
+        <Button variant="outline" onClick={() => navigate(`/assets/${asset.id}/edit`)}>
+          <IconPencil data-icon="inline-start" />
+          编辑资产
+        </Button>
         <Button variant="outline" onClick={() => setReminderDialogOpen(true)}>
           <IconBell data-icon="inline-start" />
           提醒设置
@@ -522,8 +541,14 @@ export default function AssetDetailPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>删除</AlertDialogAction>
+            <AlertDialogCancel>
+              <IconX data-icon="inline-start" />
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>
+              <IconTrash data-icon="inline-start" />
+              删除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -548,8 +573,14 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setWarrantyDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSaveWarranty} disabled={isSubmitting}>保存</Button>
+            <Button variant="outline" onClick={() => setWarrantyDialogOpen(false)}>
+              <IconX data-icon="inline-start" />
+              取消
+            </Button>
+            <Button onClick={handleSaveWarranty} disabled={isSubmitting}>
+              <IconCheck data-icon="inline-start" />
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -570,8 +601,14 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSellDialogOpen(false)}>取消</Button>
-            <Button onClick={handleSell} disabled={isSubmitting}>确认</Button>
+            <Button variant="outline" onClick={() => setSellDialogOpen(false)}>
+              <IconX data-icon="inline-start" />
+              取消
+            </Button>
+            <Button onClick={handleSell} disabled={isSubmitting}>
+              <IconCheck data-icon="inline-start" />
+              确认
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -588,7 +625,10 @@ export default function AssetDetailPage() {
             </Field>
           </FieldGroup>
           <DialogFooter>
-            <Button onClick={() => setReminderDialogOpen(false)}>保存</Button>
+            <Button onClick={() => setReminderDialogOpen(false)}>
+              <IconCheck data-icon="inline-start" />
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
