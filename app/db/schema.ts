@@ -7,6 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core'
 
@@ -143,6 +144,84 @@ export const subscriptionRenewals = pgTable('subscription_renewals', {
   price: numeric('price', { precision: 10, scale: 2 }).notNull(),
   startDate: date('start_date').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+// --- plans ---
+export const plans = pgTable('plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ownerId: uuid('owner_id').notNull(),
+  name: text('name').notNull(),
+  emoji: text('emoji').notNull().default('💰'),
+  startingValue: numeric('starting_value', { precision: 12, scale: 2 }).notNull().default('0'),
+  permission: text('permission', { enum: ['own', 'all'] }).notNull().default('own'),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// --- plan_members ---
+export const planMembers = pgTable('plan_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  role: text('role', { enum: ['owner', 'editor'] }).notNull().default('editor'),
+  note: text('note'),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// --- plan_default_items ---
+export const planDefaultItems = pgTable('plan_default_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull(),
+  itemType: text('item_type', { enum: ['income', 'expense'] }).notNull(),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// --- plan_invite_links ---
+export const planInviteLinks = pgTable('plan_invite_links', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull(),
+  token: text('token').notNull(),
+  createdByUserId: uuid('created_by_user_id').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, t => ({
+  tokenUnique: unique('plan_invite_links_token_unique').on(t.token),
+}))
+
+// --- plan_records ---
+export const planRecords = pgTable('plan_records', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planId: uuid('plan_id').notNull(),
+  year: integer('year').notNull(),
+  month: integer('month').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, t => ({
+  yearMonthUnique: unique('plan_records_plan_id_year_month_unique').on(t.planId, t.year, t.month),
+}))
+
+// --- plan_record_items ---
+export const planRecordItems = pgTable('plan_record_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  recordId: uuid('record_id').notNull(),
+  memberId: uuid('member_id').notNull(),
+  itemType: text('item_type', { enum: ['income', 'expense'] }).notNull(),
+  name: text('name').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
 
 // --- reminder_jobs ---

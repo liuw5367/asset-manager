@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets._index'
-import { IconChevronDown, IconPlus, IconSearch, IconX } from '@tabler/icons-react'
+import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { redirect, useLoaderData, useNavigate } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'

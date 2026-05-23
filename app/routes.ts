@@ -26,6 +26,7 @@ export default [
     route('subscriptions/:id', 'routes/subscriptions.$id.tsx'),
     route('plans', 'routes/plans._index.tsx'),
     route('plans/new', 'routes/plans.new.tsx'),
+    route('plans/invite/:token', 'routes/plans.invite.$token.tsx'),
     route('plans/:id', 'routes/plans.$id.tsx'),
     route('plans/:id/edit', 'routes/plans.$id.edit.tsx'),
     route('plans/:id/records/:month', 'routes/plans.$id.records.$month.tsx'),

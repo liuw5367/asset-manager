@@ -1,52 +1,96 @@
+import type { Route } from './+types/plans.$id'
+import type { ChartConfig } from '~/components/ui/chart'
 import {
   IconArrowDownRight,
   IconArrowLeft,
   IconArrowUpRight,
-  IconDots,
   IconPencil,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
-import { getPlanById, getPlanRecords } from '~/data/mock'
+import { Form, Link, redirect, useLoaderData, useNavigation } from 'react-router'
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { Button } from '~/components/ui/button'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '~/components/ui/chart'
+import {
+  getPlanDetailById,
+  softDeletePlan,
+} from '~/db/queries/plans'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
 
-export default function PlansDetail() {
-  const { id } = useParams()
-  const plan = getPlanById(id!)
-  const records = getPlanRecords(id!)
-  const [menuOpen, setMenuOpen] = useState(false)
+const MEMBER_COLORS = ['#cc785c', '#5db8a6', '#d4a017', '#7c6dea', '#5db872']
 
-  if (!plan) {
-    return (
-      <div className="pt-6" style={{ color: 'var(--color-muted)' }}>
-        计划不存在
-      </div>
-    )
+function getMemberColor(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  }
+  return MEMBER_COLORS[hash % MEMBER_COLORS.length]
+}
+
+function getMemberLetter(name: string) {
+  return (name.trim().charAt(0) || 'M').toUpperCase()
+}
+
+const trendChartConfig = {
+  amount: {
+    label: '总额',
+    color: 'var(--color-primary)',
+  },
+} satisfies ChartConfig
+
+function currentMonthKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const detail = await getPlanDetailById(params.id, user.id)
+  if (!detail)
+    throw new Response('Not Found', { status: 404 })
+
+  return detail
+}
+
+export async function action({ request, params }: Route.ActionArgs) {
+  const { supabase, headers } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const formData = await request.formData()
+  const intent = formData.get('intent')
+
+  if (intent === 'delete-plan') {
+    await softDeletePlan(params.id, user.id)
+    return redirect('/plans', { headers })
   }
 
-  // Build trend data from records (oldest first)
-  const sortedRecords = [...records].sort(
-    (a, b) => a.year * 100 + a.month - (b.year * 100 + b.month),
-  )
+  return null
+}
 
-  // Simple SVG line chart
-  const chartWidth = 280
-  const chartHeight = 80
-  const values = sortedRecords.map(r => r.totalValue)
-  const minVal = values.length ? Math.min(...values) : 0
-  const maxVal = values.length ? Math.max(...values) : 1
-  const range = maxVal - minVal || 1
-  const points = values.map((v, i) => {
-    const x = values.length === 1 ? chartWidth / 2 : (i / (values.length - 1)) * chartWidth
-    const y = chartHeight - ((v - minVal) / range) * (chartHeight - 10) - 5
-    return `${x},${y}`
-  })
-  const polyline = points.join(' ')
+export default function PlansDetail() {
+  const detail = useLoaderData<typeof loader>()
+  const navigation = useNavigation()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  const isSubmittingDelete = navigation.state !== 'idle'
+    && navigation.formData?.get('intent') === 'delete-plan'
+
+  const currentMonth = currentMonthKey()
 
   return (
     <div className="pt-6 pb-8">
-      {/* Top bar */}
       <div className="mb-5 flex items-center justify-between">
         <Link
           to="/plans"
@@ -58,94 +102,99 @@ export default function PlansDetail() {
         </Link>
         <div className="flex items-center gap-3">
           <Link
-            to={`/plans/${id}/edit`}
+            to={`/plans/${detail.id}/edit`}
             className="flex items-center gap-1 text-sm"
             style={{ color: 'var(--color-primary)' }}
           >
             <IconPencil size={14} />
             编辑
           </Link>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="rounded p-1 transition-colors"
-              style={{ color: 'var(--color-muted)' }}
-            >
-              <IconDots size={18} />
-            </button>
-            {menuOpen && (
-              <div
-                className="absolute right-0 top-8 z-10 w-36 rounded-lg border py-1 shadow-lg"
-                style={{
-                  background: 'var(--color-surface-card)',
-                  borderColor: 'var(--color-hairline)',
-                }}
+          {detail.canManage && (
+            <div className="relative">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setMenuOpen(prev => !prev)}
+                className="text-[16px]"
+                style={{ color: 'var(--color-muted)' }}
               >
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
-                  style={{ color: 'var(--color-error)' }}
-                  onClick={() => setMenuOpen(false)}
+                ···
+              </Button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-8 z-10 w-36 rounded-lg border py-1 shadow-lg"
+                  style={{
+                    background: 'var(--color-surface-card)',
+                    borderColor: 'var(--color-hairline)',
+                  }}
                 >
-                  <IconTrash size={14} />
-                  删除计划
-                </button>
-              </div>
-            )}
-          </div>
+                  <Form method="post" onSubmit={() => setMenuOpen(false)}>
+                    <input type="hidden" name="intent" value="delete-plan" />
+                    <button
+                      type="submit"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
+                      style={{ color: 'var(--color-error)' }}
+                      disabled={isSubmittingDelete}
+                    >
+                      <IconTrash size={14} />
+                      {isSubmittingDelete ? '删除中...' : '删除计划'}
+                    </button>
+                  </Form>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Plan Header */}
       <div className="mb-4 flex items-center gap-2.5">
-        <span className="text-3xl">{plan.emoji}</span>
+        <span className="text-3xl">{detail.emoji}</span>
         <h1
           className="font-[family-name:var(--font-display)] text-2xl"
           style={{ color: 'var(--color-ink)' }}
         >
-          {plan.name}
+          {detail.name}
         </h1>
       </div>
 
-      {/* Members */}
       <div className="mb-4">
         <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
           成员
         </div>
         <div className="flex flex-wrap gap-2">
-          {plan.members.map(m => (
+          {detail.members.map(member => (
             <div
-              key={m.letter + m.name}
+              key={member.userId}
               className="flex items-center gap-2 rounded-full px-2.5 py-1"
               style={{ background: 'var(--color-surface-soft)' }}
+              title={member.note || undefined}
             >
               <div
                 className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium text-white"
-                style={{ background: m.color }}
+                style={{ background: getMemberColor(member.userId) }}
               >
-                {m.letter}
+                {getMemberLetter(member.displayName)}
               </div>
               <span className="text-sm" style={{ color: 'var(--color-body)' }}>
-                {m.name}
+                {member.displayName}
               </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Default items */}
       <div className="mb-6">
         <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
           默认项目
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {plan.defaultItems.map(item => (
+          {detail.defaultItems.map(item => (
             <span
-              key={item.name}
+              key={item.id}
               className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
               style={{
-                background: item.type === 'income' ? 'var(--color-success)' : 'var(--color-error)',
+                background: item.itemType === 'income' ? 'var(--color-success)' : 'var(--color-error)',
                 color: '#fff',
                 opacity: 0.85,
               }}
@@ -153,10 +202,14 @@ export default function PlansDetail() {
               {item.name}
             </span>
           ))}
+          {detail.defaultItems.length === 0 && (
+            <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+              暂无默认项目
+            </span>
+          )}
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="mb-6 grid grid-cols-2 gap-3">
         <div
           className="rounded-xl border p-4"
@@ -166,13 +219,13 @@ export default function PlansDetail() {
           }}
         >
           <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-            累计净收入
+            最近净收入
           </div>
           <div
             className="font-[family-name:var(--font-mono)] text-xl font-semibold"
             style={{ color: 'var(--color-success)' }}
           >
-            {plan.latestNetIncome.toLocaleString()}
+            {(detail.records[0]?.netIncome ?? 0).toLocaleString()}
           </div>
         </div>
         <div
@@ -189,72 +242,54 @@ export default function PlansDetail() {
             className="font-[family-name:var(--font-mono)] text-xl font-semibold"
             style={{ color: 'var(--color-ink)' }}
           >
-            {values.length ? values[values.length - 1].toLocaleString() : plan.startingValue.toLocaleString()}
+            {(detail.records[0]?.totalValue ?? detail.startingValue).toLocaleString()}
           </div>
         </div>
       </div>
 
-      {/* Net Value Trend Chart */}
-      {values.length > 0 && (
-        <div
-          className="mb-6 rounded-xl border p-4"
-          style={{
-            background: 'var(--color-surface-card)',
-            borderColor: 'var(--color-hairline)',
-          }}
-        >
-          <div className="mb-3 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            净值趋势
-          </div>
-          <svg
-            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-            className="w-full"
-            style={{ maxHeight: 100 }}
-          >
-            <polyline
-              points={polyline}
-              fill="none"
-              stroke="var(--color-primary)"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            {values.length === 1 && (
-              <circle
-                cx={chartWidth / 2}
-                cy={chartHeight / 2}
-                r="3"
-                fill="var(--color-primary)"
-              />
-            )}
-            {values.map((v, i) => {
-              const x = values.length === 1 ? chartWidth / 2 : (i / (values.length - 1)) * chartWidth
-              const y = chartHeight - ((v - minVal) / range) * (chartHeight - 10) - 5
-              return (
-                <circle
-                  key={`dot-${x}-${y}`}
-                  cx={x}
-                  cy={y}
-                  r="3"
-                  fill="var(--color-primary)"
-                />
-              )
-            })}
-          </svg>
+      <div
+        className="mb-6 rounded-xl border p-4"
+        style={{
+          background: 'var(--color-surface-card)',
+          borderColor: 'var(--color-hairline)',
+        }}
+      >
+        <div className="mb-3 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+          净值趋势（最近12个月）
         </div>
-      )}
+        <ChartContainer config={trendChartConfig} className="aspect-video h-[180px] w-full">
+          <AreaChart data={detail.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="fillPlanAmount" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--color-amount)" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="var(--color-amount)" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} />
+            <ChartTooltip
+              content={(
+                <ChartTooltipContent
+                  formatter={(value) => {
+                    const num = typeof value === 'number' ? value : Number(value)
+                    return `${num.toLocaleString()} 元`
+                  }}
+                />
+              )}
+            />
+            <Area dataKey="amount" type="monotone" fill="url(#fillPlanAmount)" stroke="var(--color-amount)" strokeWidth={2} />
+          </AreaChart>
+        </ChartContainer>
+      </div>
 
-      {/* Monthly Records Section */}
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2
-            className="text-sm font-medium"
-            style={{ color: 'var(--color-ink)' }}
-          >
+          <h2 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
             月度记录
           </h2>
-          <button
-            type="button"
+          <Link
+            to={`/plans/${detail.id}/records/${currentMonth}/edit`}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
             style={{
               background: 'var(--color-primary-muted)',
@@ -263,17 +298,17 @@ export default function PlansDetail() {
           >
             <IconPlus size={14} />
             添加本月记录
-          </button>
+          </Link>
         </div>
 
         <div className="flex flex-col gap-2.5">
-          {sortedRecords.map((record) => {
+          {detail.records.map((record) => {
             const monthStr = `${record.year}-${String(record.month).padStart(2, '0')}`
             const isUp = record.netIncome >= 0
             return (
               <Link
                 key={record.id}
-                to={`/plans/${id}/records/${monthStr}`}
+                to={`/plans/${detail.id}/records/${monthStr}`}
                 className="rounded-xl border p-4 transition-shadow hover:shadow-md"
                 style={{
                   background: 'var(--color-surface-card)',
@@ -281,22 +316,15 @@ export default function PlansDetail() {
                 }}
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: 'var(--color-ink)' }}
-                  >
+                  <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
                     {record.year}
                     年
                     {record.month}
                     月
                   </span>
                   {isUp
-                    ? (
-                        <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
-                      )
-                    : (
-                        <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />
-                      )}
+                    ? <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
+                    : <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />}
                 </div>
                 <div
                   className="mb-2 font-[family-name:var(--font-mono)] text-lg font-semibold"
@@ -319,6 +347,11 @@ export default function PlansDetail() {
               </Link>
             )
           })}
+          {detail.records.length === 0 && (
+            <div className="rounded-xl border p-6 text-center text-sm" style={{ borderColor: 'var(--color-hairline)', color: 'var(--color-muted)' }}>
+              暂无记录，点击“添加本月记录”开始。
+            </div>
+          )}
         </div>
       </div>
     </div>

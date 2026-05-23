@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets.$id.trade-in'
-import { IconCheck, IconDeviceFloppy, IconPencil } from '@tabler/icons-react'
+import { IconCheck } from '@tabler/icons-react'
 import { useRef, useState } from 'react'
 import { redirect, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'

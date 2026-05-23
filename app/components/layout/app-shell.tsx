@@ -3,7 +3,6 @@ import {
   IconBox,
   IconFileText,
   IconLayoutDashboard,
-  IconPlus,
   IconSettings,
 } from '@tabler/icons-react'
 import { NavLink, Outlet, redirect, useLocation } from 'react-router'

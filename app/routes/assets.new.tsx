@@ -1,5 +1,5 @@
 import type { Route } from './+types/assets.new'
-import { IconCheck, IconDeviceFloppy } from '@tabler/icons-react'
+import { IconCheck } from '@tabler/icons-react'
 import { useRef } from 'react'
 import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'

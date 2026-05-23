@@ -9,14 +9,20 @@ import { createSupabaseServerClient } from '~/lib/supabase.server'
 export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
+  const url = new URL(request.url)
+  const next = url.searchParams.get('next')
+  const safeNext = next && next.startsWith('/') ? next : null
   if (user) {
-    return redirect('/dashboard')
+    return redirect(safeNext || '/dashboard')
   }
   return null
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
+  const url = new URL(request.url)
+  const next = url.searchParams.get('next')
+  const safeNext = next && next.startsWith('/') ? next : null
   const formData = await request.formData()
   const intent = formData.get('intent')
 
@@ -25,7 +31,7 @@ export async function action({ request }: Route.ActionArgs) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${new URL(request.url).origin}/auth/callback`,
+        redirectTo: `${new URL(request.url).origin}/auth/callback${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ''}`,
       },
     })
     if (error) {
@@ -49,7 +55,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: error.message === 'Invalid login credentials' ? '邮箱或密码错误' : error.message }
   }
 
-  return redirect('/dashboard', { headers })
+  return redirect(safeNext || '/dashboard', { headers })
 }
 
 export default function Login() {

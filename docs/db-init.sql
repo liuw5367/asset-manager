@@ -132,7 +132,82 @@ CREATE TABLE IF NOT EXISTS public.subscription_renewals (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. reminder_jobs（提醒任务）
+-- 11. plans（计划）
+CREATE TABLE IF NOT EXISTS public.plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '💰',
+  starting_value NUMERIC(12, 2) NOT NULL DEFAULT '0',
+  permission TEXT NOT NULL DEFAULT 'own',
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. plan_members（计划成员）
+CREATE TABLE IF NOT EXISTS public.plan_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  role TEXT NOT NULL DEFAULT 'editor',
+  note TEXT,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 13. plan_default_items（计划默认项目）
+CREATE TABLE IF NOT EXISTS public.plan_default_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL,
+  item_type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. plan_invite_links（计划邀请链接）
+CREATE TABLE IF NOT EXISTS public.plan_invite_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL,
+  token TEXT NOT NULL,
+  created_by_user_id UUID NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. plan_records（月度记录）
+CREATE TABLE IF NOT EXISTS public.plan_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id UUID NOT NULL,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(plan_id, year, month)
+);
+
+-- 16. plan_record_items（月度记录条目）
+CREATE TABLE IF NOT EXISTS public.plan_record_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  record_id UUID NOT NULL,
+  member_id UUID NOT NULL,
+  item_type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  amount NUMERIC(12, 2) NOT NULL,
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. reminder_jobs（提醒任务）
 CREATE TABLE IF NOT EXISTS public.reminder_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   asset_id UUID NOT NULL,
@@ -159,6 +234,20 @@ CREATE INDEX IF NOT EXISTS idx_asset_tags_tag_id ON public.asset_tags(tag_id);
 CREATE INDEX IF NOT EXISTS idx_warranties_asset_id ON public.warranties(asset_id);
 CREATE INDEX IF NOT EXISTS idx_repair_records_asset_id ON public.repair_records(asset_id);
 CREATE INDEX IF NOT EXISTS idx_subscription_renewals_asset_id ON public.subscription_renewals(asset_id);
+CREATE INDEX IF NOT EXISTS idx_plans_owner_id ON public.plans(owner_id);
+CREATE INDEX IF NOT EXISTS idx_plans_deleted_at ON public.plans(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_plan_members_plan_id ON public.plan_members(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_members_user_id ON public.plan_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_plan_members_deleted_at ON public.plan_members(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_plan_default_items_plan_id ON public.plan_default_items(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_default_items_deleted_at ON public.plan_default_items(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_plan_invite_links_plan_id ON public.plan_invite_links(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_invite_links_token ON public.plan_invite_links(token);
+CREATE INDEX IF NOT EXISTS idx_plan_records_plan_id ON public.plan_records(plan_id);
+CREATE INDEX IF NOT EXISTS idx_plan_records_deleted_at ON public.plan_records(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_plan_record_items_record_id ON public.plan_record_items(record_id);
+CREATE INDEX IF NOT EXISTS idx_plan_record_items_member_id ON public.plan_record_items(member_id);
+CREATE INDEX IF NOT EXISTS idx_plan_record_items_deleted_at ON public.plan_record_items(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_reminder_jobs_user_id ON public.reminder_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_reminder_jobs_scheduled_at ON public.reminder_jobs(scheduled_at);
 
