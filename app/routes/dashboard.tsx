@@ -40,8 +40,8 @@ export default function Dashboard() {
     { label: '每日成本', value: kpi.dailyCostTotal.toFixed(2), subtitle: '元/天' },
     {
       label: '订阅费用',
-      value: `${kpi.subscriptionMonthlyTotal.toFixed(2)} / ${kpi.subscriptionYearlyTotal.toFixed(2)}`,
-      subtitle: '月 / 年',
+      value: kpi.subscriptionMonthlyTotal.toFixed(2),
+      subtitle: '元/月',
     },
     { label: '资产数量', value: String(kpi.activeAssetCount), subtitle: '活跃资产' },
     { label: '资产总额', value: kpi.activeAssetPurchaseTotal.toLocaleString(), subtitle: '购入价总和' },

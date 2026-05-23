@@ -110,6 +110,18 @@ export function AssetForm({
   const filteredAccounts = selectedPaymentTypeId
     ? paymentAccounts.filter(a => a.paymentTypeId === selectedPaymentTypeId)
     : paymentAccounts
+  const categoryLabelById = useMemo(
+    () => Object.fromEntries(categories.map(c => [c.id, `${c.emoji} ${c.name}`])),
+    [categories],
+  )
+  const paymentTypeLabelById = useMemo(
+    () => Object.fromEntries(paymentTypes.map(p => [p.id, p.name])),
+    [paymentTypes],
+  )
+  const paymentAccountLabelById = useMemo(
+    () => Object.fromEntries(paymentAccounts.map(a => [a.id, a.name])),
+    [paymentAccounts],
+  )
 
   const {
     register,
@@ -342,12 +354,14 @@ export function AssetForm({
               }}
             >
               <SelectTrigger aria-invalid={Boolean(fieldError('categoryId')) || undefined} className="w-full">
-                <SelectValue placeholder="请选择分类" />
+                <SelectValue placeholder="请选择分类">
+                  {value => value ? (categoryLabelById[String(value)] || String(value)) : '请选择分类'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   {categories.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} label={`${c.emoji} ${c.name}`}>
                       {c.emoji}
                       {' '}
                       {c.name}
@@ -422,7 +436,19 @@ export function AssetForm({
                   }}
                 >
                   <SelectTrigger aria-invalid={Boolean(fieldError('billingCycle')) || undefined} className="w-full">
-                    <SelectValue placeholder="请选择周期" />
+                    <SelectValue placeholder="请选择周期">
+                      {(value) => {
+                        if (!value)
+                          return '请选择周期'
+                        if (value === 'monthly')
+                          return '月付'
+                        if (value === 'quarterly')
+                          return '季付'
+                        if (value === 'yearly')
+                          return '年付'
+                        return String(value)
+                      }}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -476,12 +502,14 @@ export function AssetForm({
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="可选" />
+                  <SelectValue placeholder="可选">
+                    {value => value ? (paymentTypeLabelById[String(value)] || String(value)) : '可选'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
                     {paymentTypes.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id} label={p.name}>{p.name}</SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
@@ -499,12 +527,14 @@ export function AssetForm({
                 }}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="可选" />
+                  <SelectValue placeholder="可选">
+                    {value => value ? (paymentAccountLabelById[String(value)] || String(value)) : '可选'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
                     {filteredAccounts.map(a => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                      <SelectItem key={a.id} value={a.id} label={a.name}>{a.name}</SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>

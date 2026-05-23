@@ -24,7 +24,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 const navItems = [
   { to: '/dashboard', label: '统计', icon: IconLayoutDashboard },
   { to: '/assets', label: '资产', icon: IconBox },
-  { to: '/plans', label: '月度计划', icon: IconFileText },
+  { to: '/plans', label: '计划', icon: IconFileText },
   { to: '/settings', label: '设置', icon: IconSettings },
 ]
 
@@ -68,17 +68,6 @@ export default function AppShell() {
             {item.label}
           </NavLink>
         ))}
-
-        <div className="flex-1" />
-
-        <NavLink
-          to="/assets/new"
-          className="flex h-11 items-center gap-2.5 rounded-md px-3 text-[15px] font-medium transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconPlus size={18} />
-          新建资产
-        </NavLink>
       </nav>
 
       {/* Main Content */}
@@ -101,17 +90,6 @@ export default function AppShell() {
         {navItems.slice(0, 2).map(item => (
           <TabItem key={item.to} {...item} locationPath={location.pathname} />
         ))}
-
-        <NavLink
-          to="/assets/new"
-          className="flex h-[52px] w-[52px] -mt-2.5 items-center justify-center rounded-full text-white shadow-lg transition-transform active:scale-95"
-          style={{
-            background: 'var(--color-primary)',
-            boxShadow: '0 4px 16px rgba(204,120,92,0.4)',
-          }}
-        >
-          <IconPlus size={24} />
-        </NavLink>
 
         {navItems.slice(2).map(item => (
           <TabItem key={item.to} {...item} locationPath={location.pathname} />

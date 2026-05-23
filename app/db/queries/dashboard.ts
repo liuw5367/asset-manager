@@ -97,6 +97,10 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   for (const a of allAssets) {
     if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
       continue
+    if (a.subscriptionStatus && a.subscriptionStatus !== 'active')
+      continue
+    if (a.tradedInAt)
+      continue
     const startDate = a.subscriptionStartDate || a.purchaseDate
     if (startDate && startDate > todayStr)
       continue
@@ -120,6 +124,10 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   let subscriptionYearlyTotal = 0
   for (const a of allAssets) {
     if (a.assetType !== 'subscription' || !a.subscriptionPrice || !a.billingCycle)
+      continue
+    if (a.subscriptionStatus && a.subscriptionStatus !== 'active')
+      continue
+    if (a.tradedInAt)
       continue
     const startDate = a.subscriptionStartDate || a.purchaseDate
     if (startDate && startDate > todayStr)

@@ -281,12 +281,10 @@ export default function AssetsIndex() {
 
                     <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
                       {(asset.purchasePrice || asset.subscriptionPrice)
-                        ? `${Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')}¥`
+                        ? `¥${Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')}`
                         : '—'}
                       {' · '}
-                      {asset.assetType === 'subscription' ? '订阅' : '购买'}
-                      {holdingDays}
-                      天
+                      {`${(asset.assetType === 'subscription' ? '订阅 ' : '购买 ') + holdingDays} 天`}
                     </div>
                   </div>
                 </div>
@@ -302,11 +300,11 @@ export default function AssetsIndex() {
           <SheetHeader className="pb-1">
             <SheetTitle>选择标签</SheetTitle>
           </SheetHeader>
-          <div className="mt-2 space-y-1 px-4 pb-8">
+          <div className="mb-4 space-y-1 px-4 pb-8">
             <Button
               type="button"
               variant="ghost"
-              className="h-11 w-full justify-start"
+              className="h-11 w-full justify-start  bg-primary/5"
               onClick={() => {
                 setSelectedTag(null)
                 setSheetType(null)
@@ -319,7 +317,7 @@ export default function AssetsIndex() {
                 key={tag.id}
                 type="button"
                 variant="ghost"
-                className="h-11 w-full justify-start"
+                className="h-11 w-full justify-start  bg-primary/5 "
                 onClick={() => {
                   setSelectedTag(tag.id)
                   setSheetType(null)
@@ -338,13 +336,13 @@ export default function AssetsIndex() {
           <SheetHeader className="pb-1">
             <SheetTitle>排序方式</SheetTitle>
           </SheetHeader>
-          <div className="mt-2 space-y-1 px-4 pb-8">
+          <div className="mb-4 space-y-1 px-4 pb-8">
             {(Object.entries(sortLabels) as [SortOption, string][]).map(([value, label]) => (
               <Button
                 key={value}
                 type="button"
                 variant="ghost"
-                className="h-11 w-full justify-start"
+                className="h-11 w-full justify-start bg-primary/5"
                 onClick={() => {
                   setSortOption(value)
                   setSheetType(null)

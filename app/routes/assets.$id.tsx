@@ -30,7 +30,7 @@ import {
   FieldLabel,
 } from '~/components/ui/field'
 import { Input } from '~/components/ui/input'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '~/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
@@ -227,6 +227,7 @@ export default function AssetDetailPage() {
   const [sellDate, setSellDate] = useState(todayDate)
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
   const [warrantyReminder, setWarrantyReminder] = useState('跟随全局（14天）')
+  const warrantyStatus = warranty ? (warranty.endDate >= todayDate ? '保修中' : '已过保') : null
 
   const assetStatus = asset.tradedInAt ? (tradeToAsset ? '已换新' : '已卖出') : '持有中'
   const isTradeInOldAsset = Boolean(asset.tradedInAt && tradeToAsset)
@@ -284,6 +285,17 @@ export default function AssetDetailPage() {
     setRepairResult(record.result || '')
     setRepairIsDone(record.isDone ?? true)
     setSheetOpen(true)
+  }
+
+  function handleOpenAddRepair() {
+    resetRepairForm()
+    setSheetOpen(true)
+  }
+
+  function handleRepairSheetOpenChange(open: boolean) {
+    setSheetOpen(open)
+    if (!open)
+      resetRepairForm()
   }
 
   function resetRepairForm() {
@@ -434,44 +446,135 @@ export default function AssetDetailPage() {
 
       <SectionCard title="状态" className="mt-3">
         {statusRows.map((row, index) => (
-          <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} primary={row.primary} isLast={index === statusRows.length - 1} />
+          <DetailRow key={row.label} label={row.label} value={row.value} primary={row.primary} isLast={index === statusRows.length - 1} />
         ))}
       </SectionCard>
 
       {warranty && (
         <SectionCard title="保修" className="mt-3" action={<span onClick={() => setWarrantyDialogOpen(true)}>编辑保修</span>}>
+          <DetailRow
+            label="状态"
+            value={(
+              <Badge variant="secondary" className={warrantyStatus === '保修中' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
+                {warrantyStatus}
+              </Badge>
+            )}
+          />
           <DetailRow label="保修开始" value={warranty.startDate} />
-          <DetailRow label="保修结束" value={warranty.endDate} />
-          {warranty.notes
-            ? <DetailRow label="备注" value={warranty.notes} isLast />
-            : <DetailRow label="保修状态" value="已设置" isLast />}
+          <DetailRow label="保修结束" value={warranty.endDate} isLast={!warranty.notes} />
+          {warranty.notes && <DetailRow label="备注" value={warranty.notes} isLast />}
         </SectionCard>
       )}
 
       {repairRecords.length > 0 && (
-        <SectionCard title="维修信息" className="mt-3" action={<span onClick={() => setSheetOpen(true)}>添加维修</span>}>
+        <SectionCard
+          title="维修信息"
+          className="mt-3"
+          action={(
+            <button type="button" className="cursor-pointer" onClick={handleOpenAddRepair}>
+              添加维修
+            </button>
+          )}
+        >
           {repairRecords.map((record, index) => (
-            <div key={record.id} className={`py-2 ${index < repairRecords.length - 1 ? 'border-b' : ''}`} style={{ borderColor: 'var(--color-hairline)' }}>
-              <div className="text-[13px]" style={{ color: 'var(--color-muted)' }}>{record.repairDate}</div>
-              <div className="text-[14px]" style={{ color: 'var(--color-ink)' }}>{record.reason || '维修记录'}</div>
-              <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-                费用：
-                {formatInteger(record.cost || 0)}
-              </div>
-              <div className="mt-1 flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => openEditRepair(record)}>
-                  <IconPencil data-icon="inline-start" />
-                  编辑
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDeleteRepair(record.id)}>
-                  <IconTrash data-icon="inline-start" />
-                  删除
-                </Button>
+            <div key={record.id} className={`py-3 ${index < repairRecords.length - 1 ? 'border-b' : ''}`} style={{ borderColor: 'var(--color-hairline)' }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span className="text-[13px]" style={{ color: 'var(--color-muted)' }}>{record.repairDate}</span>
+                    <Badge variant="secondary" className={record.isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                      {record.isDone ? '已完成' : '处理中'}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-[13px]" style={{ color: 'var(--color-ink)' }}>
+                    <div>
+                      原因：
+                      {record.reason || '未填写'}
+                    </div>
+                    <div>
+                      维修商：
+                      {record.vendor || '未填写'}
+                    </div>
+                    <div>
+                      维修结果：
+                      {record.result || '未填写'}
+                    </div>
+                    <div>
+                      费用：
+                      {formatInteger(record.cost || 0)}
+                    </div>
+                  </div>
+
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-primary"
+                    onClick={() => openEditRepair(record)}
+                    aria-label="编辑维修"
+                  >
+                    <IconPencil size={16} />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteRepair(record.id)}
+                    aria-label="删除维修"
+                  >
+                    <IconTrash size={16} />
+                  </Button>
+                </div>
               </div>
             </div>
           ))}
         </SectionCard>
       )}
+
+      <Sheet open={sheetOpen} onOpenChange={handleRepairSheetOpenChange}>
+        <SheetContent side="bottom" className="rounded-t-xl">
+          <SheetHeader className="pb-1">
+            <SheetTitle>{editingRepairId ? '编辑维修' : '添加维修'}</SheetTitle>
+          </SheetHeader>
+          <FieldGroup className="mt-2 px-4 pb-8">
+            <Field>
+              <FieldLabel>维修日期</FieldLabel>
+              <DatePicker value={repairDate} onChange={setRepairDate} />
+            </Field>
+            <Field>
+              <FieldLabel>维修费用</FieldLabel>
+              <Input type="number" step="0.01" placeholder="请输入维修费用" value={repairCost} onChange={e => setRepairCost(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel>维修原因</FieldLabel>
+              <Input placeholder="请输入维修原因" value={repairReason} onChange={e => setRepairReason(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel>维修商</FieldLabel>
+              <Input placeholder="请输入维修商" value={repairVendor} onChange={e => setRepairVendor(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel>维修结果</FieldLabel>
+              <Input placeholder="请输入维修结果" value={repairResult} onChange={e => setRepairResult(e.target.value)} />
+            </Field>
+            <Field>
+              <FieldLabel>已完成</FieldLabel>
+              <div className="flex h-11 items-center justify-between rounded-md border px-3">
+                <span className="text-sm">状态</span>
+                <Switch checked={repairIsDone} onCheckedChange={setRepairIsDone} />
+              </div>
+            </Field>
+            <Button className="h-10 text-[13px]" variant="default" onClick={handleAddRepair} disabled={isSubmitting}>
+              {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+              {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
+              保存
+            </Button>
+          </FieldGroup>
+        </SheetContent>
+      </Sheet>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
         {!warranty && (
@@ -481,51 +584,10 @@ export default function AssetDetailPage() {
           </Button>
         )}
         {repairRecords.length === 0 && (
-          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-            <SheetTrigger render={<Button className="h-10 text-[13px]" variant="default" />}>
-              <IconPlus size={14} data-icon="inline-start" />
-              添加维修
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-xl">
-              <SheetHeader className="pb-1">
-                <SheetTitle>{editingRepairId ? '编辑维修' : '添加维修'}</SheetTitle>
-              </SheetHeader>
-              <FieldGroup className="mt-2 px-4 pb-8">
-                <Field>
-                  <FieldLabel>维修日期</FieldLabel>
-                  <DatePicker value={repairDate} onChange={setRepairDate} />
-                </Field>
-                <Field>
-                  <FieldLabel>维修费用</FieldLabel>
-                  <Input type="number" step="0.01" placeholder="请输入维修费用" value={repairCost} onChange={e => setRepairCost(e.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel>维修原因</FieldLabel>
-                  <Input placeholder="请输入维修原因" value={repairReason} onChange={e => setRepairReason(e.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel>维修商</FieldLabel>
-                  <Input placeholder="请输入维修商" value={repairVendor} onChange={e => setRepairVendor(e.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel>维修结果</FieldLabel>
-                  <Input placeholder="请输入维修结果" value={repairResult} onChange={e => setRepairResult(e.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel>已完成</FieldLabel>
-                  <div className="flex h-11 items-center justify-between rounded-md border px-3">
-                    <span className="text-sm">状态</span>
-                    <Switch checked={repairIsDone} onCheckedChange={setRepairIsDone} />
-                  </div>
-                </Field>
-                <Button className="h-10 text-[13px]" variant="default" onClick={handleAddRepair} disabled={isSubmitting}>
-                  {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
-                  {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
-                  保存
-                </Button>
-              </FieldGroup>
-            </SheetContent>
-          </Sheet>
+          <Button className="h-10 text-[13px]" variant="default" onClick={handleOpenAddRepair}>
+            <IconPlus size={14} data-icon="inline-start" />
+            添加维修
+          </Button>
         )}
         <Button className="h-10 text-[13px]" variant="default" onClick={() => navigate(`/assets/${asset.id}/edit`)}>
           <IconPencil size={14} data-icon="inline-start" />
