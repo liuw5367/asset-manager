@@ -337,7 +337,7 @@ export function PlanEditorPage({
 
           <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2.5" style={{ borderColor: 'var(--color-hairline)' }}>
             <Select value={newItemType} onValueChange={v => setNewItemType((v || 'income') as 'income' | 'expense')}>
-              <SelectTrigger className="h-8 w-20">
+              <SelectTrigger className="h-9 w-20">
                 <SelectValue>{value => value === 'expense' ? '支出' : '收入'}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -352,7 +352,7 @@ export function PlanEditorPage({
               value={newItemName}
               onChange={e => setNewItemName(e.target.value)}
               placeholder="项目名称"
-              className="h-8 flex-1"
+              className="h-9 flex-1"
             />
             <Button type="button" variant="ghost" size="icon-sm" onClick={addDefaultItem}>
               <IconPlus size={16} />

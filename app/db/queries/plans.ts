@@ -117,6 +117,7 @@ interface PlanRecordPatchAccumulateInput extends PlanRecordPatchInputBase {
   addedItems: Array<{ memberId: string, itemType: PlanItemType, name: string, amount: string }>
   updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }>
   deletedItems: Array<{ id: string, expectedUpdatedAt?: string }>
+  memberNotes: Array<{ memberId: string, note: string, expectedUpdatedAt?: string }>
 }
 
 interface PlanRecordPatchSnapshotInput extends PlanRecordPatchInputBase {
@@ -891,7 +892,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
         })
     }
 
-    if (input.mode === 'snapshot') {
+    if (input.memberNotes.length > 0) {
       const existingNotesAll = await tx
         .select()
         .from(planRecordMemberNotes)

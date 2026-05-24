@@ -52,6 +52,11 @@ const accumulatePatchSchema = z.object({
     id: z.string().min(1),
     expectedUpdatedAt: z.string().optional(),
   })).default([]),
+  memberNotes: z.array(z.object({
+    memberId: z.string().min(1),
+    note: z.string().trim().max(300).default(''),
+    expectedUpdatedAt: z.string().optional(),
+  })).default([]),
 })
 
 const snapshotPatchSchema = z.object({
