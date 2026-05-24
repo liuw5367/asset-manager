@@ -1,11 +1,13 @@
 import type { PlanEditorLoaderData } from './plans.shared'
 import { IconArrowLeft, IconCheck, IconPlus, IconTrash } from '@tabler/icons-react'
+import EmojiPicker from 'emoji-picker-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -45,8 +47,6 @@ interface EditableDefaultItem {
   itemType: 'income' | 'expense'
 }
 
-const emojiOptions = ['💰', '📊', '🏠', '💼', '🎯', '🛒', '✈️', '🎓', '🎮', '🏥', '🚗', '📱', '🏋️', '🎨']
-
 export function PlanEditorPage({
   data,
   actionData,
@@ -56,7 +56,7 @@ export function PlanEditorPage({
   onRevokeInvite,
 }: PlanEditorPageProps) {
   const [emoji, setEmoji] = useState(data.emoji)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [emojiOpen, setEmojiOpen] = useState(false)
   const [name, setName] = useState(data.name)
   const [planMode, setPlanMode] = useState<'accumulate' | 'snapshot'>(data.planMode)
   const [permission, setPermission] = useState<'own' | 'all'>(data.permission)
@@ -149,38 +149,31 @@ export function PlanEditorPage({
       </div>
 
       <div className="mb-5 flex justify-center">
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="flex h-16 w-16 items-center justify-center rounded-2xl border text-3xl transition-shadow hover:shadow-md"
-            style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
+        <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+          <PopoverTrigger
+            render={(
+              <button
+                type="button"
+                className="flex h-16 w-16 items-center justify-center rounded-2xl border text-3xl transition-shadow hover:shadow-md"
+                style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
+              />
+            )}
           >
             {emoji}
-          </button>
-          {showEmojiPicker && (
-            <div
-              className="absolute left-1/2 top-20 z-10 -translate-x-1/2 rounded-xl border p-3 shadow-lg"
-              style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
-            >
-              <div className="grid grid-cols-5 gap-2">
-                {emojiOptions.map(e => (
-                  <button
-                    key={e}
-                    type="button"
-                    onClick={() => {
-                      setEmoji(e)
-                      setShowEmojiPicker(false)
-                    }}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-xl transition-colors hover:bg-[var(--color-surface-soft)]"
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" side="bottom" align="center">
+            <EmojiPicker
+              onEmojiClick={(emojiData) => {
+                setEmoji(emojiData.emoji)
+                setEmojiOpen(false)
+              }}
+              lazyLoadEmojis
+              skinTonesDisabled
+              width={320}
+              height={360}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <div className="mb-5">

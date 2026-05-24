@@ -28,6 +28,10 @@ export const links: Route.LinksFunction = () => [
     rel: 'stylesheet',
     href: 'https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap',
   },
+  { rel: 'manifest', href: '/manifest.webmanifest' },
+  { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon-16.png' },
+  { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon-32.png' },
+  { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
 ]
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -73,6 +77,20 @@ export default function App() {
       NProgress.done()
     }
   }, [isNavigating])
+
+  useEffect(() => {
+    let cancelled = false
+    const register = async () => {
+      const { registerSW } = await import('virtual:pwa-register')
+      if (!cancelled) {
+        registerSW({ immediate: true })
+      }
+    }
+    void register().catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return <Outlet />
 }
