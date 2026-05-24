@@ -9,8 +9,9 @@ import {
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Form, Link, redirect, useLoaderData, useNavigation } from 'react-router'
+import { Form, Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
 import {
   AlertDialog,
@@ -29,7 +30,10 @@ import {
   ChartTooltipContent,
 } from '~/components/ui/chart'
 import {
+  getActiveInviteLink,
   getPlanDetailById,
+  regenerateInviteLink,
+  revokeInviteLink,
   softDeletePlan,
 } from '~/db/queries/plans'
 import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
@@ -57,7 +61,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!detail)
     throw new Response('Not Found', { status: 404 })
 
-  return detail
+  const origin = new URL(request.url).origin
+  const activeInvite = detail.canManage ? await getActiveInviteLink(params.id, user.id) : null
+
+  return {
+    ...detail,
+    inviteLink: activeInvite ? `${origin}/plans/invite/${activeInvite.token}` : null,
+    inviteExpiresAt: activeInvite?.expiresAt?.toISOString() || null,
+  }
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -74,12 +85,36 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect('/plans', { headers })
   }
 
+  if (intent === 'regenerate-invite') {
+    const origin = new URL(request.url).origin
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    const { token } = await regenerateInviteLink(params.id, user.id, expiresAt)
+    return {
+      ok: true,
+      intent,
+      inviteLink: `${origin}/plans/invite/${token}`,
+      inviteExpiresAt: expiresAt.toISOString(),
+    }
+  }
+
+  if (intent === 'revoke-invite') {
+    await revokeInviteLink(params.id, user.id)
+    return {
+      ok: true,
+      intent,
+      inviteLink: null,
+      inviteExpiresAt: null,
+    }
+  }
+
   return null
 }
 
 export default function PlansDetail() {
   const detail = useLoaderData<typeof loader>()
+  const actionData = useActionData<typeof action>()
   const navigation = useNavigation()
+  const submit = useSubmit()
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
@@ -91,6 +126,17 @@ export default function PlansDetail() {
     () => buildPlanAvatarToneMap(detail.members.map(member => member.userId)),
     [detail.members],
   )
+  const planModeLabel = detail.planMode === 'snapshot' ? '总额记录' : '收支累加'
+  const inviteLink = actionData && 'inviteLink' in actionData ? actionData.inviteLink : detail.inviteLink
+  const inviteExpiresAt = actionData && 'inviteExpiresAt' in actionData ? actionData.inviteExpiresAt : detail.inviteExpiresAt
+  const isInviteSubmitting = navigation.state !== 'idle'
+    && (navigation.formData?.get('intent') === 'regenerate-invite' || navigation.formData?.get('intent') === 'revoke-invite')
+
+  function submitIntent(intent: string) {
+    const fd = new FormData()
+    fd.set('intent', intent)
+    submit(fd, { method: 'post' })
+  }
 
   return (
     <div className="pt-6 pb-8">
@@ -152,19 +198,41 @@ export default function PlansDetail() {
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-2.5">
-        <span className="text-3xl">{detail.emoji}</span>
-        <h1
-          className="font-[family-name:var(--font-display)] text-2xl"
-          style={{ color: 'var(--color-ink)' }}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="text-3xl">{detail.emoji}</span>
+          <h1
+            className="truncate font-[family-name:var(--font-display)] text-2xl"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            {detail.name}
+          </h1>
+        </div>
+        <span
+          className="shrink-0 rounded-md px-2.5 py-1 text-xs font-medium"
+          style={{
+            background: 'var(--color-primary-muted)',
+            color: 'var(--color-primary)',
+          }}
         >
-          {detail.name}
-        </h1>
+          {planModeLabel}
+        </span>
       </div>
 
       <div className="mb-4">
-        <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-          成员
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+            成员
+          </div>
+          {detail.canManage && (
+            <PlanInvitePanel
+              inviteLink={inviteLink}
+              inviteExpiresAt={inviteExpiresAt}
+              isSubmitting={isInviteSubmitting}
+              onRegenerateInvite={() => submitIntent('regenerate-invite')}
+              onRevokeInvite={() => submitIntent('revoke-invite')}
+            />
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {detail.members.map(member => (
@@ -182,7 +250,7 @@ export default function PlansDetail() {
                 textColor={memberToneMap.get(member.userId)?.textColor}
               />
               <span className="text-sm" style={{ color: 'var(--color-body)' }}>
-                {member.displayName}
+                {member.note.trim() || member.displayName}
               </span>
             </div>
           ))}
@@ -228,7 +296,7 @@ export default function PlansDetail() {
           </div>
           <div
             className="font-[family-name:var(--font-mono)] text-xl font-semibold"
-            style={{ color: 'var(--color-success)' }}
+            style={{ color: (detail.records[0]?.netIncome ?? 0) > 0 ? 'var(--color-success)' : 'var(--color-error)' }}
           >
             {(detail.records[0]?.netIncome ?? 0).toLocaleString()}
           </div>
@@ -294,7 +362,7 @@ export default function PlansDetail() {
             月度记录
           </h2>
           <Link
-            to={`/plans/${detail.id}/records/${currentMonth}/edit`}
+            to={`/plans/${detail.id}/records/${currentMonth}/edit?blank=1`}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
             style={{
               background: 'var(--color-primary-muted)',
@@ -302,7 +370,7 @@ export default function PlansDetail() {
             }}
           >
             <IconPlus size={14} />
-            添加本月记录
+            添加记录
           </Link>
         </div>
 
@@ -331,11 +399,26 @@ export default function PlansDetail() {
                     ? <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
                     : <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />}
                 </div>
-                <div
-                  className="mb-2 font-[family-name:var(--font-mono)] text-lg font-semibold"
-                  style={{ color: 'var(--color-ink)' }}
-                >
-                  {record.totalValue.toLocaleString()}
+                <div className="flex items-center gap-4 mb-2 ">
+                  <div
+                    className="font-[family-name:var(--font-mono)] text-lg font-semibold"
+                    style={{ color: 'var(--color-ink)' }}
+                  >
+                    {record.totalValue.toLocaleString()}
+                  </div>
+
+                  {record.netIncome > 0
+                    ? (
+                        <span style={{ color: 'var(--color-success)' }}>
+                          +
+                          {record.netIncome.toLocaleString()}
+                        </span>
+                      )
+                    : (
+                        <span style={{ color: 'var(--color-error)' }}>
+                          {record.netIncome.toLocaleString()}
+                        </span>
+                      )}
                 </div>
                 <div className="flex gap-4 text-xs">
                   <span style={{ color: 'var(--color-success)' }}>

@@ -261,7 +261,7 @@ export default function AssetsIndex() {
                       {asset.name}
                     </span>
                     {isEnded && (
-                      <span className="inline-block size-2 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] bg-red-500 opacity-85" />
+                      <span className="inline-block size-1.5 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] bg-red-500 opacity-85" />
                     )}
                   </div>
 

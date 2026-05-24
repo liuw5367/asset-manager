@@ -2,6 +2,7 @@ import type { PlanEditorLoaderData } from './plans.shared'
 import { IconArrowLeft, IconCheck, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -195,9 +196,20 @@ export function PlanEditorPage({
       </div>
 
       <div className="mb-5">
-        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-          成员
-        </label>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+            成员
+          </label>
+          {data.mode === 'edit' && data.canManage && (
+            <PlanInvitePanel
+              inviteLink={inviteLink}
+              inviteExpiresAt={inviteExpiresAt}
+              isSubmitting={isSubmitting}
+              onRegenerateInvite={onRegenerateInvite}
+              onRevokeInvite={onRevokeInvite}
+            />
+          )}
+        </div>
         <div className="flex flex-col gap-2">
           {members.map(member => (
             <div
@@ -231,40 +243,6 @@ export function PlanEditorPage({
           ))}
         </div>
       </div>
-
-      {data.mode === 'edit' && data.canManage && (
-        <div className="mb-5 rounded-lg border p-3" style={{ borderColor: 'var(--color-hairline)', background: 'var(--color-surface-card)' }}>
-          <div className="mb-2 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            邀请成员
-          </div>
-          {inviteLink
-            ? (
-                <>
-                  <Input value={inviteLink} readOnly className="mb-2 h-9 text-xs" onClick={e => e.currentTarget.select()} />
-                  <div className="mb-2 text-xs" style={{ color: 'var(--color-muted)' }}>
-                    有效期至：
-                    {inviteExpiresAt ? new Date(inviteExpiresAt).toLocaleString('zh-CN') : '--'}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" className="h-8" onClick={async () => await navigator.clipboard.writeText(inviteLink)}>
-                      复制链接
-                    </Button>
-                    <Button type="button" variant="destructive" className="h-8" onClick={onRevokeInvite} disabled={isSubmitting}>
-                      吊销链接
-                    </Button>
-                    <Button type="button" variant="outline" className="h-8" onClick={onRegenerateInvite} disabled={isSubmitting}>
-                      重新生成
-                    </Button>
-                  </div>
-                </>
-              )
-            : (
-                <Button type="button" className="h-9" onClick={onRegenerateInvite} disabled={isSubmitting}>
-                  生成邀请链接（30天有效）
-                </Button>
-              )}
-        </div>
-      )}
 
       <div className="mb-5">
         <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
@@ -362,7 +340,7 @@ export function PlanEditorPage({
               value={newItemName}
               onChange={e => setNewItemName(e.target.value)}
               placeholder="项目名称"
-              className="h-9 flex-1"
+              className="h-10 flex-1"
             />
             <Button type="button" variant="ghost" size="icon-sm" onClick={addDefaultItem}>
               <IconPlus size={16} />

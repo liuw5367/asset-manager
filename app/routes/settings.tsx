@@ -12,15 +12,14 @@ import {
 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
 import { useTheme } from 'next-themes'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, redirect, useFetcher, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
-import { Field, FieldContent, FieldDescription, FieldLabel } from '~/components/ui/field'
+import { Field, FieldContent } from '~/components/ui/field'
 import { Input } from '~/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
-import { Switch } from '~/components/ui/switch'
 import {
   getSettingsCategoriesByUserId,
   getSettingsPaymentAccountsByUserId,
@@ -123,19 +122,19 @@ export default function SettingsPage() {
     setMounted(true)
   }, [])
 
-  const isSavingProfile = profileFetcher.state !== 'idle'
   const isLoggingOut = logoutFetcher.state !== 'idle'
   const currentTheme: 'system' | 'light' | 'dark'
     = theme === 'light' || theme === 'dark' || theme === 'system'
       ? theme
       : 'system'
 
-  const profileChanged = useMemo(
-    () => displayName.trim() !== profile.displayName || avatarEmoji !== profile.avatarEmoji,
-    [avatarEmoji, displayName, profile.avatarEmoji, profile.displayName],
-  )
-  const displayNameTrimmed = displayName.trim()
-  const canSaveProfile = profileChanged && displayNameTrimmed.length > 0 && displayNameTrimmed.length <= 30 && !isSavingProfile
+  function submitProfile(displayNameValue: string, avatarEmojiValue: string) {
+    const fd = new FormData()
+    fd.set('intent', 'update_profile')
+    fd.set('displayName', displayNameValue)
+    fd.set('avatarEmoji', avatarEmojiValue)
+    profileFetcher.submit(fd, { method: 'post' })
+  }
 
   return (
     <div className="pb-8 pt-6">
@@ -165,7 +164,10 @@ export default function SettingsPage() {
             <PopoverContent className="w-auto p-0" side="bottom" align="start">
               <EmojiPicker
                 onEmojiClick={(emojiData) => {
-                  setAvatarEmoji(emojiData.emoji)
+                  const nextEmoji = emojiData.emoji
+                  setAvatarEmoji(nextEmoji)
+                  const safeDisplayName = displayName.trim() || profile.displayName
+                  submitProfile(safeDisplayName, nextEmoji)
                   setEmojiOpen(false)
                 }}
                 lazyLoadEmojis
@@ -178,7 +180,6 @@ export default function SettingsPage() {
 
           <div className="min-w-0 flex-1">
             <Field>
-              <FieldLabel>昵称</FieldLabel>
               <FieldContent>
                 <div className="flex items-center gap-1.5">
                   {editingDisplayName
@@ -192,14 +193,7 @@ export default function SettingsPage() {
                         />
                       )
                     : (
-                        <p
-                          className="h-10 flex-1 rounded-[10px] border px-3 py-2 text-[15px] leading-6"
-                          style={{
-                            borderColor: 'var(--color-hairline)',
-                            background: 'var(--color-canvas)',
-                            color: 'var(--color-ink)',
-                          }}
-                        >
+                        <p className="flex-1">
                           {displayName}
                         </p>
                       )}
@@ -211,7 +205,11 @@ export default function SettingsPage() {
                             size="icon-sm"
                             variant="ghost"
                             style={{ color: 'var(--color-primary)' }}
-                            onClick={() => setEditingDisplayName(false)}
+                            onClick={() => {
+                              setEditingDisplayName(false)
+                              const safeDisplayName = displayName.trim() || profile.displayName
+                              submitProfile(safeDisplayName, avatarEmoji)
+                            }}
                           >
                             <IconCheck />
                           </Button>
@@ -253,15 +251,9 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
-        <div className="mt-3 flex justify-end">
-          <Button type="submit" disabled={!canSaveProfile}>
-            {isSavingProfile && <IconLoader2 className="animate-spin" />}
-            保存
-          </Button>
-        </div>
       </profileFetcher.Form>
 
-      <section className="mb-8">
+      {/* <section className="mb-8">
         <h2
           className="mb-3 text-sm font-medium uppercase tracking-wide"
           style={{ color: 'var(--color-muted-soft)' }}
@@ -277,7 +269,7 @@ export default function SettingsPage() {
             <Switch checked={profile.reminderEnabled} disabled />
           </Field>
         </div>
-      </section>
+      </section> */}
 
       <section className="mb-8">
         <h2

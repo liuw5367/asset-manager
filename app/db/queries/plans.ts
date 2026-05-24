@@ -107,29 +107,17 @@ export interface SavePlanInput {
 interface PlanRecordPatchInputBase {
   planId: string
   userId: string
+  mode: PlanMode
   year: number
   month: number
   expectedRecordUpdatedAt?: string
-}
-
-interface PlanRecordPatchAccumulateInput extends PlanRecordPatchInputBase {
-  mode: 'accumulate'
   addedItems: Array<{ memberId: string, itemType: PlanItemType, name: string, amount: string }>
   updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }>
   deletedItems: Array<{ id: string, expectedUpdatedAt?: string }>
   memberNotes: Array<{ memberId: string, note: string, expectedUpdatedAt?: string }>
 }
 
-interface PlanRecordPatchSnapshotInput extends PlanRecordPatchInputBase {
-  mode: 'snapshot'
-  addedItems: Array<{ memberId: string, itemType: PlanItemType, name: string, amount: string }>
-  updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }>
-  deletedItems: Array<{ id: string, expectedUpdatedAt?: string }>
-  recordedTotalValue: string
-  memberNotes: Array<{ memberId: string, note: string, expectedUpdatedAt?: string }>
-}
-
-export type PlanRecordPatchInput = PlanRecordPatchAccumulateInput | PlanRecordPatchSnapshotInput
+export type PlanRecordPatchInput = PlanRecordPatchInputBase
 
 export interface SavePlanRecordResult {
   recordId: string
@@ -303,7 +291,7 @@ function buildRecordViews(
   })
 
   let previousTotal = startingValue
-  const ascendingViews = ascendingRecords.map((record, index) => {
+  const ascendingViews = ascendingRecords.map((record) => {
     const items = itemMap.get(record.id) || []
     const memberNotes = noteMap.get(record.id) || []
     const totalIncome = items
@@ -312,21 +300,14 @@ function buildRecordViews(
     const totalExpense = items
       .filter(item => item.itemType === 'expense')
       .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
-    let netIncome = 0
-    let totalValue = startingValue
-    let recordedTotalValue: number | null = null
+    const monthNetIncome = currency(totalIncome).subtract(totalExpense).value
+    let netIncome = monthNetIncome
+    let totalValue = currency(previousTotal).add(monthNetIncome).value
+    const recordedTotalValue: number | null = null
 
     if (planMode === 'snapshot') {
-      recordedTotalValue = record.recordedTotalValue === null ? null : toAmount(record.recordedTotalValue)
-      const currentTotal = recordedTotalValue ?? previousTotal
-      netIncome = index === 0
-        ? currency(currentTotal).subtract(startingValue).value
-        : currency(currentTotal).subtract(previousTotal).value
-      totalValue = currentTotal
-    }
-    else {
-      netIncome = currency(totalIncome).subtract(totalExpense).value
-      totalValue = currency(previousTotal).add(netIncome).value
+      totalValue = monthNetIncome
+      netIncome = currency(totalValue).subtract(previousTotal).value
     }
 
     previousTotal = totalValue
@@ -941,7 +922,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
     await tx
       .update(planRecords)
       .set({
-        recordedTotalValue: input.mode === 'snapshot' ? toAmount(input.recordedTotalValue).toFixed(2) : null,
+        recordedTotalValue: null,
         updatedAt: now,
       })
       .where(eq(planRecords.id, record.id))

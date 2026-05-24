@@ -30,8 +30,8 @@ const amountString = z.string().trim().refine((value) => {
   return Number.isFinite(num) && num >= 0
 }, '金额格式不正确')
 
-const accumulatePatchSchema = z.object({
-  mode: z.literal('accumulate'),
+export const planRecordPatchSchema = z.object({
+  mode: z.enum(['accumulate', 'snapshot']),
   year: z.number().int().min(2000).max(2200),
   month: z.number().int().min(1).max(12),
   expectedRecordUpdatedAt: z.string().optional(),
@@ -58,38 +58,3 @@ const accumulatePatchSchema = z.object({
     expectedUpdatedAt: z.string().optional(),
   })).default([]),
 })
-
-const snapshotPatchSchema = z.object({
-  mode: z.literal('snapshot'),
-  year: z.number().int().min(2000).max(2200),
-  month: z.number().int().min(1).max(12),
-  expectedRecordUpdatedAt: z.string().optional(),
-  addedItems: z.array(z.object({
-    memberId: z.string().min(1),
-    itemType: z.enum(['income', 'expense']),
-    name: z.string().trim().max(50),
-    amount: amountString,
-  })).default([]),
-  updatedItems: z.array(z.object({
-    id: z.string().min(1),
-    memberId: z.string().min(1),
-    name: z.string().trim().min(1).max(50),
-    amount: amountString,
-    expectedUpdatedAt: z.string().optional(),
-  })).default([]),
-  deletedItems: z.array(z.object({
-    id: z.string().min(1),
-    expectedUpdatedAt: z.string().optional(),
-  })).default([]),
-  recordedTotalValue: amountString,
-  memberNotes: z.array(z.object({
-    memberId: z.string().min(1),
-    note: z.string().trim().max(300).default(''),
-    expectedUpdatedAt: z.string().optional(),
-  })).default([]),
-})
-
-export const planRecordPatchSchema = z.discriminatedUnion('mode', [
-  accumulatePatchSchema,
-  snapshotPatchSchema,
-])

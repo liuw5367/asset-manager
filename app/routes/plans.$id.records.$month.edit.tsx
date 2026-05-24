@@ -44,6 +44,8 @@ interface EditableMemberNote {
   avatarEmoji: string
 }
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
@@ -53,6 +55,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const [yearStr, monthStr] = (params.month ?? '').split('-')
   const year = Number(yearStr)
   const month = Number(monthStr)
+  const blankMode = new URL(request.url).searchParams.get('blank') === '1'
 
   if (!Number.isFinite(year) || !Number.isFinite(month))
     throw new Response('Not Found', { status: 404 })
@@ -65,7 +68,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!planDetail)
     throw new Response('Not Found', { status: 404 })
 
-  if (recordData) {
+  if (recordData && !blankMode) {
     const existingNoteMap = new Map(recordData.record.memberNotes.map(note => [note.memberId, note]))
     const normalizedNotes = planDetail.members.map((member) => {
       const existing = existingNoteMap.get(member.userId)
@@ -100,6 +103,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
     return {
       mode: 'edit' as const,
+      blankMode: false,
       planId: params.id,
       month,
       year,
@@ -108,7 +112,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       canEditAllItems: recordData.canEditAllItems,
       members: planDetail.members,
       recordUpdatedAt: recordData.record.updatedAt?.toISOString(),
-      recordedTotalValue: String(recordData.record.recordedTotalValue ?? recordData.record.totalValue ?? planDetail.startingValue),
       memberNotes: normalizedNotes,
       items: [...existingItems, ...missingDefaultItems],
     }
@@ -125,6 +128,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   return {
     mode: 'create' as const,
+    blankMode,
     planId: params.id,
     month,
     year,
@@ -133,7 +137,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     canEditAllItems: planDetail.canEditAllItems,
     members: planDetail.members,
     recordUpdatedAt: undefined,
-    recordedTotalValue: String(planDetail.startingValue),
     memberNotes: planDetail.members.map(member => ({
       memberId: member.userId,
       note: '',
@@ -167,32 +170,18 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { error: parsed.error.issues[0].message }
 
   try {
-    const result = parsed.data.mode === 'accumulate'
-      ? await savePlanRecordPatch({
-          planId: params.id,
-          userId: user.id,
-          mode: 'accumulate',
-          year: parsed.data.year,
-          month: parsed.data.month,
-          expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
-          addedItems: parsed.data.addedItems,
-          updatedItems: parsed.data.updatedItems,
-          deletedItems: parsed.data.deletedItems,
-          memberNotes: parsed.data.memberNotes,
-        })
-      : await savePlanRecordPatch({
-          planId: params.id,
-          userId: user.id,
-          mode: 'snapshot',
-          year: parsed.data.year,
-          month: parsed.data.month,
-          expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
-          addedItems: parsed.data.addedItems,
-          updatedItems: parsed.data.updatedItems,
-          deletedItems: parsed.data.deletedItems,
-          recordedTotalValue: parsed.data.recordedTotalValue,
-          memberNotes: parsed.data.memberNotes,
-        })
+    const result = await savePlanRecordPatch({
+      planId: params.id,
+      userId: user.id,
+      mode: parsed.data.mode,
+      year: parsed.data.year,
+      month: parsed.data.month,
+      expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
+      addedItems: parsed.data.addedItems,
+      updatedItems: parsed.data.updatedItems,
+      deletedItems: parsed.data.deletedItems,
+      memberNotes: parsed.data.memberNotes,
+    })
 
     return redirect(`/plans/${params.id}/records/${result.monthKey}`, { headers })
   }
@@ -217,7 +206,6 @@ export default function PlansRecordsMonthEdit() {
   const [selectedMonth, setSelectedMonth] = useState(data.month)
   const [items, setItems] = useState<EditableItem[]>(data.items)
   const [deletedItems, setDeletedItems] = useState<Array<{ id: string, expectedUpdatedAt?: string }>>([])
-  const [recordedTotalValue, setRecordedTotalValue] = useState(data.recordedTotalValue)
   const [memberNotes, setMemberNotes] = useState<EditableMemberNote[]>(data.memberNotes)
 
   const initialMap = useMemo(() => {
@@ -237,7 +225,7 @@ export default function PlansRecordsMonthEdit() {
 
   const isSubmitting = navigation.state !== 'idle'
 
-  const years = [2024, 2025, 2026, 2027, 2028]
+  const years = Array.from({ length: 22 }, (_, i) => CURRENT_YEAR - 20 + i)
   const months = Array.from({ length: 12 }, (_, i) => i + 1)
 
   function addItem(type: 'income' | 'expense') {
@@ -328,22 +316,8 @@ export default function PlansRecordsMonthEdit() {
         expectedUpdatedAt: note.expectedUpdatedAt,
       }))
 
-    if (data.planMode === 'snapshot') {
-      return {
-        mode: 'snapshot' as const,
-        year: selectedYear,
-        month: selectedMonth,
-        expectedRecordUpdatedAt: data.recordUpdatedAt,
-        addedItems,
-        updatedItems,
-        deletedItems,
-        recordedTotalValue: recordedTotalValue.trim() || '0',
-        memberNotes: changedNotes,
-      }
-    }
-
     return {
-      mode: 'accumulate' as const,
+      mode: data.planMode,
       year: selectedYear,
       month: selectedMonth,
       expectedRecordUpdatedAt: data.recordUpdatedAt,
@@ -377,7 +351,7 @@ export default function PlansRecordsMonthEdit() {
     <div className="pt-6 pb-24">
       <div className="mb-6 flex items-center justify-between">
         <Link
-          to={`/plans/${data.planId}/records/${data.year}-${String(data.month).padStart(2, '0')}`}
+          to={data.blankMode ? `/plans/${data.planId}` : `/plans/${data.planId}/records/${data.year}-${String(data.month).padStart(2, '0')}`}
           className="flex items-center gap-1 text-sm transition-colors"
           style={{ color: 'var(--color-primary)' }}
         >
@@ -385,7 +359,7 @@ export default function PlansRecordsMonthEdit() {
           返回
         </Link>
         <h1 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          编辑月度记录
+          {currentMonthKey}
         </h1>
         <button
           type="button"
@@ -397,11 +371,6 @@ export default function PlansRecordsMonthEdit() {
           <IconCheck size={16} />
           {isSubmitting ? '保存中...' : '保存'}
         </button>
-      </div>
-
-      <div className="mb-2 text-xs" style={{ color: 'var(--color-muted)' }}>
-        归属月份：
-        {currentMonthKey}
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3">
@@ -446,21 +415,6 @@ export default function PlansRecordsMonthEdit() {
           </Select>
         </div>
       </div>
-
-      {data.planMode === 'snapshot' && (
-        <div className="mb-6">
-          <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-            当月总额
-          </h2>
-          <Input
-            type="number"
-            value={recordedTotalValue}
-            onChange={e => setRecordedTotalValue(e.target.value)}
-            placeholder="填写当月总额"
-            className="h-10 font-[family-name:var(--font-mono)]"
-          />
-        </div>
-      )}
 
       <div className="mb-6">
         <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
@@ -608,9 +562,6 @@ export default function PlansRecordsMonthEdit() {
                   textColor={memberToneMap.get(note.memberId)?.textColor}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                    {note.displayName}
-                  </div>
                   {isSelf
                     ? (
                         <Input
