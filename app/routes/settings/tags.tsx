@@ -1,175 +1,213 @@
-import type { Tag } from '~/data/mock'
+import type { Route } from './+types/tags'
 import {
-  IconArrowLeft,
   IconCheck,
+  IconLoader2,
   IconPencil,
   IconPlus,
   IconTrash,
   IconX,
 } from '@tabler/icons-react'
-import { useState } from 'react'
-import { Link } from 'react-router'
-import { tags as mockTags } from '~/data/mock'
+import { useMemo, useState } from 'react'
+import { Form, redirect, useLoaderData, useNavigation } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import {
+  createSettingsTag,
+  getSettingsTagsByUserId,
+  softDeleteSettingsTag,
+  updateSettingsTag,
+} from '~/db/queries/settings'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const tags = await getSettingsTagsByUserId(user.id)
+  return { tags }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const formData = await request.formData()
+  const intent = String(formData.get('intent') || '')
+
+  if (intent === 'create') {
+    const name = String(formData.get('name') || '').trim()
+    const color = String(formData.get('color') || '#cc785c').trim() || '#cc785c'
+    if (!name)
+      return { ok: false, intent, error: '标签名称不能为空' }
+
+    await createSettingsTag(user.id, { name, color })
+    return { ok: true, intent }
+  }
+
+  if (intent === 'update') {
+    const id = String(formData.get('id') || '')
+    const name = String(formData.get('name') || '').trim()
+    const color = String(formData.get('color') || '').trim()
+    if (!id || !name)
+      return { ok: false, intent, error: '参数不完整' }
+
+    await updateSettingsTag(user.id, id, { name, ...(color ? { color } : {}) })
+    return { ok: true, intent }
+  }
+
+  if (intent === 'delete') {
+    const id = String(formData.get('id') || '')
+    if (!id)
+      return { ok: false, intent, error: '参数不完整' }
+
+    await softDeleteSettingsTag(user.id, id)
+    return { ok: true, intent }
+  }
+
+  return { ok: false, intent, error: '不支持的操作' }
+}
+
+function ColorPicker({ value, onChange }: { value: string, onChange: (color: string) => void }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={(
+          <Button type="button" variant="secondary" size="icon" className="shrink-0" />
+        )}
+      >
+        <span className="h-4 w-4 rounded-full" style={{ backgroundColor: value }} />
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px]">
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className="h-10 w-10 cursor-pointer rounded-lg border border-[var(--color-hairline)]"
+          />
+          <Input value={value} onChange={e => onChange(e.target.value)} />
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 export default function TagsPage() {
-  const [list, setList] = useState<Tag[]>([...mockTags])
+  const { tags } = useLoaderData<typeof loader>()
+  const navigation = useNavigation()
+
   const [newColor, setNewColor] = useState('#cc785c')
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [editColor, setEditColor] = useState('#cc785c')
 
-  const handleAdd = () => {
-    const name = newName.trim()
-    if (!name)
-      return
-    const item: Tag = {
-      id: `tag-${Date.now()}`,
-      name,
-      color: newColor,
-      assetCount: 0,
-    }
-    setList(prev => [...prev, item])
-    setNewColor('#cc785c')
-    setNewName('')
-  }
+  const pendingIntent = String(navigation.formData?.get('intent') || '')
+  const pendingId = String(navigation.formData?.get('id') || '')
+  const isCreating = navigation.state !== 'idle' && pendingIntent === 'create'
+  const isUpdatingCurrent = (id: string) => navigation.state !== 'idle' && pendingIntent === 'update' && pendingId === id
+  const isDeletingCurrent = (id: string) => navigation.state !== 'idle' && pendingIntent === 'delete' && pendingId === id
 
-  const handleStartEdit = (item: Tag) => {
-    setEditingId(item.id)
-    setEditName(item.name)
-  }
-
-  const handleSaveEdit = (id: string) => {
-    const name = editName.trim()
-    if (!name)
-      return
-    setList(prev =>
-      prev.map(t => (t.id === id ? { ...t, name } : t)),
-    )
-    setEditingId(null)
-  }
-
-  const handleDelete = (id: string) => {
-    setList(prev => prev.filter(t => t.id !== id))
-  }
+  const canSubmitCreate = useMemo(() => newName.trim().length > 0 && !isCreating, [isCreating, newName])
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6">
-      {/* Top bar */}
-      <div className="mb-6 flex items-center gap-2">
-        <Link
-          to="/settings"
-          className="flex items-center gap-1 text-sm transition-opacity hover:opacity-70"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={18} />
-          设置
-        </Link>
-        <span style={{ color: 'var(--color-muted-soft)' }}>/</span>
-        <h1
-          className="text-lg font-semibold"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-        >
-          标签管理
-        </h1>
-      </div>
+    <div className="pb-8 pt-3">
+      <SubPageHeader backTo="/settings" backLabel="设置" title="标签管理" />
 
-      {/* Add form */}
-      <div
+      <Form
+        method="post"
         className="mb-6 rounded-2xl p-4"
         style={{ backgroundColor: 'var(--color-surface-card)' }}
+        onSubmit={() => {
+          setNewName('')
+          setNewColor('#cc785c')
+        }}
       >
+        <input type="hidden" name="intent" value="create" />
+        <input type="hidden" name="color" value={newColor} />
+
         <div className="flex items-center gap-3">
-          <input
-            type="color"
-            value={newColor}
-            onChange={e => setNewColor(e.target.value)}
-            className="h-10 w-10 shrink-0 cursor-pointer rounded-xl border-0"
-            style={{ backgroundColor: 'transparent' }}
-          />
-          <input
-            type="text"
+          <ColorPicker value={newColor} onChange={setNewColor} />
+          <Input
+            name="name"
             placeholder="标签名称"
             value={newName}
             onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            className="min-w-0 flex-1 rounded-xl border-0 px-3 py-2 text-sm outline-none"
-            style={{
-              backgroundColor: 'var(--color-surface-strong)',
-              color: 'var(--color-ink)',
-            }}
           />
-          <button
-            onClick={handleAdd}
-            disabled={!newName.trim()}
-            className="flex items-center gap-1 rounded-xl px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-40"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <IconPlus size={16} />
+          <Button type="submit" disabled={!canSubmitCreate}>
+            {isCreating ? <IconLoader2 className="animate-spin" /> : <IconPlus />}
             新增
-          </button>
+          </Button>
         </div>
-      </div>
+      </Form>
 
-      {/* List */}
       <div
         className="overflow-hidden rounded-2xl"
         style={{ backgroundColor: 'var(--color-surface-card)' }}
       >
-        {list.map((item, i) => (
+        {tags.map((item, i) => (
           <div
             key={item.id}
             className="flex items-center gap-3 px-4 py-3"
             style={{
               borderBottom:
-                i < list.length - 1
+                i < tags.length - 1
                   ? '1px solid var(--color-hairline)'
                   : undefined,
             }}
           >
-            <div
-              className="h-3 w-3 shrink-0 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
             {editingId === item.id
               ? (
                   <>
-                    <input
-                      type="text"
+                    <ColorPicker value={editColor} onChange={setEditColor} />
+                    <Input
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter')
-                          handleSaveEdit(item.id)
-                        if (e.key === 'Escape')
-                          setEditingId(null)
-                      }}
-                      className="min-w-0 flex-1 rounded-lg border-0 px-2 py-1 text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--color-surface-strong)',
-                        color: 'var(--color-ink)',
-                      }}
+                      className="h-9"
                       autoFocus
                     />
-                    <button
-                      onClick={() => handleSaveEdit(item.id)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-success)' }}
-                    >
-                      <IconCheck size={16} />
-                    </button>
-                    <button
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="update" />
+                      <input type="hidden" name="id" value={item.id} />
+                      <input type="hidden" name="name" value={editName} />
+                      <input type="hidden" name="color" value={editColor} />
+                      <Button
+                        type="submit"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={!editName.trim() || isUpdatingCurrent(item.id)}
+                        onClick={() => {
+                          if (editName.trim())
+                            setEditingId(null)
+                        }}
+                      >
+                        {isUpdatingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconCheck />}
+                      </Button>
+                    </Form>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
                       onClick={() => setEditingId(null)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-muted-soft)' }}
                     >
-                      <IconX size={16} />
-                    </button>
+                      <IconX />
+                    </Button>
                   </>
                 )
               : (
                   <>
+                    <div
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
                     <span
-                      className="min-w-0 flex-1 text-sm"
+                      className="min-w-0 flex-1 truncate text-sm"
                       style={{ color: 'var(--color-ink)' }}
                     >
                       {item.name}
@@ -185,20 +223,31 @@ export default function TagsPage() {
                       {' '}
                       个资产
                     </span>
-                    <button
-                      onClick={() => handleStartEdit(item)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-muted-soft)' }}
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingId(item.id)
+                        setEditName(item.name)
+                        setEditColor(item.color)
+                      }}
                     >
-                      <IconPencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-error)' }}
-                    >
-                      <IconTrash size={16} />
-                    </button>
+                      <IconPencil />
+                    </Button>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="delete" />
+                      <input type="hidden" name="id" value={item.id} />
+                      <Button
+                        type="submit"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={isDeletingCurrent(item.id)}
+                        style={{ color: 'var(--color-error)' }}
+                      >
+                        {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                      </Button>
+                    </Form>
                   </>
                 )}
           </div>

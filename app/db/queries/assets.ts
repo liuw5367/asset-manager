@@ -283,7 +283,7 @@ export async function getCategoriesByUserId(userId: string) {
   return db
     .select()
     .from(categories)
-    .where(eq(categories.userId, userId))
+    .where(and(eq(categories.userId, userId), isNull(categories.deletedAt)))
     .orderBy(categories.sortOrder)
 }
 
@@ -293,7 +293,7 @@ export async function getTagsByUserId(userId: string) {
   return db
     .select()
     .from(tags)
-    .where(eq(tags.userId, userId))
+    .where(and(eq(tags.userId, userId), isNull(tags.deletedAt)))
 }
 
 // ========== 支付类型 ==========
@@ -302,7 +302,7 @@ export async function getPaymentTypesByUserId(userId: string) {
   return db
     .select()
     .from(paymentTypes)
-    .where(eq(paymentTypes.userId, userId))
+    .where(and(eq(paymentTypes.userId, userId), isNull(paymentTypes.deletedAt)))
 }
 
 // ========== 支付账户 ==========
@@ -311,7 +311,7 @@ export async function getPaymentAccountsByUserId(userId: string) {
   return db
     .select()
     .from(paymentAccounts)
-    .where(eq(paymentAccounts.userId, userId))
+    .where(and(eq(paymentAccounts.userId, userId), isNull(paymentAccounts.deletedAt)))
 }
 
 // ========== 维修记录 ==========

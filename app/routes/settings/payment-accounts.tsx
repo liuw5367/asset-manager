@@ -1,141 +1,159 @@
-import type { PaymentAccount, PaymentType } from '~/data/mock'
+import type { Route } from './+types/payment-accounts'
 import {
-  IconArrowLeft,
   IconCheck,
+  IconLoader2,
   IconPencil,
   IconPlus,
   IconTrash,
   IconX,
 } from '@tabler/icons-react'
-import { useState } from 'react'
-import { Link } from 'react-router'
+import { useMemo, useState } from 'react'
+import { Form, redirect, useLoaderData, useNavigation } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
+import { Button } from '~/components/ui/button'
+import { Input } from '~/components/ui/input'
 import {
-  paymentAccounts as mockPaymentAccounts,
-  paymentTypes as mockPaymentTypes,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
+import {
+  createSettingsPaymentAccount,
+  getSettingsPaymentAccountsByUserId,
+  getSettingsPaymentTypesByUserId,
+  softDeleteSettingsPaymentAccount,
+  updateSettingsPaymentAccount,
+} from '~/db/queries/settings'
+import { createSupabaseServerClient } from '~/lib/supabase.server'
 
-} from '~/data/mock'
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const [paymentTypes, paymentAccounts] = await Promise.all([
+    getSettingsPaymentTypesByUserId(user.id),
+    getSettingsPaymentAccountsByUserId(user.id),
+  ])
+
+  return { paymentTypes, paymentAccounts }
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const formData = await request.formData()
+  const intent = String(formData.get('intent') || '')
+
+  if (intent === 'create') {
+    const name = String(formData.get('name') || '').trim()
+    const paymentTypeId = String(formData.get('paymentTypeId') || '').trim()
+    if (!name || !paymentTypeId)
+      return { ok: false, intent, error: '参数不完整' }
+
+    await createSettingsPaymentAccount(user.id, { name, paymentTypeId })
+    return { ok: true, intent }
+  }
+
+  if (intent === 'update') {
+    const id = String(formData.get('id') || '').trim()
+    const name = String(formData.get('name') || '').trim()
+    if (!id || !name)
+      return { ok: false, intent, error: '参数不完整' }
+
+    await updateSettingsPaymentAccount(user.id, id, { name })
+    return { ok: true, intent }
+  }
+
+  if (intent === 'delete') {
+    const id = String(formData.get('id') || '')
+    if (!id)
+      return { ok: false, intent, error: '参数不完整' }
+
+    await softDeleteSettingsPaymentAccount(user.id, id)
+    return { ok: true, intent }
+  }
+
+  return { ok: false, intent, error: '不支持的操作' }
+}
 
 export default function PaymentAccountsPage() {
-  const [list, setList] = useState<PaymentAccount[]>([...mockPaymentAccounts])
-  const paymentTypes: PaymentType[] = [...mockPaymentTypes]
+  const { paymentTypes, paymentAccounts } = useLoaderData<typeof loader>()
+  const navigation = useNavigation()
+
   const [newTypeId, setNewTypeId] = useState(paymentTypes[0]?.id ?? '')
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
 
-  const getTypeName = (typeId: string) =>
-    paymentTypes.find(t => t.id === typeId)?.name ?? ''
+  const pendingIntent = String(navigation.formData?.get('intent') || '')
+  const pendingId = String(navigation.formData?.get('id') || '')
+  const isCreating = navigation.state !== 'idle' && pendingIntent === 'create'
+  const isUpdatingCurrent = (id: string) => navigation.state !== 'idle' && pendingIntent === 'update' && pendingId === id
+  const isDeletingCurrent = (id: string) => navigation.state !== 'idle' && pendingIntent === 'delete' && pendingId === id
 
-  const handleAdd = () => {
-    const name = newName.trim()
-    if (!name || !newTypeId)
-      return
-    const item: PaymentAccount = {
-      id: `pa-${Date.now()}`,
-      name,
-      paymentTypeId: newTypeId,
-    }
-    setList(prev => [...prev, item])
-    setNewName('')
-  }
+  const typeNameMap = useMemo(() => {
+    return new Map(paymentTypes.map(item => [item.id, item.name]))
+  }, [paymentTypes])
 
-  const handleStartEdit = (item: PaymentAccount) => {
-    setEditingId(item.id)
-    setEditName(item.name)
-  }
-
-  const handleSaveEdit = (id: string) => {
-    const name = editName.trim()
-    if (!name)
-      return
-    setList(prev =>
-      prev.map(a => (a.id === id ? { ...a, name } : a)),
-    )
-    setEditingId(null)
-  }
-
-  const handleDelete = (id: string) => {
-    setList(prev => prev.filter(a => a.id !== id))
-  }
+  const canSubmitCreate = useMemo(() => newName.trim().length > 0 && !!newTypeId && !isCreating, [isCreating, newName, newTypeId])
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6">
-      {/* Top bar */}
-      <div className="mb-6 flex items-center gap-2">
-        <Link
-          to="/settings"
-          className="flex items-center gap-1 text-sm transition-opacity hover:opacity-70"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={18} />
-          设置
-        </Link>
-        <span style={{ color: 'var(--color-muted-soft)' }}>/</span>
-        <h1
-          className="text-lg font-semibold"
-          style={{ fontFamily: 'var(--font-display)', color: 'var(--color-ink)' }}
-        >
-          支付账户管理
-        </h1>
-      </div>
+    <div className="pb-8 pt-3">
+      <SubPageHeader backTo="/settings" backLabel="设置" title="支付账户管理" />
 
-      {/* Add form */}
-      <div
+      <Form
+        method="post"
         className="mb-6 rounded-2xl p-4"
         style={{ backgroundColor: 'var(--color-surface-card)' }}
+        onSubmit={() => setNewName('')}
       >
+        <input type="hidden" name="intent" value="create" />
+        <input type="hidden" name="paymentTypeId" value={newTypeId} />
+
         <div className="flex items-center gap-3">
-          <select
-            value={newTypeId}
-            onChange={e => setNewTypeId(e.target.value)}
-            className="h-10 shrink-0 rounded-xl border-0 px-3 text-sm outline-none"
-            style={{
-              backgroundColor: 'var(--color-surface-strong)',
-              color: 'var(--color-ink)',
-            }}
-          >
-            {paymentTypes.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
+          <Select value={newTypeId} onValueChange={value => setNewTypeId(value || '')}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="支付类型" />
+            </SelectTrigger>
+            <SelectContent>
+              {paymentTypes.map(type => (
+                <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            name="name"
             placeholder="账户名称"
             value={newName}
             onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            className="min-w-0 flex-1 rounded-xl border-0 px-3 py-2 text-sm outline-none"
-            style={{
-              backgroundColor: 'var(--color-surface-strong)',
-              color: 'var(--color-ink)',
-            }}
           />
-          <button
-            onClick={handleAdd}
-            disabled={!newName.trim()}
-            className="flex items-center gap-1 rounded-xl px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-40"
-            style={{ backgroundColor: 'var(--color-primary)' }}
-          >
-            <IconPlus size={16} />
-            新增
-          </button>
-        </div>
-      </div>
 
-      {/* List */}
+          <Button type="submit" disabled={!canSubmitCreate}>
+            {isCreating ? <IconLoader2 className="animate-spin" /> : <IconPlus />}
+            新增
+          </Button>
+        </div>
+      </Form>
+
       <div
         className="overflow-hidden rounded-2xl"
         style={{ backgroundColor: 'var(--color-surface-card)' }}
       >
-        {list.map((item, i) => (
+        {paymentAccounts.map((item, i) => (
           <div
             key={item.id}
             className="flex items-center gap-3 px-4 py-3"
             style={{
               borderBottom:
-                i < list.length - 1
+                i < paymentAccounts.length - 1
                   ? '1px solid var(--color-hairline)'
                   : undefined,
             }}
@@ -143,43 +161,43 @@ export default function PaymentAccountsPage() {
             {editingId === item.id
               ? (
                   <>
-                    <input
-                      type="text"
+                    <Input
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter')
-                          handleSaveEdit(item.id)
-                        if (e.key === 'Escape')
-                          setEditingId(null)
-                      }}
-                      className="min-w-0 flex-1 rounded-lg border-0 px-2 py-1 text-sm outline-none"
-                      style={{
-                        backgroundColor: 'var(--color-surface-strong)',
-                        color: 'var(--color-ink)',
-                      }}
+                      className="h-9"
                       autoFocus
                     />
-                    <button
-                      onClick={() => handleSaveEdit(item.id)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-success)' }}
-                    >
-                      <IconCheck size={16} />
-                    </button>
-                    <button
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="update" />
+                      <input type="hidden" name="id" value={item.id} />
+                      <input type="hidden" name="name" value={editName} />
+                      <Button
+                        type="submit"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={!editName.trim() || isUpdatingCurrent(item.id)}
+                        onClick={() => {
+                          if (editName.trim())
+                            setEditingId(null)
+                        }}
+                      >
+                        {isUpdatingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconCheck />}
+                      </Button>
+                    </Form>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
                       onClick={() => setEditingId(null)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-muted-soft)' }}
                     >
-                      <IconX size={16} />
-                    </button>
+                      <IconX />
+                    </Button>
                   </>
                 )
               : (
                   <>
                     <span
-                      className="min-w-0 flex-1 text-sm"
+                      className="min-w-0 flex-1 truncate text-sm"
                       style={{ color: 'var(--color-ink)' }}
                     >
                       {item.name}
@@ -191,22 +209,32 @@ export default function PaymentAccountsPage() {
                         color: 'var(--color-primary)',
                       }}
                     >
-                      {getTypeName(item.paymentTypeId)}
+                      {typeNameMap.get(item.paymentTypeId) || '未分类'}
                     </span>
-                    <button
-                      onClick={() => handleStartEdit(item)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-muted-soft)' }}
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingId(item.id)
+                        setEditName(item.name)
+                      }}
                     >
-                      <IconPencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="rounded-lg p-1.5 transition-opacity hover:opacity-70"
-                      style={{ color: 'var(--color-error)' }}
-                    >
-                      <IconTrash size={16} />
-                    </button>
+                      <IconPencil />
+                    </Button>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="delete" />
+                      <input type="hidden" name="id" value={item.id} />
+                      <Button
+                        type="submit"
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={isDeletingCurrent(item.id)}
+                        style={{ color: 'var(--color-error)' }}
+                      >
+                        {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                      </Button>
+                    </Form>
                   </>
                 )}
           </div>

@@ -32,6 +32,7 @@ export const categories = pgTable('categories', {
   emoji: text('emoji').notNull().default('📦'),
   isPreset: boolean('is_preset').default(false),
   sortOrder: integer('sort_order').default(0),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
@@ -41,6 +42,7 @@ export const tags = pgTable('tags', {
   userId: uuid('user_id').notNull(),
   name: text('name').notNull(),
   color: text('color').notNull().default('#cc785c'),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
@@ -50,6 +52,7 @@ export const paymentTypes = pgTable('payment_types', {
   userId: uuid('user_id').notNull(),
   name: text('name').notNull(),
   isPreset: boolean('is_preset').default(false),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 // --- payment_accounts ---
@@ -58,6 +61,7 @@ export const paymentAccounts = pgTable('payment_accounts', {
   userId: uuid('user_id').notNull(),
   paymentTypeId: uuid('payment_type_id').notNull(),
   name: text('name').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 })
 
 // --- assets ---

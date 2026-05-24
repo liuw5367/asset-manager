@@ -1,4 +1,5 @@
 import type { Route } from './+types/root'
+import { ThemeProvider } from 'next-themes'
 import NProgress from 'nprogress'
 import { useEffect } from 'react'
 import {
@@ -31,7 +32,7 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta
@@ -49,7 +50,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+        </ThemeProvider>
         <Toaster position="top-center" richColors />
         <ScrollRestoration />
         <Scripts />

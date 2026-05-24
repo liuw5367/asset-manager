@@ -2,82 +2,193 @@ import type { Route } from './+types/settings'
 import {
   IconChevronRight,
   IconDeviceDesktop,
-  IconDownload,
   IconLoader2,
   IconLogout,
-  IconMail,
   IconMoon,
   IconSun,
 } from '@tabler/icons-react'
-import { useState } from 'react'
-import { Link, redirect, useFetcher } from 'react-router'
+import EmojiPicker from 'emoji-picker-react'
+import { useTheme } from 'next-themes'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, redirect, useFetcher, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
+import { Button } from '~/components/ui/button'
+import { Field, FieldContent, FieldDescription, FieldLabel } from '~/components/ui/field'
+import { Input } from '~/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import { Switch } from '~/components/ui/switch'
+import {
+  getSettingsCategoriesByUserId,
+  getSettingsPaymentAccountsByUserId,
+  getSettingsPaymentTypesByUserId,
+  getSettingsProfileByUserId,
+  getSettingsTagsByUserId,
+  updateSettingsProfile,
+} from '~/db/queries/settings'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const [profile, categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
+    getSettingsProfileByUserId(user.id),
+    getSettingsCategoriesByUserId(user.id),
+    getSettingsTagsByUserId(user.id),
+    getSettingsPaymentTypesByUserId(user.id),
+    getSettingsPaymentAccountsByUserId(user.id),
+  ])
+
+  return {
+    profile: {
+      displayName: profile?.displayName?.trim() || user.user_metadata?.display_name || user.email?.split('@')[0] || '用户',
+      email: profile?.email || user.email || '',
+      avatarEmoji: profile?.avatarEmoji || '😊',
+      reminderEnabled: profile?.reminderEnabled ?? true,
+    },
+    counts: {
+      categories: categories.length,
+      tags: tags.length,
+      paymentTypes: paymentTypes.length,
+      paymentAccounts: paymentAccounts.length,
+    },
+  }
+}
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
-  await supabase.auth.signOut()
-  return redirect('/login', { headers })
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user)
+    throw redirect('/login')
+
+  const formData = await request.formData()
+  const intent = String(formData.get('intent') || '')
+
+  if (intent === 'logout') {
+    await supabase.auth.signOut()
+    return redirect('/login', { headers })
+  }
+
+  if (intent === 'update_profile') {
+    const displayName = String(formData.get('displayName') || '').trim()
+    const avatarEmoji = String(formData.get('avatarEmoji') || '😊').trim() || '😊'
+
+    if (!displayName) {
+      return { ok: false, intent, error: '昵称不能为空' }
+    }
+
+    if (displayName.length > 30) {
+      return { ok: false, intent, error: '昵称最多 30 个字符' }
+    }
+
+    await updateSettingsProfile(user.id, { displayName, avatarEmoji })
+
+    return { ok: true, intent }
+  }
+
+  return { ok: false, intent, error: '不支持的操作' }
 }
 
 const modes = [
-  { key: 'auto', label: '自动', icon: IconDeviceDesktop },
+  { key: 'system', label: '自动', icon: IconDeviceDesktop },
   { key: 'light', label: '浅色', icon: IconSun },
   { key: 'dark', label: '深色', icon: IconMoon },
 ] as const
 
-type ThemeMode = (typeof modes)[number]['key']
-
 export default function SettingsPage() {
-  const [emailReminder, setEmailReminder] = useState(true)
-  const [activeMode, setActiveMode] = useState<ThemeMode>('auto')
-  const logoutFetcher = useFetcher()
+  const { profile, counts } = useLoaderData<typeof loader>()
+  const profileFetcher = useFetcher<typeof action>()
+  const logoutFetcher = useFetcher<typeof action>()
+
+  const [displayName, setDisplayName] = useState(profile.displayName)
+  const [avatarEmoji, setAvatarEmoji] = useState(profile.avatarEmoji)
+  const [emojiOpen, setEmojiOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const { theme, setTheme } = useTheme()
+
+  useEffect(() => {
+    setDisplayName(profile.displayName)
+    setAvatarEmoji(profile.avatarEmoji)
+  }, [profile.avatarEmoji, profile.displayName])
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isSavingProfile = profileFetcher.state !== 'idle'
   const isLoggingOut = logoutFetcher.state !== 'idle'
+  const currentTheme: 'system' | 'light' | 'dark'
+    = theme === 'light' || theme === 'dark' || theme === 'system'
+      ? theme
+      : 'system'
+
+  const profileChanged = useMemo(
+    () => displayName.trim() !== profile.displayName || avatarEmoji !== profile.avatarEmoji,
+    [avatarEmoji, displayName, profile.avatarEmoji, profile.displayName],
+  )
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6">
-      {/* Page header */}
+    <div className="pb-8 pt-6">
       <MainPageHeader title="设置" />
 
-      {/* User card */}
-      <div
-        className="mb-8 flex items-center gap-4 rounded-2xl p-5"
+      <profileFetcher.Form
+        method="post"
+        className="mb-8 rounded-2xl p-4"
         style={{ backgroundColor: 'var(--color-surface-card)' }}
       >
-        <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white"
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        >
-          W
-        </div>
-        <div className="min-w-0 flex-1">
-          <p
-            className="text-base font-medium"
-            style={{ color: 'var(--color-ink)' }}
-          >
-            Wang Liu
-          </p>
-          <p
-            className="text-sm"
-            style={{ color: 'var(--color-muted-soft)' }}
-          >
-            wang@example.com
-          </p>
-        </div>
-        <logoutFetcher.Form method="post">
-          <button
-            type="submit"
-            disabled={isLoggingOut}
-            className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-            style={{ color: 'var(--color-error)' }}
-          >
-            {isLoggingOut ? <IconLoader2 size={16} className="animate-spin" /> : <IconLogout size={16} />}
-            退出登录
-          </button>
-        </logoutFetcher.Form>
-      </div>
+        <input type="hidden" name="intent" value="update_profile" />
+        <input type="hidden" name="avatarEmoji" value={avatarEmoji} />
 
-      {/* Section: Notifications */}
+        <div className="flex items-start gap-3">
+          <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+            <PopoverTrigger render={<Button size="icon-lg" variant="secondary" className="shrink-0 text-2xl" />}>
+              {avatarEmoji}
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" side="bottom" align="start">
+              <EmojiPicker
+                onEmojiClick={(emojiData) => {
+                  setAvatarEmoji(emojiData.emoji)
+                  setEmojiOpen(false)
+                }}
+                lazyLoadEmojis
+                skinTonesDisabled
+                width={320}
+                height={360}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <div className="min-w-0 flex-1">
+            <Field>
+              <FieldLabel>昵称</FieldLabel>
+              <FieldContent>
+                <Input
+                  name="displayName"
+                  value={displayName}
+                  maxLength={30}
+                  onChange={e => setDisplayName(e.target.value)}
+                />
+              </FieldContent>
+            </Field>
+            <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-soft)' }}>
+              {profile.email}
+            </p>
+            {profileFetcher.data && !profileFetcher.data.ok && (
+              <p className="mt-2 text-sm" style={{ color: 'var(--color-error)' }}>
+                {profileFetcher.data.error}
+              </p>
+            )}
+          </div>
+
+          <Button type="submit" disabled={!profileChanged || isSavingProfile}>
+            {isSavingProfile && <IconLoader2 className="animate-spin" />}
+            保存
+          </Button>
+        </div>
+      </profileFetcher.Form>
+
       <section className="mb-8">
         <h2
           className="mb-3 text-sm font-medium uppercase tracking-wide"
@@ -85,63 +196,17 @@ export default function SettingsPage() {
         >
           通知
         </h2>
-        <div
-          className="rounded-2xl p-1"
-          style={{ backgroundColor: 'var(--color-surface-card)' }}
-        >
-          <div
-            className="flex items-center justify-between gap-4 rounded-xl px-4 py-4"
-          >
-            <div className="flex items-center gap-3">
-              <IconMail
-                size={20}
-                style={{ color: 'var(--color-primary)' }}
-              />
-              <div>
-                <p
-                  className="text-sm font-medium"
-                  style={{ color: 'var(--color-ink)' }}
-                >
-                  邮件到期提醒
-                </p>
-                <p
-                  className="mt-0.5 text-xs"
-                  style={{ color: 'var(--color-muted-soft)' }}
-                >
-                  订阅续费和保修到期前发送邮件提醒
-                </p>
-              </div>
-            </div>
-            <label className="relative inline-flex cursor-pointer items-center">
-              <input
-                type="checkbox"
-                checked={emailReminder}
-                onChange={e => setEmailReminder(e.target.checked)}
-                className="peer sr-only"
-              />
-              <div
-                className="h-6 w-11 rounded-full transition-colors peer-checked:bg-[var(--color-primary)] peer-focus:outline-none"
-                style={{
-                  backgroundColor: emailReminder
-                    ? 'var(--color-primary)'
-                    : 'var(--color-surface-strong)',
-                }}
-              >
-                <div
-                  className="absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white transition-transform"
-                  style={{
-                    transform: emailReminder
-                      ? 'translateX(20px)'
-                      : 'translateX(0)',
-                  }}
-                />
-              </div>
-            </label>
-          </div>
+        <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+          <Field orientation="horizontal">
+            <FieldLabel>邮件到期提醒</FieldLabel>
+            <FieldContent>
+              <FieldDescription>提醒设置功能待后续设计，本期先保留界面。</FieldDescription>
+            </FieldContent>
+            <Switch checked={profile.reminderEnabled} disabled />
+          </Field>
         </div>
       </section>
 
-      {/* Section: Data Management */}
       <section className="mb-8">
         <h2
           className="mb-3 text-sm font-medium uppercase tracking-wide"
@@ -154,26 +219,31 @@ export default function SettingsPage() {
           style={{ backgroundColor: 'var(--color-surface-card)' }}
         >
           {[
-            { label: '分类管理', to: '/settings/categories' },
-            { label: '标签管理', to: '/settings/tags' },
-            { label: '支付类型管理', to: '/settings/payment-types' },
-            { label: '支付账户管理', to: '/settings/payment-accounts' },
+            { label: '分类管理', to: '/settings/categories', desc: `${counts.categories} 个分类` },
+            { label: '标签管理', to: '/settings/tags', desc: `${counts.tags} 个标签` },
+            { label: '支付类型管理', to: '/settings/payment-types', desc: `${counts.paymentTypes} 个类型` },
+            { label: '支付账户管理', to: '/settings/payment-accounts', desc: `${counts.paymentAccounts} 个账户` },
           ].map((item, i) => (
             <Link
               key={item.to}
               to={item.to}
-              className="flex items-center justify-between px-4 py-3.5 transition-colors"
+              className="flex items-center justify-between px-4 py-3.5 transition-colors hover:opacity-85"
               style={{
                 borderBottom:
                   i < 3 ? '1px solid var(--color-hairline)' : undefined,
               }}
             >
-              <span
-                className="text-sm"
-                style={{ color: 'var(--color-ink)' }}
-              >
-                {item.label}
-              </span>
+              <div>
+                <span
+                  className="block text-sm"
+                  style={{ color: 'var(--color-ink)' }}
+                >
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block text-xs" style={{ color: 'var(--color-muted-soft)' }}>
+                  {item.desc}
+                </span>
+              </div>
               <IconChevronRight
                 size={18}
                 style={{ color: 'var(--color-muted-soft)' }}
@@ -183,7 +253,6 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* Section: Display */}
       <section className="mb-8">
         <h2
           className="mb-3 text-sm font-medium uppercase tracking-wide"
@@ -191,22 +260,21 @@ export default function SettingsPage() {
         >
           显示
         </h2>
-        <div
-          className="rounded-2xl p-4"
-          style={{ backgroundColor: 'var(--color-surface-card)' }}
-        >
+        <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
           <div
             className="flex gap-2 rounded-xl p-1"
             style={{ backgroundColor: 'var(--color-surface-strong)' }}
           >
             {modes.map((m) => {
               const Icon = m.icon
-              const isActive = activeMode === m.key
+              const isActive = mounted ? currentTheme === m.key : m.key === 'system'
               return (
-                <button
+                <Button
                   key={m.key}
-                  onClick={() => setActiveMode(m.key)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-all"
+                  type="button"
+                  onClick={() => setTheme(m.key)}
+                  variant="ghost"
+                  className="h-10 flex-1 gap-1.5 rounded-lg"
                   style={{
                     backgroundColor: isActive
                       ? 'var(--color-surface-card)'
@@ -221,24 +289,20 @@ export default function SettingsPage() {
                 >
                   <Icon size={16} />
                   {m.label}
-                </button>
+                </Button>
               )
             })}
           </div>
         </div>
       </section>
 
-      {/* Export button */}
-      <button
-        className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-opacity hover:opacity-80"
-        style={{
-          backgroundColor: 'var(--color-surface-card)',
-          color: 'var(--color-body)',
-        }}
-      >
-        <IconDownload size={18} />
-        导出数据
-      </button>
+      <logoutFetcher.Form method="post">
+        <input type="hidden" name="intent" value="logout" />
+        <Button type="submit" variant="destructive" className="w-full">
+          {isLoggingOut ? <IconLoader2 className="animate-spin" /> : <IconLogout />}
+          退出登录
+        </Button>
+      </logoutFetcher.Form>
     </div>
   )
 }
