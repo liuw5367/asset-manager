@@ -1,22 +1,10 @@
 import type { Route } from './+types/plans._index'
 import { Link, redirect, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
+import { PublicAvatar } from '~/components/public-avatar'
 import { getPlanSummariesByUserId } from '~/db/queries/plans'
+import { getPlanAvatarToneByIndex } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
-
-const MEMBER_COLORS = ['#cc785c', '#5db8a6', '#d4a017', '#7c6dea', '#5db872']
-
-function getMemberColor(id: string) {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return MEMBER_COLORS[hash % MEMBER_COLORS.length]
-}
-
-function getMemberLetter(name: string) {
-  return (name.trim().charAt(0) || 'M').toUpperCase()
-}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
@@ -57,16 +45,20 @@ export default function PlansIndex() {
             </div>
 
             <div className="mb-3 flex items-center gap-1.5">
-              {plan.members.slice(0, 4).map(member => (
-                <div
-                  key={member.userId}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white"
-                  style={{ background: getMemberColor(member.userId) }}
-                  title={member.displayName}
-                >
-                  {getMemberLetter(member.displayName)}
-                </div>
-              ))}
+              {plan.members.slice(0, 4).map((member, index) => {
+                const tone = getPlanAvatarToneByIndex(index)
+                return (
+                  <PublicAvatar
+                    key={member.userId}
+                    emoji={member.avatarEmoji}
+                    nickname={member.displayName}
+                    size="sm"
+                    backgroundColor={tone.backgroundColor}
+                    textColor={tone.textColor}
+                    title={member.displayName}
+                  />
+                )
+              })}
               <span className="ml-1 text-xs" style={{ color: 'var(--color-muted)' }}>
                 {plan.permission === 'own' ? '成员仅编辑自己' : '成员可编辑全部'}
               </span>

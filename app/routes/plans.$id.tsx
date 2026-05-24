@@ -8,9 +8,10 @@ import {
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Form, Link, redirect, useLoaderData, useNavigation } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { PublicAvatar } from '~/components/public-avatar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,21 +32,8 @@ import {
   getPlanDetailById,
   softDeletePlan,
 } from '~/db/queries/plans'
+import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
-
-const MEMBER_COLORS = ['#cc785c', '#5db8a6', '#d4a017', '#7c6dea', '#5db872']
-
-function getMemberColor(id: string) {
-  let hash = 0
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return MEMBER_COLORS[hash % MEMBER_COLORS.length]
-}
-
-function getMemberLetter(name: string) {
-  return (name.trim().charAt(0) || 'M').toUpperCase()
-}
 
 const trendChartConfig = {
   amount: {
@@ -99,6 +87,10 @@ export default function PlansDetail() {
     && navigation.formData?.get('intent') === 'delete-plan'
 
   const currentMonth = currentMonthKey()
+  const memberToneMap = useMemo(
+    () => buildPlanAvatarToneMap(detail.members.map(member => member.userId)),
+    [detail.members],
+  )
 
   return (
     <div className="pt-6 pb-8">
@@ -182,12 +174,13 @@ export default function PlansDetail() {
               style={{ background: 'var(--color-surface-soft)' }}
               title={member.note || undefined}
             >
-              <div
-                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium text-white"
-                style={{ background: getMemberColor(member.userId) }}
-              >
-                {getMemberLetter(member.displayName)}
-              </div>
+              <PublicAvatar
+                emoji={member.avatarEmoji}
+                nickname={member.displayName}
+                size="sm"
+                backgroundColor={memberToneMap.get(member.userId)?.backgroundColor}
+                textColor={memberToneMap.get(member.userId)?.textColor}
+              />
               <span className="text-sm" style={{ color: 'var(--color-body)' }}>
                 {member.displayName}
               </span>

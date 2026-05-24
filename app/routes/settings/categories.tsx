@@ -169,7 +169,7 @@ export default function CategoriesPage() {
                       className="h-9"
                       autoFocus
                     />
-                    <Form method="post">
+                    <Form method="post" className="flex items-center">
                       <input type="hidden" name="intent" value="update" />
                       <input type="hidden" name="id" value={item.id} />
                       <input type="hidden" name="name" value={editName} />
@@ -178,6 +178,7 @@ export default function CategoriesPage() {
                         size="icon-sm"
                         variant="ghost"
                         disabled={!editName.trim() || isUpdatingCurrent(item.id)}
+                        style={{ color: 'var(--color-primary)' }}
                         onClick={() => {
                           if (editName.trim())
                             setEditingId(null)
@@ -190,6 +191,7 @@ export default function CategoriesPage() {
                       type="button"
                       size="icon-sm"
                       variant="ghost"
+                      style={{ color: 'var(--color-primary)' }}
                       onClick={() => setEditingId(null)}
                     >
                       <IconX />
@@ -205,30 +207,33 @@ export default function CategoriesPage() {
                       {item.name}
                     </span>
                     {item.isPreset && <Badge variant="secondary">预置</Badge>}
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingId(item.id)
-                        setEditName(item.name)
-                      }}
-                    >
-                      <IconPencil />
-                    </Button>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="delete" />
-                      <input type="hidden" name="id" value={item.id} />
+                    <div className="ml-auto flex items-center gap-1">
                       <Button
-                        type="submit"
+                        type="button"
                         size="icon-sm"
                         variant="ghost"
-                        disabled={isDeletingCurrent(item.id)}
-                        style={{ color: 'var(--color-error)' }}
+                        style={{ color: 'var(--color-primary)' }}
+                        onClick={() => {
+                          setEditingId(item.id)
+                          setEditName(item.name)
+                        }}
                       >
-                        {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                        <IconPencil />
                       </Button>
-                    </Form>
+                      <Form method="post" className="flex items-center">
+                        <input type="hidden" name="intent" value="delete" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <Button
+                          type="submit"
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={isDeletingCurrent(item.id)}
+                          style={{ color: 'var(--color-error)' }}
+                        >
+                          {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                        </Button>
+                      </Form>
+                    </div>
                   </>
                 )}
           </div>

@@ -117,18 +117,7 @@ export default function PaymentAccountsPage() {
         <input type="hidden" name="intent" value="create" />
         <input type="hidden" name="paymentTypeId" value={newTypeId} />
 
-        <div className="flex items-center gap-3">
-          <Select value={newTypeId} onValueChange={value => setNewTypeId(value || '')}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="支付类型" />
-            </SelectTrigger>
-            <SelectContent>
-              {paymentTypes.map(type => (
-                <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
+        <div className="flex flex-col gap-3">
           <Input
             name="name"
             placeholder="账户名称"
@@ -136,10 +125,25 @@ export default function PaymentAccountsPage() {
             onChange={e => setNewName(e.target.value)}
           />
 
-          <Button type="submit" disabled={!canSubmitCreate}>
-            {isCreating ? <IconLoader2 className="animate-spin" /> : <IconPlus />}
-            新增
-          </Button>
+          <div className="flex items-center justify-between gap-3">
+            <Select value={newTypeId} onValueChange={value => setNewTypeId(value || '')}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="支付类型">
+                  {value => value ? (typeNameMap.get(String(value)) || '支付类型') : '支付类型'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {paymentTypes.map(type => (
+                  <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button type="submit" disabled={!canSubmitCreate}>
+              {isCreating ? <IconLoader2 className="animate-spin" /> : <IconPlus />}
+              新增
+            </Button>
+          </div>
         </div>
       </Form>
 
@@ -167,7 +171,7 @@ export default function PaymentAccountsPage() {
                       className="h-9"
                       autoFocus
                     />
-                    <Form method="post">
+                    <Form method="post" className="flex items-center">
                       <input type="hidden" name="intent" value="update" />
                       <input type="hidden" name="id" value={item.id} />
                       <input type="hidden" name="name" value={editName} />
@@ -176,6 +180,7 @@ export default function PaymentAccountsPage() {
                         size="icon-sm"
                         variant="ghost"
                         disabled={!editName.trim() || isUpdatingCurrent(item.id)}
+                        style={{ color: 'var(--color-primary)' }}
                         onClick={() => {
                           if (editName.trim())
                             setEditingId(null)
@@ -188,6 +193,7 @@ export default function PaymentAccountsPage() {
                       type="button"
                       size="icon-sm"
                       variant="ghost"
+                      style={{ color: 'var(--color-primary)' }}
                       onClick={() => setEditingId(null)}
                     >
                       <IconX />
@@ -211,30 +217,33 @@ export default function PaymentAccountsPage() {
                     >
                       {typeNameMap.get(item.paymentTypeId) || '未分类'}
                     </span>
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingId(item.id)
-                        setEditName(item.name)
-                      }}
-                    >
-                      <IconPencil />
-                    </Button>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="delete" />
-                      <input type="hidden" name="id" value={item.id} />
+                    <div className="ml-auto flex items-center gap-1">
                       <Button
-                        type="submit"
+                        type="button"
                         size="icon-sm"
                         variant="ghost"
-                        disabled={isDeletingCurrent(item.id)}
-                        style={{ color: 'var(--color-error)' }}
+                        style={{ color: 'var(--color-primary)' }}
+                        onClick={() => {
+                          setEditingId(item.id)
+                          setEditName(item.name)
+                        }}
                       >
-                        {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                        <IconPencil />
                       </Button>
-                    </Form>
+                      <Form method="post" className="flex items-center">
+                        <input type="hidden" name="intent" value="delete" />
+                        <input type="hidden" name="id" value={item.id} />
+                        <Button
+                          type="submit"
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={isDeletingCurrent(item.id)}
+                          style={{ color: 'var(--color-error)' }}
+                        >
+                          {isDeletingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconTrash />}
+                        </Button>
+                      </Form>
+                    </div>
                   </>
                 )}
           </div>

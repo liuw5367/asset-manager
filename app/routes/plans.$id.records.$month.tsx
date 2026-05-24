@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Form, Link, redirect, useActionData, useLoaderData, useNavigation } from 'react-router'
+import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
   getPlanRecordDetail,
   softDeletePlanRecord,
 } from '~/db/queries/plans'
+import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -83,17 +85,14 @@ export default function PlansRecordsMonth() {
   const monthKey = `${data.record.year}-${String(data.record.month).padStart(2, '0')}`
   const incomeItems = useMemo(() => data.record.items.filter(item => item.itemType === 'income'), [data.record.items])
   const expenseItems = useMemo(() => data.record.items.filter(item => item.itemType === 'expense'), [data.record.items])
-  const memberNotes = useMemo(() => {
-    const noteMap = new Map(data.record.memberNotes.map(note => [note.memberId, note]))
-    return data.members.map((member) => {
-      const note = noteMap.get(member.userId)
-      return {
-        id: note?.id || member.userId,
-        memberName: member.displayName,
-        note: note?.note || '',
-      }
-    })
-  }, [data.members, data.record.memberNotes])
+  const memberNotes = useMemo(
+    () => data.record.memberNotes.filter(note => note.note.trim().length > 0),
+    [data.record.memberNotes],
+  )
+  const memberToneMap = useMemo(
+    () => buildPlanAvatarToneMap(data.members.map(member => member.userId)),
+    [data.members],
+  )
 
   return (
     <div className="pt-6 pb-8">
@@ -191,9 +190,13 @@ export default function PlansRecordsMonth() {
                 <>
                   {incomeItems.map(item => (
                     <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
-                        {item.memberEmoji}
-                      </div>
+                      <PublicAvatar
+                        emoji={item.memberEmoji}
+                        nickname={item.memberName}
+                        size="sm"
+                        backgroundColor={memberToneMap.get(item.memberId)?.backgroundColor}
+                        textColor={memberToneMap.get(item.memberId)?.textColor}
+                      />
                       <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
                       <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-success)' }}>
                         +
@@ -215,9 +218,13 @@ export default function PlansRecordsMonth() {
                 <>
                   {expenseItems.map(item => (
                     <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
-                        {item.memberEmoji}
-                      </div>
+                      <PublicAvatar
+                        emoji={item.memberEmoji}
+                        nickname={item.memberName}
+                        size="sm"
+                        backgroundColor={memberToneMap.get(item.memberId)?.backgroundColor}
+                        textColor={memberToneMap.get(item.memberId)?.textColor}
+                      />
                       <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
                       <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-error)' }}>
                         -
@@ -230,21 +237,32 @@ export default function PlansRecordsMonth() {
         </div>
       </div>
 
-      <div className="mt-6">
-        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>成员备注</h2>
-        <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
-          {memberNotes.map(note => (
-            <div key={note.id} className="flex items-start gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
-              <div className="w-16 shrink-0 pt-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                {note.memberName}
+      {memberNotes.length > 0 && (
+        <div className="mt-6">
+          <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>成员备注</h2>
+          <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+            {memberNotes.map(note => (
+              <div key={note.id} className="flex items-start gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
+                <PublicAvatar
+                  emoji={note.memberEmoji}
+                  nickname={note.memberName}
+                  size="sm"
+                  backgroundColor={memberToneMap.get(note.memberId)?.backgroundColor}
+                  textColor={memberToneMap.get(note.memberId)?.textColor}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                    {note.memberName || '成员'}
+                  </div>
+                  <p className="text-sm leading-6 whitespace-pre-wrap" style={{ color: 'var(--color-ink)' }}>
+                    {note.note}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1 rounded-md bg-[var(--color-surface-soft)] px-2.5 py-2 text-sm" style={{ color: 'var(--color-ink)' }}>
-                {note.note || '暂无备注'}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

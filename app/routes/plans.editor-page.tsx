@@ -2,6 +2,7 @@ import type { PlanEditorLoaderData } from './plans.shared'
 import { IconArrowLeft, IconCheck, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import {
@@ -12,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
+import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 
 interface PlanEditorActionData {
   error?: string
@@ -73,6 +75,10 @@ export function PlanEditorPage({
   const inviteExpiresAt = actionData?.inviteExpiresAt ?? data.inviteExpiresAt
 
   const canManageMembers = data.canManage
+  const memberToneMap = useMemo(
+    () => buildPlanAvatarToneMap(members.map(member => member.userId)),
+    [members],
+  )
 
   function updateMemberNote(userId: string, note: string) {
     setMembers(prev => prev.map(member => member.userId === userId ? { ...member, note } : member))
@@ -200,9 +206,13 @@ export function PlanEditorPage({
               style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
             >
               <div className="mb-2 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-primary)' }}>
-                  {member.avatarEmoji}
-                </div>
+                <PublicAvatar
+                  emoji={member.avatarEmoji}
+                  nickname={member.displayName}
+                  size="md"
+                  backgroundColor={memberToneMap.get(member.userId)?.backgroundColor}
+                  textColor={memberToneMap.get(member.userId)?.textColor}
+                />
                 <span className="text-sm" style={{ color: 'var(--color-ink)' }}>
                   {member.displayName}
                 </span>

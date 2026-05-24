@@ -44,7 +44,7 @@ export async function loadPlanEditorData(input: LoadPlanEditorInput): Promise<Pl
         role: 'owner',
         note: '',
         displayName: input.userEmail || '我',
-        avatarEmoji: '😊',
+        avatarEmoji: '',
       }],
       defaultItems: [],
       canManage: true,

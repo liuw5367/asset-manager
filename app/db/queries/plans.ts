@@ -221,7 +221,7 @@ async function getMembersByPlanIds(planIds: string[]) {
       role: row.role,
       note: row.note || '',
       displayName: buildMemberDisplayName(row.displayName, row.email),
-      avatarEmoji: row.avatarEmoji || '😊',
+      avatarEmoji: row.avatarEmoji || '',
     })
     map.set(row.planId, list)
   }
@@ -540,12 +540,12 @@ export async function getPlanRecordDetail(planId: string, userId: string, year: 
       items: recordView.items.map(item => ({
         ...item,
         memberName: memberMap.get(item.memberId)?.displayName || '成员',
-        memberEmoji: memberMap.get(item.memberId)?.avatarEmoji || '😊',
+        memberEmoji: memberMap.get(item.memberId)?.avatarEmoji || '',
       })),
       memberNotes: recordView.memberNotes.map(note => ({
         ...note,
         memberName: memberMap.get(note.memberId)?.displayName || '成员',
-        memberEmoji: memberMap.get(note.memberId)?.avatarEmoji || '😊',
+        memberEmoji: memberMap.get(note.memberId)?.avatarEmoji || '',
       })),
     },
     members: membersMap.get(planId) || [],

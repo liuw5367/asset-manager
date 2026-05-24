@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import {
@@ -22,6 +23,7 @@ import {
   getPlanRecordDetail,
   savePlanRecordPatch,
 } from '~/db/queries/plans'
+import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 import { planRecordPatchSchema } from '~/lib/plan.schema'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -366,6 +368,10 @@ export default function PlansRecordsMonthEdit() {
     () => new Map(data.members.map(member => [member.userId, member])),
     [data.members],
   )
+  const memberToneMap = useMemo(
+    () => buildPlanAvatarToneMap(data.members.map(member => member.userId)),
+    [data.members],
+  )
 
   return (
     <div className="pt-6 pb-24">
@@ -473,13 +479,14 @@ export default function PlansRecordsMonthEdit() {
                   opacity: editable ? 1 : 0.5,
                 }}
               >
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white"
+                <PublicAvatar
+                  emoji={memberMap.get(item.memberId)?.avatarEmoji}
+                  nickname={memberMap.get(item.memberId)?.displayName || '成员'}
+                  size="md"
+                  backgroundColor={memberToneMap.get(item.memberId)?.backgroundColor}
+                  textColor={memberToneMap.get(item.memberId)?.textColor}
                   title={memberMap.get(item.memberId)?.displayName || '成员'}
-                  style={{ background: 'var(--color-info)' }}
-                >
-                  {memberMap.get(item.memberId)?.avatarEmoji || '😊'}
-                </div>
+                />
                 <Input
                   type="text"
                   value={item.name}
@@ -533,13 +540,14 @@ export default function PlansRecordsMonthEdit() {
                   opacity: editable ? 1 : 0.5,
                 }}
               >
-                <div
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white"
+                <PublicAvatar
+                  emoji={memberMap.get(item.memberId)?.avatarEmoji}
+                  nickname={memberMap.get(item.memberId)?.displayName || '成员'}
+                  size="md"
+                  backgroundColor={memberToneMap.get(item.memberId)?.backgroundColor}
+                  textColor={memberToneMap.get(item.memberId)?.textColor}
                   title={memberMap.get(item.memberId)?.displayName || '成员'}
-                  style={{ background: 'var(--color-info)' }}
-                >
-                  {memberMap.get(item.memberId)?.avatarEmoji || '😊'}
-                </div>
+                />
                 <Input
                   type="text"
                   value={item.name}
@@ -592,9 +600,13 @@ export default function PlansRecordsMonthEdit() {
                   borderColor: 'var(--color-hairline)',
                 }}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white" style={{ background: 'var(--color-info)' }}>
-                  {note.avatarEmoji}
-                </div>
+                <PublicAvatar
+                  emoji={note.avatarEmoji}
+                  nickname={note.displayName}
+                  size="md"
+                  backgroundColor={memberToneMap.get(note.memberId)?.backgroundColor}
+                  textColor={memberToneMap.get(note.memberId)?.textColor}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
                     {note.displayName}

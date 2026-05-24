@@ -1,17 +1,21 @@
 import type { Route } from './+types/settings'
 import {
+  IconCheck,
   IconChevronRight,
   IconDeviceDesktop,
   IconLoader2,
   IconLogout,
   IconMoon,
+  IconPencil,
   IconSun,
+  IconX,
 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, redirect, useFetcher, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
+import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '~/components/ui/field'
 import { Input } from '~/components/ui/input'
@@ -45,7 +49,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     profile: {
       displayName: profile?.displayName?.trim() || user.user_metadata?.display_name || user.email?.split('@')[0] || '用户',
       email: profile?.email || user.email || '',
-      avatarEmoji: profile?.avatarEmoji || '😊',
+      avatarEmoji: profile?.avatarEmoji || '',
       reminderEnabled: profile?.reminderEnabled ?? true,
     },
     counts: {
@@ -73,7 +77,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === 'update_profile') {
     const displayName = String(formData.get('displayName') || '').trim()
-    const avatarEmoji = String(formData.get('avatarEmoji') || '😊').trim() || '😊'
+    const avatarEmoji = String(formData.get('avatarEmoji') || '').trim()
 
     if (!displayName) {
       return { ok: false, intent, error: '昵称不能为空' }
@@ -104,6 +108,7 @@ export default function SettingsPage() {
 
   const [displayName, setDisplayName] = useState(profile.displayName)
   const [avatarEmoji, setAvatarEmoji] = useState(profile.avatarEmoji)
+  const [editingDisplayName, setEditingDisplayName] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { theme, setTheme } = useTheme()
@@ -111,6 +116,7 @@ export default function SettingsPage() {
   useEffect(() => {
     setDisplayName(profile.displayName)
     setAvatarEmoji(profile.avatarEmoji)
+    setEditingDisplayName(false)
   }, [profile.avatarEmoji, profile.displayName])
 
   useEffect(() => {
@@ -128,6 +134,8 @@ export default function SettingsPage() {
     () => displayName.trim() !== profile.displayName || avatarEmoji !== profile.avatarEmoji,
     [avatarEmoji, displayName, profile.avatarEmoji, profile.displayName],
   )
+  const displayNameTrimmed = displayName.trim()
+  const canSaveProfile = profileChanged && displayNameTrimmed.length > 0 && displayNameTrimmed.length <= 30 && !isSavingProfile
 
   return (
     <div className="pb-8 pt-6">
@@ -140,11 +148,19 @@ export default function SettingsPage() {
       >
         <input type="hidden" name="intent" value="update_profile" />
         <input type="hidden" name="avatarEmoji" value={avatarEmoji} />
+        {!editingDisplayName && <input type="hidden" name="displayName" value={displayName} />}
 
         <div className="flex items-start gap-3">
           <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
-            <PopoverTrigger render={<Button size="icon-lg" variant="secondary" className="shrink-0 text-2xl" />}>
-              {avatarEmoji}
+            <PopoverTrigger render={<Button size="icon-lg" variant="secondary" className="h-14 w-14 shrink-0 rounded-full p-0" />}>
+              <PublicAvatar
+                emoji={avatarEmoji}
+                nickname={displayName || profile.displayName}
+                size="xl"
+                backgroundColor="var(--color-primary-muted)"
+                textColor="var(--color-primary)"
+                className="h-full w-full"
+              />
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" side="bottom" align="start">
               <EmojiPicker
@@ -164,12 +180,67 @@ export default function SettingsPage() {
             <Field>
               <FieldLabel>昵称</FieldLabel>
               <FieldContent>
-                <Input
-                  name="displayName"
-                  value={displayName}
-                  maxLength={30}
-                  onChange={e => setDisplayName(e.target.value)}
-                />
+                <div className="flex items-center gap-1.5">
+                  {editingDisplayName
+                    ? (
+                        <Input
+                          name="displayName"
+                          value={displayName}
+                          maxLength={30}
+                          onChange={e => setDisplayName(e.target.value)}
+                          autoFocus
+                        />
+                      )
+                    : (
+                        <p
+                          className="h-10 flex-1 rounded-[10px] border px-3 py-2 text-[15px] leading-6"
+                          style={{
+                            borderColor: 'var(--color-hairline)',
+                            background: 'var(--color-canvas)',
+                            color: 'var(--color-ink)',
+                          }}
+                        >
+                          {displayName}
+                        </p>
+                      )}
+                  {editingDisplayName
+                    ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            style={{ color: 'var(--color-primary)' }}
+                            onClick={() => setEditingDisplayName(false)}
+                          >
+                            <IconCheck />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            style={{ color: 'var(--color-primary)' }}
+                            onClick={() => {
+                              setDisplayName(profile.displayName)
+                              setEditingDisplayName(false)
+                            }}
+                          >
+                            <IconX />
+                          </Button>
+                        </>
+                      )
+                    : (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          style={{ color: 'var(--color-primary)' }}
+                          onClick={() => setEditingDisplayName(true)}
+                        >
+                          <IconPencil />
+                        </Button>
+                      )}
+                </div>
               </FieldContent>
             </Field>
             <p className="mt-1 text-sm" style={{ color: 'var(--color-muted-soft)' }}>
@@ -181,8 +252,9 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
-
-          <Button type="submit" disabled={!profileChanged || isSavingProfile}>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Button type="submit" disabled={!canSaveProfile}>
             {isSavingProfile && <IconLoader2 className="animate-spin" />}
             保存
           </Button>
