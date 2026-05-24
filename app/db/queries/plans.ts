@@ -7,6 +7,7 @@ import {
   planInviteLinks,
   planMembers,
   planRecordItems,
+  planRecordMemberNotes,
   planRecords,
   plans,
   profiles,
@@ -15,6 +16,7 @@ import {
 export type PlanPermission = 'own' | 'all'
 export type PlanMemberRole = 'owner' | 'editor'
 export type PlanItemType = 'income' | 'expense'
+export type PlanMode = 'accumulate' | 'snapshot'
 
 export interface PlanMemberView {
   userId: string
@@ -40,17 +42,28 @@ export interface PlanRecordItemView {
   updatedAt: Date | null
 }
 
+export interface PlanRecordMemberNoteView {
+  id: string
+  memberId: string
+  note: string
+  updatedAt: Date | null
+  memberName?: string
+  memberEmoji?: string
+}
+
 export interface PlanRecordView {
   id: string
   year: number
   month: number
   createdAt: Date | null
   updatedAt: Date | null
+  recordedTotalValue: number | null
   totalIncome: number
   totalExpense: number
   netIncome: number
   totalValue: number
   items: PlanRecordItemView[]
+  memberNotes: PlanRecordMemberNoteView[]
 }
 
 export interface PlanSummaryView {
@@ -68,6 +81,7 @@ export interface PlanDetailView {
   ownerId: string
   name: string
   emoji: string
+  planMode: PlanMode
   permission: PlanPermission
   startingValue: number
   members: PlanMemberView[]
@@ -83,22 +97,35 @@ export interface SavePlanInput {
   userId: string
   name: string
   emoji: string
+  planMode: PlanMode
   permission: PlanPermission
   startingValue: string
   members: Array<{ userId: string, role: PlanMemberRole, note?: string }>
   defaultItems: Array<{ id?: string, name: string, itemType: PlanItemType, sortOrder: number }>
 }
 
-export interface PlanRecordPatchInput {
+interface PlanRecordPatchInputBase {
   planId: string
   userId: string
   year: number
   month: number
   expectedRecordUpdatedAt?: string
+}
+
+interface PlanRecordPatchAccumulateInput extends PlanRecordPatchInputBase {
+  mode: 'accumulate'
   addedItems: Array<{ memberId: string, itemType: PlanItemType, name: string, amount: string }>
   updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }>
   deletedItems: Array<{ id: string, expectedUpdatedAt?: string }>
 }
+
+interface PlanRecordPatchSnapshotInput extends PlanRecordPatchInputBase {
+  mode: 'snapshot'
+  recordedTotalValue: string
+  memberNotes: Array<{ memberId: string, note: string, expectedUpdatedAt?: string }>
+}
+
+export type PlanRecordPatchInput = PlanRecordPatchAccumulateInput | PlanRecordPatchSnapshotInput
 
 export interface SavePlanRecordResult {
   recordId: string
@@ -219,12 +246,25 @@ async function getRecordItemsByRecordIds(recordIds: string[]) {
     .where(and(inArray(planRecordItems.recordId, recordIds), isNull(planRecordItems.deletedAt)))
 }
 
+async function getRecordMemberNotesByRecordIds(recordIds: string[]) {
+  if (!recordIds.length)
+    return [] as Array<typeof planRecordMemberNotes.$inferSelect>
+
+  return db
+    .select()
+    .from(planRecordMemberNotes)
+    .where(and(inArray(planRecordMemberNotes.recordId, recordIds), isNull(planRecordMemberNotes.deletedAt)))
+}
+
 function buildRecordViews(
   recordRows: Array<typeof planRecords.$inferSelect>,
   itemRows: Array<typeof planRecordItems.$inferSelect>,
+  noteRows: Array<typeof planRecordMemberNotes.$inferSelect>,
+  planMode: PlanMode,
   startingValue: number,
 ) {
   const itemMap = new Map<string, PlanRecordItemView[]>()
+  const noteMap = new Map<string, PlanRecordMemberNoteView[]>()
 
   for (const item of itemRows) {
     const list = itemMap.get(item.recordId) || []
@@ -239,16 +279,57 @@ function buildRecordViews(
     itemMap.set(item.recordId, list)
   }
 
-  return recordRows.map((record) => {
+  for (const note of noteRows) {
+    const list = noteMap.get(note.recordId) || []
+    list.push({
+      id: note.id,
+      memberId: note.memberId,
+      note: note.note,
+      updatedAt: note.updatedAt,
+    })
+    noteMap.set(note.recordId, list)
+  }
+
+  const ascendingRecords = [...recordRows].sort((a, b) => {
+    if (a.year !== b.year)
+      return a.year - b.year
+    if (a.month !== b.month)
+      return a.month - b.month
+    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+  })
+
+  let previousTotal = startingValue
+  const ascendingViews = ascendingRecords.map((record, index) => {
     const items = itemMap.get(record.id) || []
-    const totalIncome = items
-      .filter(item => item.itemType === 'income')
-      .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
-    const totalExpense = items
-      .filter(item => item.itemType === 'expense')
-      .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
-    const netIncome = currency(totalIncome).subtract(totalExpense).value
-    const totalValue = currency(startingValue).add(netIncome).value
+    const memberNotes = noteMap.get(record.id) || []
+    let totalIncome = 0
+    let totalExpense = 0
+    let netIncome = 0
+    let totalValue = startingValue
+    let recordedTotalValue: number | null = null
+
+    if (planMode === 'snapshot') {
+      recordedTotalValue = record.recordedTotalValue === null ? null : toAmount(record.recordedTotalValue)
+      const currentTotal = recordedTotalValue ?? previousTotal
+      netIncome = index === 0
+        ? currency(currentTotal).subtract(startingValue).value
+        : currency(currentTotal).subtract(previousTotal).value
+      totalIncome = netIncome
+      totalExpense = 0
+      totalValue = currentTotal
+    }
+    else {
+      totalIncome = items
+        .filter(item => item.itemType === 'income')
+        .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
+      totalExpense = items
+        .filter(item => item.itemType === 'expense')
+        .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
+      netIncome = currency(totalIncome).subtract(totalExpense).value
+      totalValue = currency(previousTotal).add(netIncome).value
+    }
+
+    previousTotal = totalValue
 
     return {
       id: record.id,
@@ -256,12 +337,22 @@ function buildRecordViews(
       month: record.month,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
+      recordedTotalValue,
       totalIncome,
       totalExpense,
       netIncome,
       totalValue,
       items,
+      memberNotes,
     } satisfies PlanRecordView
+  })
+
+  return ascendingViews.sort((a, b) => {
+    if (a.year !== b.year)
+      return b.year - a.year
+    if (a.month !== b.month)
+      return b.month - a.month
+    return new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
   })
 }
 
@@ -273,12 +364,14 @@ function buildTrend(records: PlanRecordView[], startingValue: number) {
   }
 
   const trend: Array<{ month: string, label: string, amount: number }> = []
+  let lastAmount = startingValue
   for (let i = 11; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const year = d.getFullYear()
     const month = d.getMonth() + 1
     const key = formatMonthKey(year, month)
-    const amount = monthMap.get(key) ?? startingValue
+    const amount = monthMap.get(key) ?? lastAmount
+    lastAmount = amount
     trend.push({ month: key, label: `${month}月`, amount })
   }
 
@@ -291,6 +384,7 @@ export async function getPlanSummariesByUserId(userId: string) {
       id: plans.id,
       name: plans.name,
       emoji: plans.emoji,
+      planMode: plans.mode,
       permission: plans.permission,
       startingValue: plans.startingValue,
       createdAt: plans.createdAt,
@@ -309,6 +403,7 @@ export async function getPlanSummariesByUserId(userId: string) {
   const recordRows = await getRecordRowsByPlanIds(planIds)
   const recordIds = recordRows.map(row => row.id)
   const itemRows = await getRecordItemsByRecordIds(recordIds)
+  const noteRows = await getRecordMemberNotesByRecordIds(recordIds)
 
   const recordIdsByPlan = new Map<string, Set<string>>()
   for (const record of recordRows) {
@@ -326,6 +421,8 @@ export async function getPlanSummariesByUserId(userId: string) {
       buildRecordViews(
         rows,
         itemRows.filter(item => ids.has(item.recordId)),
+        noteRows.filter(note => ids.has(note.recordId)),
+        row.planMode,
         toAmount(row.startingValue),
       ),
     )
@@ -368,7 +465,8 @@ export async function getPlanDetailById(planId: string, userId: string) {
     .orderBy(desc(planRecords.year), desc(planRecords.month), desc(planRecords.updatedAt))
 
   const itemRows = await getRecordItemsByRecordIds(recordRows.map(r => r.id))
-  const records = buildRecordViews(recordRows, itemRows, toAmount(plan.startingValue))
+  const noteRows = await getRecordMemberNotesByRecordIds(recordRows.map(r => r.id))
+  const records = buildRecordViews(recordRows, itemRows, noteRows, plan.mode, toAmount(plan.startingValue))
 
   const sortedForTrend = [...records].sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month),
   )
@@ -378,6 +476,7 @@ export async function getPlanDetailById(planId: string, userId: string) {
     ownerId: plan.ownerId,
     name: plan.name,
     emoji: plan.emoji,
+    planMode: plan.mode,
     permission: plan.permission,
     startingValue: toAmount(plan.startingValue),
     members: membersMap.get(plan.id) || [],
@@ -399,27 +498,32 @@ export async function getPlanRecordDetail(planId: string, userId: string, year: 
   if (!access)
     return null
 
-  const recordRows = await db
+  const allRecords = await db
     .select()
     .from(planRecords)
-    .where(and(
-      eq(planRecords.planId, planId),
-      eq(planRecords.year, year),
-      eq(planRecords.month, month),
-      isNull(planRecords.deletedAt),
-    ))
-    .limit(1)
+    .where(and(eq(planRecords.planId, planId), isNull(planRecords.deletedAt)))
+    .orderBy(desc(planRecords.year), desc(planRecords.month), desc(planRecords.updatedAt))
 
-  const record = recordRows[0]
+  const record = allRecords.find(r => r.year === year && r.month === month)
   if (!record)
     return null
 
-  const items = await db
-    .select()
-    .from(planRecordItems)
-    .where(and(eq(planRecordItems.recordId, record.id), isNull(planRecordItems.deletedAt)))
+  const recordIds = allRecords.map(r => r.id)
+  const [items, noteRows] = await Promise.all([
+    getRecordItemsByRecordIds(recordIds),
+    getRecordMemberNotesByRecordIds(recordIds),
+  ])
 
-  const [recordView] = buildRecordViews([record], items, toAmount(access.plan.startingValue))
+  const recordViews = buildRecordViews(
+    allRecords,
+    items,
+    noteRows,
+    access.plan.mode,
+    toAmount(access.plan.startingValue),
+  )
+  const recordView = recordViews.find(r => r.id === record.id)
+  if (!recordView)
+    return null
 
   const membersMap = await getMembersByPlanIds([planId])
   const memberMap = new Map((membersMap.get(planId) || []).map(member => [member.userId, member]))
@@ -430,12 +534,18 @@ export async function getPlanRecordDetail(planId: string, userId: string, year: 
     permission: access.plan.permission,
     canManage: access.canManage,
     canEditAllItems: access.canEditAllItems,
+    planMode: access.plan.mode,
     record: {
       ...recordView,
       items: recordView.items.map(item => ({
         ...item,
         memberName: memberMap.get(item.memberId)?.displayName || '成员',
         memberEmoji: memberMap.get(item.memberId)?.avatarEmoji || '😊',
+      })),
+      memberNotes: recordView.memberNotes.map(note => ({
+        ...note,
+        memberName: memberMap.get(note.memberId)?.displayName || '成员',
+        memberEmoji: memberMap.get(note.memberId)?.avatarEmoji || '😊',
       })),
     },
     members: membersMap.get(planId) || [],
@@ -471,6 +581,7 @@ export async function savePlan(input: SavePlanInput) {
         .set({
           name: normalizedName,
           emoji: input.emoji || '💰',
+          mode: input.planMode,
           permission: input.permission,
           startingValue: input.startingValue,
           updatedAt: new Date(),
@@ -484,6 +595,7 @@ export async function savePlan(input: SavePlanInput) {
           ownerId: input.userId,
           name: normalizedName,
           emoji: input.emoji || '💰',
+          mode: input.planMode,
           permission: input.permission,
           startingValue: input.startingValue,
         })
@@ -650,7 +762,7 @@ export async function acceptInviteByToken(token: string, userId: string): Promis
   return { planId: invite.planId, joined: true }
 }
 
-function assertItemEditable(canEditAllItems: boolean, itemMemberId: string, userId: string) {
+function assertMemberEditable(canEditAllItems: boolean, itemMemberId: string, userId: string) {
   if (canEditAllItems)
     return
 
@@ -662,6 +774,8 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
   const access = await getActivePlanForUser(input.planId, input.userId)
   if (!access)
     throw new Error('计划不存在或无访问权限')
+  if (access.plan.mode !== input.mode)
+    throw new Error('计划模式已变更，请刷新后重试')
 
   const now = new Date()
 
@@ -707,6 +821,71 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
       }
     }
 
+    if (input.mode === 'snapshot') {
+      const snapshotTotalValue = toAmount(input.recordedTotalValue)
+      await tx
+        .update(planRecords)
+        .set({
+          recordedTotalValue: snapshotTotalValue.toFixed(2),
+          updatedAt: now,
+        })
+        .where(eq(planRecords.id, record.id))
+
+      const existingNotesAll = await tx
+        .select()
+        .from(planRecordMemberNotes)
+        .where(eq(planRecordMemberNotes.recordId, record.id))
+
+      const existingNotesMap = new Map(existingNotesAll.map(note => [note.memberId, note]))
+
+      for (const noteInput of input.memberNotes) {
+        assertMemberEditable(access.canEditAllItems, noteInput.memberId, input.userId)
+
+        const normalizedNote = noteInput.note.trim()
+        const existing = existingNotesMap.get(noteInput.memberId)
+
+        if (existing) {
+          if (noteInput.expectedUpdatedAt && existing.updatedAt) {
+            const expected = new Date(noteInput.expectedUpdatedAt).getTime()
+            const actual = new Date(existing.updatedAt).getTime()
+            if (expected !== actual)
+              throw new Error('成员备注已变更，请刷新后重试')
+          }
+
+          await tx
+            .update(planRecordMemberNotes)
+            .set({
+              note: normalizedNote,
+              deletedAt: normalizedNote ? null : now,
+              updatedAt: now,
+            })
+            .where(eq(planRecordMemberNotes.id, existing.id))
+          continue
+        }
+
+        if (!normalizedNote)
+          continue
+
+        await tx
+          .insert(planRecordMemberNotes)
+          .values({
+            recordId: record.id,
+            memberId: noteInput.memberId,
+            note: normalizedNote,
+          })
+      }
+
+      await tx
+        .update(planRecordItems)
+        .set({ deletedAt: now, updatedAt: now })
+        .where(and(eq(planRecordItems.recordId, record.id), isNull(planRecordItems.deletedAt)))
+
+      return {
+        recordId: record.id,
+        monthKey: formatMonthKey(input.year, input.month),
+      }
+    }
+
     const existingItems = await tx
       .select()
       .from(planRecordItems)
@@ -719,7 +898,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
       if (!existing)
         continue
 
-      assertItemEditable(access.canEditAllItems, existing.memberId, input.userId)
+      assertMemberEditable(access.canEditAllItems, existing.memberId, input.userId)
 
       if (item.expectedUpdatedAt && existing.updatedAt) {
         const expected = new Date(item.expectedUpdatedAt).getTime()
@@ -739,7 +918,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
       if (!existing)
         continue
 
-      assertItemEditable(access.canEditAllItems, existing.memberId, input.userId)
+      assertMemberEditable(access.canEditAllItems, existing.memberId, input.userId)
 
       if (item.expectedUpdatedAt && existing.updatedAt) {
         const expected = new Date(item.expectedUpdatedAt).getTime()
@@ -748,7 +927,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
           throw new Error('记录条目已变更，请刷新后重试')
       }
 
-      assertItemEditable(access.canEditAllItems, item.memberId, input.userId)
+      assertMemberEditable(access.canEditAllItems, item.memberId, input.userId)
 
       await tx
         .update(planRecordItems)
@@ -762,7 +941,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
     }
 
     for (const item of input.addedItems) {
-      assertItemEditable(access.canEditAllItems, item.memberId, input.userId)
+      assertMemberEditable(access.canEditAllItems, item.memberId, input.userId)
 
       if (!item.name.trim())
         continue
@@ -780,7 +959,7 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
 
     await tx
       .update(planRecords)
-      .set({ updatedAt: now })
+      .set({ recordedTotalValue: null, updatedAt: now })
       .where(eq(planRecords.id, record.id))
 
     return {

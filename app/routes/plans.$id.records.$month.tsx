@@ -83,6 +83,10 @@ export default function PlansRecordsMonth() {
   const monthKey = `${data.record.year}-${String(data.record.month).padStart(2, '0')}`
   const incomeItems = useMemo(() => data.record.items.filter(item => item.itemType === 'income'), [data.record.items])
   const expenseItems = useMemo(() => data.record.items.filter(item => item.itemType === 'expense'), [data.record.items])
+  const memberNotes = useMemo(
+    () => data.record.memberNotes.filter(note => note.note.trim().length > 0),
+    [data.record.memberNotes],
+  )
 
   return (
     <div className="pt-6 pb-8">
@@ -152,7 +156,9 @@ export default function PlansRecordsMonth() {
 
       <div className="mb-6 grid grid-cols-3 gap-3">
         <div className="rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
-          <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>收入</div>
+          <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+            {data.planMode === 'snapshot' ? '当月变化' : '收入'}
+          </div>
           <div className="font-[family-name:var(--font-mono)] text-lg font-semibold" style={{ color: 'var(--color-success)' }}>
             {data.record.totalIncome.toLocaleString()}
           </div>
@@ -171,53 +177,82 @@ export default function PlansRecordsMonth() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>收入明细</h2>
-        <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
-          {incomeItems.length === 0
-            ? <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--color-muted)' }}>暂无收入记录</div>
-            : (
-                <>
-                  {incomeItems.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
-                        {item.memberEmoji}
-                      </div>
-                      <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
-                      <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-success)' }}>
-                        +
-                        {item.amount.toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-        </div>
-      </div>
+      {data.planMode === 'snapshot'
+        ? (
+            <div>
+              <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>成员备注</h2>
+              <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+                {memberNotes.length === 0
+                  ? <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--color-muted)' }}>暂无成员备注</div>
+                  : (
+                      <>
+                        {memberNotes.map(note => (
+                          <div key={note.id} className="flex items-start gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
+                              {note.memberEmoji}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>{note.memberName}</div>
+                              <div className="text-sm" style={{ color: 'var(--color-ink)' }}>{note.note}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+              </div>
+            </div>
+          )
+        : (
+            <>
+              <div className="mb-6">
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>收入明细</h2>
+                <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+                  {incomeItems.length === 0
+                    ? <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--color-muted)' }}>暂无收入记录</div>
+                    : (
+                        <>
+                          {incomeItems.map(item => (
+                            <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
+                                {item.memberEmoji}
+                              </div>
+                              <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
+                              <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-success)' }}>
+                                +
+                                {item.amount.toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                </div>
+              </div>
 
-      <div>
-        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>支出明细</h2>
-        <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
-          {expenseItems.length === 0
-            ? <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--color-muted)' }}>暂无支出记录</div>
-            : (
-                <>
-                  {expenseItems.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
-                        {item.memberEmoji}
-                      </div>
-                      <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
-                      <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-error)' }}>
-                        -
-                        {item.amount.toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-        </div>
-      </div>
+              <div>
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>支出明细</h2>
+                <div className="rounded-xl border" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+                  {expenseItems.length === 0
+                    ? <div className="px-4 py-6 text-center text-xs" style={{ color: 'var(--color-muted)' }}>暂无支出记录</div>
+                    : (
+                        <>
+                          {expenseItems.map(item => (
+                            <div key={item.id} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0" style={{ borderColor: 'var(--color-hairline)' }}>
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white" style={{ background: 'var(--color-info)' }}>
+                                {item.memberEmoji}
+                              </div>
+                              <span className="flex-1 text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
+                              <span className="font-[family-name:var(--font-mono)] text-sm font-medium" style={{ color: 'var(--color-error)' }}>
+                                -
+                                {item.amount.toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                </div>
+              </div>
+            </>
+          )}
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>

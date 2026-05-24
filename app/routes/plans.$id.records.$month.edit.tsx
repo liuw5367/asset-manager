@@ -34,6 +34,13 @@ interface EditableItem {
   expectedUpdatedAt?: string
 }
 
+interface EditableMemberNote {
+  memberId: string
+  note: string
+  expectedUpdatedAt?: string
+  displayName: string
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const { supabase } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
@@ -59,15 +66,29 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const defaultMemberId = currentUserMember?.userId || planDetail.members[0]?.userId || user.id
 
   if (recordData) {
+    const existingNoteMap = new Map(recordData.record.memberNotes.map(note => [note.memberId, note]))
+    const normalizedNotes = planDetail.members.map((member) => {
+      const existing = existingNoteMap.get(member.userId)
+      return {
+        memberId: member.userId,
+        note: existing?.note || '',
+        expectedUpdatedAt: existing?.updatedAt ? existing.updatedAt.toISOString() : undefined,
+        displayName: member.displayName,
+      }
+    })
+
     return {
       mode: 'edit' as const,
       planId: params.id,
       month,
       year,
+      planMode: recordData.planMode,
       currentUserId: user.id,
       canEditAllItems: recordData.canEditAllItems,
       members: planDetail.members,
       recordUpdatedAt: recordData.record.updatedAt?.toISOString(),
+      recordedTotalValue: String(recordData.record.recordedTotalValue ?? recordData.record.totalValue ?? planDetail.startingValue),
+      memberNotes: normalizedNotes,
       items: recordData.record.items.map(item => ({
         id: item.id,
         itemType: item.itemType,
@@ -92,10 +113,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     planId: params.id,
     month,
     year,
+    planMode: planDetail.planMode,
     currentUserId: user.id,
     canEditAllItems: planDetail.canEditAllItems,
     members: planDetail.members,
     recordUpdatedAt: undefined,
+    recordedTotalValue: String(planDetail.startingValue),
+    memberNotes: planDetail.members.map(member => ({
+      memberId: member.userId,
+      note: '',
+      expectedUpdatedAt: undefined,
+      displayName: member.displayName,
+    })),
     items: defaultItems,
   }
 }
@@ -122,16 +151,28 @@ export async function action({ request, params }: Route.ActionArgs) {
     return { error: parsed.error.issues[0].message }
 
   try {
-    const result = await savePlanRecordPatch({
-      planId: params.id,
-      userId: user.id,
-      year: parsed.data.year,
-      month: parsed.data.month,
-      expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
-      addedItems: parsed.data.addedItems,
-      updatedItems: parsed.data.updatedItems,
-      deletedItems: parsed.data.deletedItems,
-    })
+    const result = parsed.data.mode === 'accumulate'
+      ? await savePlanRecordPatch({
+          planId: params.id,
+          userId: user.id,
+          mode: 'accumulate',
+          year: parsed.data.year,
+          month: parsed.data.month,
+          expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
+          addedItems: parsed.data.addedItems,
+          updatedItems: parsed.data.updatedItems,
+          deletedItems: parsed.data.deletedItems,
+        })
+      : await savePlanRecordPatch({
+          planId: params.id,
+          userId: user.id,
+          mode: 'snapshot',
+          year: parsed.data.year,
+          month: parsed.data.month,
+          expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
+          recordedTotalValue: parsed.data.recordedTotalValue,
+          memberNotes: parsed.data.memberNotes,
+        })
 
     return redirect(`/plans/${params.id}/records/${result.monthKey}`, { headers })
   }
@@ -156,6 +197,8 @@ export default function PlansRecordsMonthEdit() {
   const [selectedMonth, setSelectedMonth] = useState(data.month)
   const [items, setItems] = useState<EditableItem[]>(data.items)
   const [deletedItems, setDeletedItems] = useState<Array<{ id: string, expectedUpdatedAt?: string }>>([])
+  const [recordedTotalValue, setRecordedTotalValue] = useState(data.recordedTotalValue)
+  const [memberNotes, setMemberNotes] = useState<EditableMemberNote[]>(data.memberNotes)
 
   const initialMap = useMemo(() => {
     const map = new Map<string, EditableItem>()
@@ -165,6 +208,12 @@ export default function PlansRecordsMonthEdit() {
     }
     return map
   }, [data.items])
+  const initialNotesMap = useMemo(() => {
+    const map = new Map<string, EditableMemberNote>()
+    for (const note of data.memberNotes)
+      map.set(note.memberId, note)
+    return map
+  }, [data.memberNotes])
 
   const isSubmitting = navigation.state !== 'idle'
 
@@ -196,7 +245,35 @@ export default function PlansRecordsMonthEdit() {
     })
   }
 
+  function updateMemberNote(memberId: string, note: string) {
+    setMemberNotes(prev => prev.map(item => item.memberId === memberId ? { ...item, note } : item))
+  }
+
   function buildPatch() {
+    if (data.planMode === 'snapshot') {
+      const changedNotes = memberNotes
+        .filter((note) => {
+          const initial = initialNotesMap.get(note.memberId)
+          if (!initial)
+            return note.note.trim().length > 0
+          return initial.note !== note.note
+        })
+        .map(note => ({
+          memberId: note.memberId,
+          note: note.note,
+          expectedUpdatedAt: note.expectedUpdatedAt,
+        }))
+
+      return {
+        mode: 'snapshot' as const,
+        year: selectedYear,
+        month: selectedMonth,
+        expectedRecordUpdatedAt: data.recordUpdatedAt,
+        recordedTotalValue: recordedTotalValue.trim() || '0',
+        memberNotes: changedNotes,
+      }
+    }
+
     const addedItems: Array<{ memberId: string, itemType: 'income' | 'expense', name: string, amount: string }> = []
     const updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }> = []
 
@@ -236,6 +313,7 @@ export default function PlansRecordsMonthEdit() {
     }
 
     return {
+      mode: 'accumulate' as const,
       year: selectedYear,
       month: selectedMonth,
       expectedRecordUpdatedAt: data.recordUpdatedAt,
@@ -330,153 +408,208 @@ export default function PlansRecordsMonthEdit() {
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          收入明细
-        </h2>
-        <div className="flex flex-col gap-2">
-          {incomeItems.map((item) => {
-            const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
-            return (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
-                style={{
-                  background: 'var(--color-surface-card)',
-                  borderColor: 'var(--color-hairline)',
-                  opacity: editable ? 1 : 0.5,
-                }}
-              >
-                <Select
-                  value={item.memberId}
-                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                  disabled={!editable}
-                >
-                  <SelectTrigger className="h-8 w-28 shrink-0">
-                    <SelectValue placeholder="成员">
-                      {(value) => {
-                        const member = data.members.find(m => m.userId === value)
-                        return member?.displayName || '成员'
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {data.members.map(member => (
-                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="text"
-                  value={item.name}
-                  onChange={e => updateItem(item.id, { name: e.target.value })}
-                  placeholder="项目名称"
-                  className="h-8 min-w-0 flex-1"
-                  disabled={!editable}
-                />
+      {data.planMode === 'snapshot'
+        ? (
+            <>
+              <div className="mb-6">
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  当月总额
+                </h2>
                 <Input
                   type="number"
-                  value={item.amount}
-                  onChange={e => updateItem(item.id, { amount: e.target.value })}
-                  placeholder="金额"
-                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
-                  disabled={!editable}
+                  value={recordedTotalValue}
+                  onChange={e => setRecordedTotalValue(e.target.value)}
+                  placeholder="填写当月总额"
+                  className="h-10 font-[family-name:var(--font-mono)]"
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removeItem(item.id)}
-                  disabled={!editable}
-                  className="shrink-0"
-                >
-                  <IconTrash size={14} />
-                </Button>
               </div>
-            )
-          })}
-          <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('income')}>
-            <IconPlus size={16} />
-            添加收入项
-          </Button>
-        </div>
-      </div>
 
-      <div className="mb-6">
-        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          支出明细
-        </h2>
-        <div className="flex flex-col gap-2">
-          {expenseItems.map((item) => {
-            const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
-            return (
-              <div
-                key={item.id}
-                className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
-                style={{
-                  background: 'var(--color-surface-card)',
-                  borderColor: 'var(--color-hairline)',
-                  opacity: editable ? 1 : 0.5,
-                }}
-              >
-                <Select
-                  value={item.memberId}
-                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                  disabled={!editable}
-                >
-                  <SelectTrigger className="h-8 w-28 shrink-0">
-                    <SelectValue placeholder="成员">
-                      {(value) => {
-                        const member = data.members.find(m => m.userId === value)
-                        return member?.displayName || '成员'
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {data.members.map(member => (
-                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="text"
-                  value={item.name}
-                  onChange={e => updateItem(item.id, { name: e.target.value })}
-                  placeholder="项目名称"
-                  className="h-8 min-w-0 flex-1"
-                  disabled={!editable}
-                />
-                <Input
-                  type="number"
-                  value={item.amount}
-                  onChange={e => updateItem(item.id, { amount: e.target.value })}
-                  placeholder="金额"
-                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
-                  disabled={!editable}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => removeItem(item.id)}
-                  disabled={!editable}
-                  className="shrink-0"
-                >
-                  <IconTrash size={14} />
-                </Button>
+              <div className="mb-6">
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  成员备注
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {memberNotes.map((note) => {
+                    const editable = data.canEditAllItems || note.memberId === data.currentUserId
+                    return (
+                      <div
+                        key={note.memberId}
+                        className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
+                        style={{
+                          background: 'var(--color-surface-card)',
+                          borderColor: 'var(--color-hairline)',
+                          opacity: editable ? 1 : 0.5,
+                        }}
+                      >
+                        <span className="w-20 shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
+                          {note.displayName}
+                        </span>
+                        <Input
+                          type="text"
+                          value={note.note}
+                          onChange={e => updateMemberNote(note.memberId, e.target.value)}
+                          placeholder={editable ? '填写本月备注' : '无编辑权限'}
+                          className="h-8 flex-1 text-xs"
+                          disabled={!editable}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            )
-          })}
-          <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('expense')}>
-            <IconPlus size={16} />
-            添加支出项
-          </Button>
-        </div>
-      </div>
+            </>
+          )
+        : (
+            <>
+              <div className="mb-6">
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  收入明细
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {incomeItems.map((item) => {
+                    const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
+                        style={{
+                          background: 'var(--color-surface-card)',
+                          borderColor: 'var(--color-hairline)',
+                          opacity: editable ? 1 : 0.5,
+                        }}
+                      >
+                        <Select
+                          value={item.memberId}
+                          onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="h-8 w-28 shrink-0">
+                            <SelectValue placeholder="成员">
+                              {(value) => {
+                                const member = data.members.find(m => m.userId === value)
+                                return member?.displayName || '成员'
+                              }}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {data.members.map(member => (
+                                <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="text"
+                          value={item.name}
+                          onChange={e => updateItem(item.id, { name: e.target.value })}
+                          placeholder="项目名称"
+                          className="h-8 min-w-0 flex-1"
+                          disabled={!editable}
+                        />
+                        <Input
+                          type="number"
+                          value={item.amount}
+                          onChange={e => updateItem(item.id, { amount: e.target.value })}
+                          placeholder="金额"
+                          className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                          disabled={!editable}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeItem(item.id)}
+                          disabled={!editable}
+                          className="shrink-0"
+                        >
+                          <IconTrash size={14} />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('income')}>
+                    <IconPlus size={16} />
+                    添加收入项
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                  支出明细
+                </h2>
+                <div className="flex flex-col gap-2">
+                  {expenseItems.map((item) => {
+                    const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
+                        style={{
+                          background: 'var(--color-surface-card)',
+                          borderColor: 'var(--color-hairline)',
+                          opacity: editable ? 1 : 0.5,
+                        }}
+                      >
+                        <Select
+                          value={item.memberId}
+                          onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
+                          disabled={!editable}
+                        >
+                          <SelectTrigger className="h-8 w-28 shrink-0">
+                            <SelectValue placeholder="成员">
+                              {(value) => {
+                                const member = data.members.find(m => m.userId === value)
+                                return member?.displayName || '成员'
+                              }}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {data.members.map(member => (
+                                <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="text"
+                          value={item.name}
+                          onChange={e => updateItem(item.id, { name: e.target.value })}
+                          placeholder="项目名称"
+                          className="h-8 min-w-0 flex-1"
+                          disabled={!editable}
+                        />
+                        <Input
+                          type="number"
+                          value={item.amount}
+                          onChange={e => updateItem(item.id, { amount: e.target.value })}
+                          placeholder="金额"
+                          className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                          disabled={!editable}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeItem(item.id)}
+                          disabled={!editable}
+                          className="shrink-0"
+                        >
+                          <IconTrash size={14} />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('expense')}>
+                    <IconPlus size={16} />
+                    添加支出项
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
 
       {actionData?.error && (
         <div className="mb-4 text-sm" style={{ color: 'var(--color-error)' }}>

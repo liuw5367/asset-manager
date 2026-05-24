@@ -16,6 +16,7 @@ export const planDefaultItemSchema = z.object({
 export const planSaveSchema = z.object({
   name: z.string().trim().min(1, '计划名称必填').max(60, '计划名称最多 60 字'),
   emoji: z.string().trim().min(1).max(4),
+  planMode: z.enum(['accumulate', 'snapshot']).default('accumulate'),
   permission: z.enum(['own', 'all']),
   startingValue: z.string().trim().default('0'),
   members: z.array(planMemberSchema).default([]),
@@ -29,7 +30,8 @@ const amountString = z.string().trim().refine((value) => {
   return Number.isFinite(num) && num >= 0
 }, '金额格式不正确')
 
-export const planRecordPatchSchema = z.object({
+const accumulatePatchSchema = z.object({
+  mode: z.literal('accumulate'),
   year: z.number().int().min(2000).max(2200),
   month: z.number().int().min(1).max(12),
   expectedRecordUpdatedAt: z.string().optional(),
@@ -51,3 +53,21 @@ export const planRecordPatchSchema = z.object({
     expectedUpdatedAt: z.string().optional(),
   })).default([]),
 })
+
+const snapshotPatchSchema = z.object({
+  mode: z.literal('snapshot'),
+  year: z.number().int().min(2000).max(2200),
+  month: z.number().int().min(1).max(12),
+  expectedRecordUpdatedAt: z.string().optional(),
+  recordedTotalValue: amountString,
+  memberNotes: z.array(z.object({
+    memberId: z.string().min(1),
+    note: z.string().trim().max(300).default(''),
+    expectedUpdatedAt: z.string().optional(),
+  })).default([]),
+})
+
+export const planRecordPatchSchema = z.discriminatedUnion('mode', [
+  accumulatePatchSchema,
+  snapshotPatchSchema,
+])

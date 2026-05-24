@@ -20,6 +20,7 @@ export interface PlanEditorLoaderData {
   planId?: string
   name: string
   emoji: string
+  planMode: 'accumulate' | 'snapshot'
   permission: 'own' | 'all'
   startingValue: string
   members: PlanMemberView[]
@@ -35,6 +36,7 @@ export async function loadPlanEditorData(input: LoadPlanEditorInput): Promise<Pl
       mode: 'create',
       name: '',
       emoji: '💰',
+      planMode: 'accumulate',
       permission: 'own',
       startingValue: '0',
       members: [{
@@ -63,6 +65,7 @@ export async function loadPlanEditorData(input: LoadPlanEditorInput): Promise<Pl
     planId: detail.id,
     name: detail.name,
     emoji: detail.emoji,
+    planMode: detail.planMode,
     permission: detail.permission,
     startingValue: String(detail.startingValue),
     members: detail.members,
@@ -125,6 +128,7 @@ export async function handlePlanEditorAction(input: {
     userId: input.userId,
     name: data.name,
     emoji: data.emoji,
+    planMode: data.planMode,
     permission: data.permission,
     startingValue: data.startingValue,
     members: data.members,

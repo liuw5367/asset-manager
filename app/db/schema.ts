@@ -152,6 +152,7 @@ export const plans = pgTable('plans', {
   ownerId: uuid('owner_id').notNull(),
   name: text('name').notNull(),
   emoji: text('emoji').notNull().default('💰'),
+  mode: text('mode', { enum: ['accumulate', 'snapshot'] }).notNull().default('accumulate'),
   startingValue: numeric('starting_value', { precision: 12, scale: 2 }).notNull().default('0'),
   permission: text('permission', { enum: ['own', 'all'] }).notNull().default('own'),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
@@ -204,6 +205,7 @@ export const planRecords = pgTable('plan_records', {
   planId: uuid('plan_id').notNull(),
   year: integer('year').notNull(),
   month: integer('month').notNull(),
+  recordedTotalValue: numeric('recorded_total_value', { precision: 12, scale: 2 }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
@@ -223,6 +225,19 @@ export const planRecordItems = pgTable('plan_record_items', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
+
+// --- plan_record_member_notes ---
+export const planRecordMemberNotes = pgTable('plan_record_member_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  recordId: uuid('record_id').notNull(),
+  memberId: uuid('member_id').notNull(),
+  note: text('note').notNull().default(''),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, t => ({
+  recordMemberUnique: unique('plan_record_member_notes_record_member_unique').on(t.recordId, t.memberId),
+}))
 
 // --- reminder_jobs ---
 export const reminderJobs = pgTable('reminder_jobs', {

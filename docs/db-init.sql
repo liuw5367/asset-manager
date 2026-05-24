@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS public.plans (
   owner_id UUID NOT NULL,
   name TEXT NOT NULL,
   emoji TEXT NOT NULL DEFAULT '💰',
+  mode TEXT NOT NULL DEFAULT 'accumulate',
   starting_value NUMERIC(12, 2) NOT NULL DEFAULT '0',
   permission TEXT NOT NULL DEFAULT 'own',
   deleted_at TIMESTAMPTZ,
@@ -188,6 +189,7 @@ CREATE TABLE IF NOT EXISTS public.plan_records (
   plan_id UUID NOT NULL,
   year INTEGER NOT NULL,
   month INTEGER NOT NULL,
+  recorded_total_value NUMERIC(12, 2),
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -207,7 +209,19 @@ CREATE TABLE IF NOT EXISTS public.plan_record_items (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 17. reminder_jobs（提醒任务）
+-- 17. plan_record_member_notes（月度记录成员备注）
+CREATE TABLE IF NOT EXISTS public.plan_record_member_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  record_id UUID NOT NULL,
+  member_id UUID NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  deleted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(record_id, member_id)
+);
+
+-- 18. reminder_jobs（提醒任务）
 CREATE TABLE IF NOT EXISTS public.reminder_jobs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   asset_id UUID NOT NULL,
@@ -248,6 +262,9 @@ CREATE INDEX IF NOT EXISTS idx_plan_records_deleted_at ON public.plan_records(de
 CREATE INDEX IF NOT EXISTS idx_plan_record_items_record_id ON public.plan_record_items(record_id);
 CREATE INDEX IF NOT EXISTS idx_plan_record_items_member_id ON public.plan_record_items(member_id);
 CREATE INDEX IF NOT EXISTS idx_plan_record_items_deleted_at ON public.plan_record_items(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_plan_record_member_notes_record_id ON public.plan_record_member_notes(record_id);
+CREATE INDEX IF NOT EXISTS idx_plan_record_member_notes_member_id ON public.plan_record_member_notes(member_id);
+CREATE INDEX IF NOT EXISTS idx_plan_record_member_notes_deleted_at ON public.plan_record_member_notes(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_reminder_jobs_user_id ON public.reminder_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_reminder_jobs_scheduled_at ON public.reminder_jobs(scheduled_at);
 
