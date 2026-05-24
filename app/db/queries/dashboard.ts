@@ -1,4 +1,5 @@
-import { addDays, differenceInMonths, format, startOfMonth, subMonths } from 'date-fns'
+import currency from 'currency.js'
+import { addDays, endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 import { db } from '~/db'
 import { assets, categories, warranties } from '~/db/schema'
@@ -21,6 +22,45 @@ const CATEGORY_COLORS: Record<string, string> = {
   '🎮': '#e87070',
 }
 
+type AssetTypeStatsModel = 'one_time' | 'subscription'
+
+interface CategorySpendingItem {
+  name: string
+  emoji: string
+  amount: number
+  percent: number
+  color: string
+}
+
+interface MonthlyTrendItem {
+  month: string
+  label: string
+  amount: number
+}
+
+interface AssetOverview {
+  id: string
+  name: string
+  emoji: string
+  categoryId: string | null
+  assetType: AssetTypeStatsModel
+  purchasePrice: string | null
+  purchaseDate: string | null
+  subscriptionPrice: string | null
+  billingCycle: 'monthly' | 'quarterly' | 'yearly' | null
+  subscriptionStatus: string | null
+  subscriptionStoppedAt: string | null
+  subscriptionStartDate: string | null
+  tradedInAt: string | null
+  tradeInPrice: string | null
+}
+
+interface CategoryMeta {
+  id: string
+  name: string
+  emoji: string
+}
+
 export interface DashboardData {
   kpi: {
     dailyCostTotal: number
@@ -29,18 +69,10 @@ export interface DashboardData {
     activeAssetCount: number
     activeAssetPurchaseTotal: number
   }
-  categorySpending: {
-    name: string
-    emoji: string
-    amount: number
-    percent: number
-    color: string
-  }[]
-  monthlyTrend: {
-    month: string
-    label: string
-    amount: number
-  }[]
+  statsByType: Record<AssetTypeStatsModel, {
+    categorySpending: CategorySpendingItem[]
+    monthlyTrend: MonthlyTrendItem[]
+  }>
   expiring: {
     id: string
     emoji: string
@@ -49,12 +81,147 @@ export interface DashboardData {
   }[]
 }
 
+function buildCategorySpendingByType(
+  allAssets: AssetOverview[],
+  categoryMap: Record<string, CategoryMeta>,
+  assetType: AssetTypeStatsModel,
+  rangeStart: Date,
+  rangeEnd: Date,
+): CategorySpendingItem[] {
+  const catSpending: Record<string, number> = {}
+
+  for (const a of allAssets) {
+    if (a.assetType !== assetType || !a.categoryId)
+      continue
+
+    let cost = 0
+
+    if (assetType === 'subscription' && a.subscriptionPrice) {
+      const startDate = a.subscriptionStartDate || a.purchaseDate
+      if (startDate) {
+        cost = calcSubscriptionCostRange(
+          Number(a.subscriptionPrice),
+          startDate,
+          a.subscriptionStoppedAt,
+          rangeStart,
+          rangeEnd,
+        )
+      }
+    }
+    else if (assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+      if (a.tradedInAt && a.tradeInPrice) {
+        cost = calcSoldOneTimeCostRange(
+          Number(a.purchasePrice),
+          a.purchaseDate,
+          Number(a.tradeInPrice),
+          a.tradedInAt,
+          rangeStart,
+          rangeEnd,
+        )
+      }
+      else if (!a.tradedInAt) {
+        cost = calcOneTimeCostRange(
+          Number(a.purchasePrice),
+          a.purchaseDate,
+          rangeStart,
+          rangeEnd,
+        )
+      }
+    }
+
+    if (cost > 0)
+      catSpending[a.categoryId] = currency(catSpending[a.categoryId] || 0).add(cost).value
+  }
+
+  const categoryTotal = Object.values(catSpending).reduce(
+    (sum, amount) => currency(sum).add(amount).value,
+    0,
+  )
+
+  return Object.entries(catSpending)
+    .map(([catId, amount]) => {
+      const cat = categoryMap[catId]
+      return {
+        name: cat?.name || '未分类',
+        emoji: cat?.emoji || '📦',
+        amount: Math.round(amount),
+        percent: categoryTotal > 0 ? Math.round((amount / categoryTotal) * 100) : 0,
+        color: CATEGORY_COLORS[cat?.emoji || '📦'] || '#9ca3af',
+      }
+    })
+    .sort((a, b) => b.amount - a.amount)
+}
+
+function buildMonthlyTrendByType(
+  allAssets: AssetOverview[],
+  assetType: AssetTypeStatsModel,
+  today: Date,
+): MonthlyTrendItem[] {
+  const monthlyTrend: MonthlyTrendItem[] = []
+
+  for (let i = 5; i >= 0; i--) {
+    const monthStart = startOfMonth(subMonths(today, i))
+    const monthEnd = i === 0 ? today : endOfMonth(monthStart)
+    const monthStr = format(monthStart, 'yyyy-MM')
+    const label = format(monthStart, 'M月')
+
+    let monthCost = 0
+
+    for (const a of allAssets) {
+      if (a.assetType !== assetType)
+        continue
+
+      let cost = 0
+
+      if (assetType === 'subscription' && a.subscriptionPrice) {
+        const startDate = a.subscriptionStartDate || a.purchaseDate
+        if (startDate) {
+          cost = calcSubscriptionCostRange(
+            Number(a.subscriptionPrice),
+            startDate,
+            a.subscriptionStoppedAt,
+            monthStart,
+            monthEnd,
+          )
+        }
+      }
+      else if (assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
+        if (a.tradedInAt && a.tradeInPrice) {
+          cost = calcSoldOneTimeCostRange(
+            Number(a.purchasePrice),
+            a.purchaseDate,
+            Number(a.tradeInPrice),
+            a.tradedInAt,
+            monthStart,
+            monthEnd,
+          )
+        }
+        else if (!a.tradedInAt) {
+          cost = calcOneTimeCostRange(
+            Number(a.purchasePrice),
+            a.purchaseDate,
+            monthStart,
+            monthEnd,
+          )
+        }
+      }
+
+      if (cost > 0)
+        monthCost = currency(monthCost).add(cost).value
+    }
+
+    monthlyTrend.push({ month: monthStr, label, amount: Math.round(monthCost) })
+  }
+
+  return monthlyTrend
+}
+
 export async function getDashboardData(userId: string): Promise<DashboardData> {
   const today = new Date()
   const todayStr = format(today, 'yyyy-MM-dd')
 
   // 1. 获取所有未删除的资产
-  const allAssets = await db
+  const allAssets: AssetOverview[] = await db
     .select({
       id: assets.id,
       name: assets.name,
@@ -80,7 +247,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     .from(categories)
     .where(eq(categories.userId, userId))
 
-  const categoryMap = Object.fromEntries(allCategories.map(c => [c.id, c]))
+  const categoryMap = Object.fromEntries(allCategories.map(c => [c.id, c])) as Record<string, CategoryMeta>
 
   // 3. 筛选活跃资产（未换购、订阅未停止）
   const activeAssets = allAssets.filter((a) => {
@@ -155,85 +322,17 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     return sum + Number(item.purchasePrice)
   }, 0)
 
-  // 5. 分类花费（过去 12 个月滚动持有成本）
+  // 5. 分类花费与月度趋势（按资产模型拆分）
   const catRangeStart = new Date(today.getTime() - 365 * 86400000)
-  const catSpending: Record<string, number> = {}
-
-  for (const a of allAssets) {
-    if (!a.categoryId)
-      continue
-    let cost = 0
-    if (a.assetType === 'subscription' && a.subscriptionPrice) {
-      const startDate = a.subscriptionStartDate || a.purchaseDate
-      if (startDate)
-        cost = calcSubscriptionCostRange(Number(a.subscriptionPrice), startDate, a.subscriptionStoppedAt, catRangeStart, today)
-    }
-    else if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
-      if (a.tradedInAt && a.tradeInPrice) {
-        cost = calcSoldOneTimeCostRange(Number(a.purchasePrice), a.purchaseDate, Number(a.tradeInPrice), a.tradedInAt, catRangeStart, today)
-      }
-      else if (!a.tradedInAt) {
-        cost = calcOneTimeCostRange(Number(a.purchasePrice), a.purchaseDate, catRangeStart, today)
-      }
-    }
-    if (cost > 0)
-      catSpending[a.categoryId] = (catSpending[a.categoryId] || 0) + cost
-  }
-
-  const categoryTotal = Object.values(catSpending).reduce((s, v) => s + v, 0)
-  const categorySpending = Object.entries(catSpending)
-    .map(([catId, amount]) => {
-      const cat = categoryMap[catId]
-      return {
-        name: cat?.name || '未分类',
-        emoji: cat?.emoji || '📦',
-        amount: Math.round(amount),
-        percent: categoryTotal > 0 ? Math.round((amount / categoryTotal) * 100) : 0,
-        color: CATEGORY_COLORS[cat?.emoji || '📦'] || '#9ca3af',
-      }
-    })
-    .sort((a, b) => b.amount - a.amount)
-
-  // 6. 月度趋势（近 6 个月实际持有成本）
-  const monthlyTrend: DashboardData['monthlyTrend'] = []
-  for (let i = 5; i >= 0; i--) {
-    const monthStart = startOfMonth(subMonths(today, i))
-    const monthStr = format(monthStart, 'yyyy-MM')
-    const label = format(monthStart, 'M月')
-
-    let monthCost = 0
-    for (const a of allAssets) {
-      if (a.tradedInAt && a.tradedInAt < format(monthStart, 'yyyy-MM-dd'))
-        continue
-      if (a.assetType === 'subscription' && a.subscriptionStoppedAt && a.subscriptionStoppedAt < format(monthStart, 'yyyy-MM-dd'))
-        continue
-
-      if (a.assetType === 'one_time' && a.purchasePrice && a.purchaseDate) {
-        if (a.purchaseDate > format(addDays(monthStart, 31), 'yyyy-MM-dd'))
-          continue
-        const holdingEnd = a.tradedInAt || todayStr
-        if (holdingEnd < format(monthStart, 'yyyy-MM-dd'))
-          continue
-        const totalMonths = Math.max(1, differenceInMonths(
-          new Date(holdingEnd > todayStr ? todayStr : holdingEnd),
-          new Date(a.purchaseDate),
-        ))
-        monthCost += Number(a.purchasePrice) / totalMonths
-      }
-      else if (a.assetType === 'subscription' && a.subscriptionPrice && a.billingCycle) {
-        const start = a.purchaseDate || a.subscriptionStartDate
-        if (start && start > format(addDays(monthStart, 31), 'yyyy-MM-dd'))
-          continue
-        const price = Number(a.subscriptionPrice)
-        if (a.billingCycle === 'monthly')
-          monthCost += price
-        else if (a.billingCycle === 'quarterly')
-          monthCost += price / 3
-        else monthCost += price / 12
-      }
-    }
-
-    monthlyTrend.push({ month: monthStr, label, amount: Math.round(monthCost) })
+  const statsByType: DashboardData['statsByType'] = {
+    one_time: {
+      categorySpending: buildCategorySpendingByType(allAssets, categoryMap, 'one_time', catRangeStart, today),
+      monthlyTrend: buildMonthlyTrendByType(allAssets, 'one_time', today),
+    },
+    subscription: {
+      categorySpending: buildCategorySpendingByType(allAssets, categoryMap, 'subscription', catRangeStart, today),
+      monthlyTrend: buildMonthlyTrendByType(allAssets, 'subscription', today),
+    },
   }
 
   // 7. 即将到期（30 天内）
@@ -309,8 +408,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       activeAssetCount: assetCount,
       activeAssetPurchaseTotal,
     },
-    categorySpending,
-    monthlyTrend,
+    statsByType,
     expiring,
   }
 }

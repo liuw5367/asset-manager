@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { redirect, useLoaderData, useNavigate } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { MainPageHeader } from '~/components/page-header'
+import { Button } from '~/components/ui/button'
 import {
   ChartContainer,
   ChartTooltip,
@@ -33,8 +34,11 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const data = useLoaderData<typeof loader>()
   const [showWarning, setShowWarning] = useState(true)
+  const [statsModel, setStatsModel] = useState<'one_time' | 'subscription'>('one_time')
 
-  const { kpi, categorySpending, monthlyTrend, expiring } = data
+  const { kpi, statsByType, expiring } = data
+  const categorySpending = statsByType[statsModel].categorySpending
+  const monthlyTrend = statsByType[statsModel].monthlyTrend
 
   const kpis = [
     { label: '每日成本', value: kpi.dailyCostTotal.toFixed(2), subtitle: '元/天' },
@@ -46,6 +50,27 @@ export default function Dashboard() {
     { label: '资产数量', value: String(kpi.activeAssetCount), subtitle: '活跃资产' },
     { label: '资产总额', value: kpi.activeAssetPurchaseTotal.toLocaleString(), subtitle: '购入价总和' },
   ]
+
+  const renderStatsToggle = () => (
+    <div className="inline-flex items-center gap-1 rounded-lg p-1" style={{ background: 'var(--color-surface-strong)' }}>
+      <Button
+        size="xs"
+        variant={statsModel === 'one_time' ? 'secondary' : 'ghost'}
+        className="h-6 px-2 text-[11px]"
+        onClick={() => setStatsModel('one_time')}
+      >
+        买断
+      </Button>
+      <Button
+        size="xs"
+        variant={statsModel === 'subscription' ? 'secondary' : 'ghost'}
+        className="h-6 px-2 text-[11px]"
+        onClick={() => setStatsModel('subscription')}
+      >
+        订阅
+      </Button>
+    </div>
+  )
 
   return (
     <div className="pt-6 pb-8">
@@ -104,59 +129,71 @@ export default function Dashboard() {
       </div>
 
       {/* Category Spending */}
-      {categorySpending.length > 0 && (
-        <section className="mb-8">
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2
-            className="mb-3 text-[15px] font-medium"
+            className="text-[15px] font-medium"
             style={{ color: 'var(--color-ink)' }}
           >
             分类花费分布
           </h2>
-          <div
-            className="rounded-xl px-4 py-4"
-            style={{ background: 'var(--color-surface-card)' }}
-          >
-            <div className="flex flex-col gap-3">
-              {categorySpending.map(cat => (
-                <div key={cat.name} className="flex items-center gap-3">
-                  <span className="w-[96px] shrink-0 whitespace-nowrap text-[13px]" style={{ color: 'var(--color-body)' }}>
-                    {cat.emoji}
-                    {' '}
-                    {cat.name}
-                  </span>
-                  <div className="flex-1">
-                    <div
-                      className="h-[10px] w-full overflow-hidden rounded-full"
-                      style={{ background: 'var(--color-surface-strong)' }}
-                    >
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${cat.percent}%`, background: cat.color }}
-                      />
+          {renderStatsToggle()}
+        </div>
+        <div
+          className="rounded-xl px-4 py-4"
+          style={{ background: 'var(--color-surface-card)' }}
+        >
+          {categorySpending.length > 0
+            ? (
+                <div className="flex flex-col gap-3">
+                  {categorySpending.map(cat => (
+                    <div key={cat.name} className="flex items-center gap-3">
+                      <span className="w-[96px] shrink-0 whitespace-nowrap text-[13px]" style={{ color: 'var(--color-body)' }}>
+                        {cat.emoji}
+                        {' '}
+                        {cat.name}
+                      </span>
+                      <div className="flex-1">
+                        <div
+                          className="h-[10px] w-full overflow-hidden rounded-full"
+                          style={{ background: 'var(--color-surface-strong)' }}
+                        >
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${cat.percent}%`, background: cat.color }}
+                          />
+                        </div>
+                      </div>
+                      <span className="w-[56px] shrink-0 text-right text-[13px]" style={{ color: 'var(--color-body)' }}>
+                        {cat.amount.toLocaleString()}
+                      </span>
+                      <span className="w-[36px] shrink-0 text-right text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+                        {cat.percent}
+                        %
+                      </span>
                     </div>
-                  </div>
-                  <span className="w-[56px] shrink-0 text-right text-[13px]" style={{ color: 'var(--color-body)' }}>
-                    {cat.amount.toLocaleString()}
-                  </span>
-                  <span className="w-[36px] shrink-0 text-right text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-                    {cat.percent}
-                    %
-                  </span>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+              )
+            : (
+                <div className="py-2 text-center text-[13px]" style={{ color: 'var(--color-muted-soft)' }}>
+                  暂无可统计数据
+                </div>
+              )}
+        </div>
+      </section>
 
       {/* Monthly Trend */}
       <section className="mb-8">
-        <h2
-          className="mb-3 text-[15px] font-medium"
-          style={{ color: 'var(--color-ink)' }}
-        >
-          月度趋势
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2
+            className="text-[15px] font-medium"
+            style={{ color: 'var(--color-ink)' }}
+          >
+            月度趋势
+          </h2>
+          {renderStatsToggle()}
+        </div>
         <div
           className="rounded-xl px-4 py-4"
           style={{ background: 'var(--color-surface-card)' }}
@@ -189,7 +226,7 @@ export default function Dashboard() {
                   <ChartTooltipContent
                     formatter={(value) => {
                       const num = typeof value === 'number' ? value : Number(value)
-                      return `${num.toLocaleString()} 元/月`
+                      return `${num.toLocaleString()} 元`
                     }}
                   />
                 )}
