@@ -1,23 +1,49 @@
-import type { Route } from './+types/forgot-password'
+import type { Route } from './+types/account.update-password'
 
-import { Link, useFetcher } from 'react-router'
-import { forgotPasswordSchema } from '~/lib/auth.schema'
+import { IconEye, IconEyeOff } from '@tabler/icons-react'
+import { useState } from 'react'
+import { Link, redirect, useFetcher } from 'react-router'
+import { z } from 'zod'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
-export async function action({ request }: Route.ActionArgs) {
-  const { supabase } = createSupabaseServerClient(request)
-  const formData = await request.formData()
+const updatePasswordSchema = z
+  .object({
+    password: z.string().min(1, '请输入新密码').min(8, '密码至少 8 位'),
+    confirmPassword: z.string().min(1, '请确认密码'),
+  })
+  .refine(data => data.password === data.confirmPassword, {
+    message: '两次输入的密码不一致',
+    path: ['confirmPassword'],
+  })
 
-  const raw = { email: formData.get('email') }
-  const parsed = forgotPasswordSchema.safeParse(raw)
+export async function loader({ request }: Route.LoaderArgs) {
+  const { supabase, headers } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return redirect('/login', { headers })
+  }
+  return new Response(null, { headers })
+}
+
+export async function action({ request }: Route.ActionArgs) {
+  const { supabase, headers } = createSupabaseServerClient(request)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return redirect('/login', { headers })
+  }
+
+  const formData = await request.formData()
+  const raw = {
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+  }
+
+  const parsed = updatePasswordSchema.safeParse(raw)
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${new URL(request.url).origin}/auth/callback?next=${encodeURIComponent('/account/update-password')}`,
-  })
-
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
   if (error) {
     return { error: error.message }
   }
@@ -25,8 +51,9 @@ export async function action({ request }: Route.ActionArgs) {
   return { success: true }
 }
 
-export default function ForgotPassword() {
+export default function UpdatePassword() {
   const fetcher = useFetcher<{ error?: string, success?: boolean }>()
+  const [showPassword, setShowPassword] = useState(false)
   const isSubmitting = fetcher.state !== 'idle'
 
   if (fetcher.data?.success) {
@@ -62,13 +89,14 @@ export default function ForgotPassword() {
             }}
           >
             <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-ink)' }}>
-              重置链接已发送
+              密码已更新
             </p>
             <p style={{ fontSize: 14, color: 'var(--color-muted)', marginTop: 8 }}>
-              请查看你的邮箱，点击链接重置密码。
+              你可以用新密码继续使用 Holdly。
             </p>
-            <Link to="/login">
+            <Link to="/dashboard">
               <button
+                type="button"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -91,7 +119,7 @@ export default function ForgotPassword() {
                 onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.98)')}
                 onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
               >
-                返回登录
+                进入应用
               </button>
             </Link>
           </div>
@@ -114,7 +142,6 @@ export default function ForgotPassword() {
       }}
     >
       <div style={{ width: '100%', maxWidth: 360 }}>
-        {/* Brand */}
         <div
           style={{
             fontFamily: 'var(--font-display)',
@@ -134,15 +161,13 @@ export default function ForgotPassword() {
             marginBottom: 8,
           }}
         >
-          重置密码
+          设置新密码
         </div>
         <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 32 }}>
-          输入注册邮箱，我们会发送重置链接到你的邮箱。
+          输入你想要的新密码，至少 8 位。
         </p>
 
-        {/* Auth group */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
-          {/* Error */}
           {fetcher.data?.error && (
             <div
               style={{
@@ -169,12 +194,80 @@ export default function ForgotPassword() {
                   marginBottom: 6,
                 }}
               >
-                注册邮箱
+                新密码
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="至少 8 位"
+                  style={{
+                    width: '100%',
+                    height: 44,
+                    padding: '0 40px 0 12px',
+                    background: 'var(--color-canvas)',
+                    border: '1px solid var(--color-hairline)',
+                    borderRadius: 10,
+                    fontSize: 15,
+                    color: 'var(--color-ink)',
+                    outline: 'none',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-primary)'
+                    e.currentTarget.style.boxShadow = '0 0 0 3px var(--color-primary-muted)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-hairline)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                  required
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-muted)',
+                    cursor: 'pointer',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  {showPassword
+                    ? (
+                        <IconEyeOff size={18} />
+                      )
+                    : (
+                        <IconEye size={18} />
+                      )}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--color-muted)',
+                  marginBottom: 6,
+                }}
+              >
+                确认新密码
               </label>
               <input
-                name="email"
-                type="email"
-                placeholder="your@email.com"
+                name="confirmPassword"
+                type="password"
+                placeholder="再次输入新密码"
                 style={{
                   width: '100%',
                   height: 44,
@@ -196,6 +289,7 @@ export default function ForgotPassword() {
                   e.currentTarget.style.boxShadow = 'none'
                 }}
                 required
+                minLength={8}
               />
             </div>
 
@@ -224,24 +318,9 @@ export default function ForgotPassword() {
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.98)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
-              {isSubmitting ? '发送中...' : '发送重置链接'}
+              {isSubmitting ? '更新中...' : '更新密码'}
             </button>
           </fetcher.Form>
-
-          {/* Footer */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              gap: 24,
-              marginTop: 20,
-              fontSize: 14,
-            }}
-          >
-            <Link to="/login" style={{ color: 'var(--color-primary)' }}>
-              返回登录
-            </Link>
-          </div>
         </div>
       </div>
     </div>

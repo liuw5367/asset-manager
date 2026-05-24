@@ -5,19 +5,19 @@ import {
   IconLayoutDashboard,
   IconSettings,
 } from '@tabler/icons-react'
-import { NavLink, Outlet, redirect, useLocation } from 'react-router'
+import { data, NavLink, Outlet, redirect, useLocation } from 'react-router'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
     const url = new URL(request.url)
-    return redirect(`/login?next=${encodeURIComponent(url.pathname)}`)
+    return redirect(`/login?next=${encodeURIComponent(url.pathname)}`, { headers })
   }
 
-  return { user: { id: user.id, email: user.email } }
+  return data({ user: { id: user.id, email: user.email } }, { headers })
 }
 
 const navItems = [

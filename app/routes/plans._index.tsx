@@ -1,5 +1,5 @@
 import type { Route } from './+types/plans._index'
-import { Link, redirect, useLoaderData } from 'react-router'
+import { data, Link, redirect, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { getPlanSummariesByUserId } from '~/db/queries/plans'
@@ -7,13 +7,13 @@ import { getPlanAvatarToneByIndex } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const plans = await getPlanSummariesByUserId(user.id)
-  return { plans }
+  return data({ plans }, { headers })
 }
 
 export default function PlansIndex() {

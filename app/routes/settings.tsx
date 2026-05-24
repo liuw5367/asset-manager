@@ -13,7 +13,7 @@ import {
 import EmojiPicker from 'emoji-picker-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
-import { Link, redirect, useFetcher, useLoaderData } from 'react-router'
+import { data, Link, redirect, useFetcher, useLoaderData } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
@@ -31,10 +31,10 @@ import {
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const [profile, categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
     getSettingsProfileByUserId(user.id),
@@ -44,7 +44,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     getSettingsPaymentAccountsByUserId(user.id),
   ])
 
-  return {
+  return data({
     profile: {
       displayName: profile?.displayName?.trim() || user.user_metadata?.display_name || user.email?.split('@')[0] || '用户',
       email: profile?.email || user.email || '',
@@ -57,14 +57,14 @@ export async function loader({ request }: Route.LoaderArgs) {
       paymentTypes: paymentTypes.length,
       paymentAccounts: paymentAccounts.length,
     },
-  }
+  }, { headers })
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = String(formData.get('intent') || '')
@@ -79,19 +79,19 @@ export async function action({ request }: Route.ActionArgs) {
     const avatarEmoji = String(formData.get('avatarEmoji') || '').trim()
 
     if (!displayName) {
-      return { ok: false, intent, error: '昵称不能为空' }
+      return data({ ok: false, intent, error: '昵称不能为空' }, { headers })
     }
 
     if (displayName.length > 30) {
-      return { ok: false, intent, error: '昵称最多 30 个字符' }
+      return data({ ok: false, intent, error: '昵称最多 30 个字符' }, { headers })
     }
 
     await updateSettingsProfile(user.id, { displayName, avatarEmoji })
 
-    return { ok: true, intent }
+    return data({ ok: true, intent, error: undefined }, { headers })
   }
 
-  return { ok: false, intent, error: '不支持的操作' }
+  return data({ ok: false, intent, error: '不支持的操作' }, { headers })
 }
 
 const modes = [

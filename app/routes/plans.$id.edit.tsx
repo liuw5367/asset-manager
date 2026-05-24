@@ -1,34 +1,34 @@
 import type { Route } from './+types/plans.$id.edit'
-import { redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 import { PlanEditorPage } from './plans.editor-page'
 import { handlePlanEditorAction, loadPlanEditorData } from './plans.shared'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const origin = new URL(request.url).origin
-  const data = await loadPlanEditorData({
+  const editorData = await loadPlanEditorData({
     planId: params.id,
     userId: user.id,
     origin,
     userEmail: user.email,
   })
 
-  if (!data)
+  if (!editorData)
     throw new Response('Not Found', { status: 404 })
 
-  return data
+  return loaderDataFn(editorData, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const origin = new URL(request.url).origin
@@ -44,10 +44,10 @@ export async function action({ request, params }: Route.ActionArgs) {
     if (result.intent === 'save-plan')
       return redirect(`/plans/${result.planId}`, { headers })
 
-    return result
+    return loaderDataFn(result, { headers })
   }
   catch (error) {
-    return { error: error instanceof Error ? error.message : '操作失败' }
+    return loaderDataFn({ error: error instanceof Error ? error.message : '操作失败' }, { headers })
   }
 }
 

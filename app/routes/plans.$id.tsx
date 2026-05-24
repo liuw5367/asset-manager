@@ -9,7 +9,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Form, Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { data, Form, Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
@@ -52,10 +52,10 @@ function currentMonthKey() {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const detail = await getPlanDetailById(params.id, user.id)
   if (!detail)
@@ -64,18 +64,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const origin = new URL(request.url).origin
   const activeInvite = detail.canManage ? await getActiveInviteLink(params.id, user.id) : null
 
-  return {
+  return data({
     ...detail,
     inviteLink: activeInvite ? `${origin}/plans/invite/${activeInvite.token}` : null,
     inviteExpiresAt: activeInvite?.expiresAt?.toISOString() || null,
-  }
+  }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = formData.get('intent')
@@ -89,25 +89,25 @@ export async function action({ request, params }: Route.ActionArgs) {
     const origin = new URL(request.url).origin
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const { token } = await regenerateInviteLink(params.id, user.id, expiresAt)
-    return {
+    return data({
       ok: true,
       intent,
       inviteLink: `${origin}/plans/invite/${token}`,
       inviteExpiresAt: expiresAt.toISOString(),
-    }
+    }, { headers })
   }
 
   if (intent === 'revoke-invite') {
     await revokeInviteLink(params.id, user.id)
-    return {
+    return data({
       ok: true,
       intent,
       inviteLink: null,
       inviteExpiresAt: null,
-    }
+    }, { headers })
   }
 
-  return null
+  return data(null, { headers })
 }
 
 export default function PlansDetail() {

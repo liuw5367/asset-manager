@@ -1,7 +1,7 @@
 import type { Route } from './+types/subscriptions.$id.edit'
 import { IconCheck } from '@tabler/icons-react'
 import { useRef } from 'react'
-import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
+import { data, redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
 import { SubPageHeader } from '~/components/page-header'
 import {
@@ -18,10 +18,10 @@ import { assetFormSchema } from '~/lib/asset.schema'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const userId = user.id
   const asset = await getAssetById(params.id, userId)
@@ -39,14 +39,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(userId),
   ])
 
-  return { asset, tagIds, categories, tags, paymentTypes, paymentAccounts }
+  return data({ asset, tagIds, categories, tags, paymentTypes, paymentAccounts }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const raw = Object.fromEntries(formData)

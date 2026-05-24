@@ -4,34 +4,41 @@ import { IconEye, IconEyeOff } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { Link, redirect, useFetcher } from 'react-router'
 import { loginSchema } from '~/lib/auth.schema'
+import { safeRedirect } from '~/lib/redirect'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
+const OAUTH_PROVIDERS = ['github', 'google'] as const
+type OAuthProvider = typeof OAUTH_PROVIDERS[number]
+
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   const url = new URL(request.url)
   const next = url.searchParams.get('next')
-  const safeNext = next && next.startsWith('/') ? next : null
   if (user) {
-    return redirect(safeNext || '/dashboard')
+    return redirect(safeRedirect(next, '/dashboard'), { headers })
   }
-  return null
+  return new Response(null, { headers })
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const url = new URL(request.url)
   const next = url.searchParams.get('next')
-  const safeNext = next && next.startsWith('/') ? next : null
+  const target = safeRedirect(next, '/dashboard')
   const formData = await request.formData()
   const intent = formData.get('intent')
 
   if (intent === 'oauth') {
-    const provider = formData.get('provider') as 'github' | 'google'
+    const provider = formData.get('provider')
+    if (typeof provider !== 'string' || !OAUTH_PROVIDERS.includes(provider as OAuthProvider)) {
+      return { error: '不支持的登录方式' }
+    }
+    const callbackQuery = next && safeRedirect(next, '') ? `?next=${encodeURIComponent(target)}` : ''
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: provider as OAuthProvider,
       options: {
-        redirectTo: `${new URL(request.url).origin}/auth/callback${safeNext ? `?next=${encodeURIComponent(safeNext)}` : ''}`,
+        redirectTo: `${url.origin}/auth/callback${callbackQuery}`,
       },
     })
     if (error) {
@@ -55,7 +62,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: error.message === 'Invalid login credentials' ? '邮箱或密码错误' : error.message }
   }
 
-  return redirect(safeNext || '/dashboard', { headers })
+  return redirect(target, { headers })
 }
 
 export default function Login() {

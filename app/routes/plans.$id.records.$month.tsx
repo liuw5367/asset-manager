@@ -6,7 +6,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Form, Link, redirect, useActionData, useLoaderData, useNavigation } from 'react-router'
+import { Form, Link, data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation } from 'react-router'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import {
@@ -26,10 +26,10 @@ import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const [yearStr, monthStr] = (params.month ?? '').split('-')
   const year = Number(yearStr)
@@ -38,29 +38,29 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!Number.isFinite(year) || !Number.isFinite(month))
     throw new Response('Not Found', { status: 404 })
 
-  const data = await getPlanRecordDetail(params.id, user.id, year, month)
-  if (!data)
+  const recordData = await getPlanRecordDetail(params.id, user.id, year, month)
+  if (!recordData)
     throw new Response('Not Found', { status: 404 })
 
-  return data
+  return loaderDataFn(recordData, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = formData.get('intent')
 
   if (intent !== 'delete-record')
-    return null
+    return loaderDataFn(null, { headers })
 
   const confirmMonth = String(formData.get('confirmMonth') || '').trim()
   const expectedMonth = String(params.month || '')
   if (confirmMonth !== expectedMonth)
-    return { error: `请输入正确的归属月份 ${expectedMonth}` }
+    return loaderDataFn({ error: `请输入正确的归属月份 ${expectedMonth}` }, { headers })
 
   const [yearStr, monthStr] = expectedMonth.split('-')
   const year = Number(yearStr)

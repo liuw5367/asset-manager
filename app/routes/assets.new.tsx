@@ -1,7 +1,7 @@
 import type { Route } from './+types/assets.new'
 import { IconCheck } from '@tabler/icons-react'
 import { useRef } from 'react'
-import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
+import { data, redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
 import { SubPageHeader } from '~/components/page-header'
 import {
@@ -23,10 +23,10 @@ function getModeFromPath(pathname: string): FormMode {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const userId = user.id
   const [categories, tags, paymentTypes, paymentAccounts] = await Promise.all([
@@ -38,14 +38,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const mode = getModeFromPath(new URL(request.url).pathname)
 
-  return { categories, tags, paymentTypes, paymentAccounts, mode }
+  return data({ categories, tags, paymentTypes, paymentAccounts, mode }, { headers })
 }
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const raw = Object.fromEntries(formData)
@@ -74,30 +74,30 @@ export async function action({ request }: Route.ActionArgs) {
   const parsed = assetFormSchema.safeParse(baseData)
 
   if (!parsed.success) {
-    return { errors: parsed.error.flatten().fieldErrors }
+    return data({ errors: parsed.error.flatten().fieldErrors }, { headers })
   }
 
-  const data = parsed.data
+  const validated = parsed.data
   const assetId = await createAsset({
     userId: user.id,
-    name: data.name,
-    emoji: data.emoji,
-    categoryId: data.categoryId,
-    assetType: data.assetType,
-    paymentTypeId: data.paymentTypeId,
-    paymentAccountId: data.paymentAccountId,
-    notes: data.notes,
-    tagIds: data.tagIds,
-    purchasePrice: data.purchasePrice,
-    currentValue: data.currentValue,
-    purchaseDate: data.purchaseDate,
-    subscriptionPrice: data.subscriptionPrice,
-    billingCycle: data.billingCycle,
-    nextRenewalDate: data.nextRenewalDate,
-    subscriptionStartDate: data.subscriptionStartDate,
+    name: validated.name,
+    emoji: validated.emoji,
+    categoryId: validated.categoryId,
+    assetType: validated.assetType,
+    paymentTypeId: validated.paymentTypeId,
+    paymentAccountId: validated.paymentAccountId,
+    notes: validated.notes,
+    tagIds: validated.tagIds,
+    purchasePrice: validated.purchasePrice,
+    currentValue: validated.currentValue,
+    purchaseDate: validated.purchaseDate,
+    subscriptionPrice: validated.subscriptionPrice,
+    billingCycle: validated.billingCycle,
+    nextRenewalDate: validated.nextRenewalDate,
+    subscriptionStartDate: validated.subscriptionStartDate,
   })
 
-  return redirect(getAssetDetailPath({ id: assetId, assetType: data.assetType }), { headers })
+  return redirect(getAssetDetailPath({ id: assetId, assetType: validated.assetType }), { headers })
 }
 
 export default function AssetsNew() {

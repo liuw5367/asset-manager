@@ -1,7 +1,7 @@
 import type { Route } from './+types/assets.$id.edit'
 import { IconCheck } from '@tabler/icons-react'
 import { useRef } from 'react'
-import { redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
+import { data, redirect, useActionData, useLoaderData, useSubmit } from 'react-router'
 import { AssetForm } from '~/components/asset-form'
 import { SubPageHeader } from '~/components/page-header'
 import {
@@ -24,10 +24,10 @@ function getModeFromPath(pathname: string): FormMode {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const userId = user.id
   const assetId = params.id
@@ -49,14 +49,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (mode !== expectedMode)
     throw redirect(getAssetEditPath(asset))
 
-  return { asset, tagIds, categories, tags, paymentTypes, paymentAccounts, mode }
+  return data({ asset, tagIds, categories, tags, paymentTypes, paymentAccounts, mode }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const mode = getModeFromPath(new URL(request.url).pathname)
   const formData = await request.formData()
@@ -84,28 +84,28 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   const parsed = assetFormSchema.safeParse(baseData)
   if (!parsed.success)
-    return { errors: parsed.error.flatten().fieldErrors }
+    return data({ errors: parsed.error.flatten().fieldErrors }, { headers })
 
-  const data = parsed.data
+  const validated = parsed.data
   await updateAsset(params.id, user.id, {
-    name: data.name,
-    emoji: data.emoji,
-    categoryId: data.categoryId,
-    assetType: data.assetType,
-    paymentTypeId: data.paymentTypeId,
-    paymentAccountId: data.paymentAccountId,
-    notes: data.notes,
-    tagIds: data.tagIds,
-    purchasePrice: data.purchasePrice,
-    currentValue: data.currentValue,
-    purchaseDate: data.purchaseDate,
-    subscriptionPrice: data.subscriptionPrice,
-    billingCycle: data.billingCycle,
-    nextRenewalDate: data.nextRenewalDate,
-    subscriptionStartDate: data.subscriptionStartDate,
+    name: validated.name,
+    emoji: validated.emoji,
+    categoryId: validated.categoryId,
+    assetType: validated.assetType,
+    paymentTypeId: validated.paymentTypeId,
+    paymentAccountId: validated.paymentAccountId,
+    notes: validated.notes,
+    tagIds: validated.tagIds,
+    purchasePrice: validated.purchasePrice,
+    currentValue: validated.currentValue,
+    purchaseDate: validated.purchaseDate,
+    subscriptionPrice: validated.subscriptionPrice,
+    billingCycle: validated.billingCycle,
+    nextRenewalDate: validated.nextRenewalDate,
+    subscriptionStartDate: validated.subscriptionStartDate,
   })
 
-  return redirect(getAssetDetailPath({ id: params.id, assetType: data.assetType }), { headers })
+  return redirect(getAssetDetailPath({ id: params.id, assetType: validated.assetType }), { headers })
 }
 
 export default function AssetsEdit() {

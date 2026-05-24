@@ -2,7 +2,7 @@ import type { Route } from './+types/subscriptions.$id'
 import { IconBell, IconCheck, IconLoader2, IconPencil, IconPlayerPlay, IconPlayerStop, IconTrash, IconX } from '@tabler/icons-react'
 import { addMonths, addYears, format, isAfter } from 'date-fns'
 import { useMemo, useState } from 'react'
-import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { data, redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
 import {
   AlertDialog,
@@ -42,10 +42,10 @@ import { calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const asset = await getAssetById(params.id, user.id)
   if (!asset)
@@ -67,7 +67,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ? calcSubscriptionDailyCost(Number(asset.subscriptionPrice), asset.billingCycle)
     : 0
 
-  return {
+  return data({
     asset,
     tagIds,
     allCategories,
@@ -76,14 +76,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     paymentAccounts,
     holdingDays,
     dailyCost,
-  }
+  }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = String(formData.get('intent') || '')
@@ -91,12 +91,12 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (intent === 'cancel') {
     const stoppedAt = String(formData.get('stoppedAt') || '')
     await stopSubscription(params.id, user.id, stoppedAt)
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'resume') {
     await resumeSubscription(params.id, user.id)
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'delete') {
@@ -104,7 +104,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect('/assets', { headers })
   }
 
-  return { ok: false }
+  return data({ ok: false }, { headers })
 }
 
 function calcNextRenewalDate(startDate?: string | null, cycle?: 'monthly' | 'quarterly' | 'yearly' | null) {

@@ -2,7 +2,7 @@ import type { Route } from './+types/dashboard'
 import type { ChartConfig } from '~/components/ui/chart'
 import { IconX } from '@tabler/icons-react'
 import { useState } from 'react'
-import { redirect, useLoaderData, useNavigate } from 'react-router'
+import { data as loaderDataFn, redirect, useLoaderData, useNavigate } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
@@ -15,12 +15,13 @@ import { getDashboardData } from '~/db/queries/dashboard'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
-  return getDashboardData(user.id)
+  const result = await getDashboardData(user.id)
+  return loaderDataFn(result, { headers })
 }
 
 const trendChartConfig = {

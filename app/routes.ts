@@ -15,6 +15,7 @@ export default [
   route('auth/callback', 'routes/auth.callback.tsx'),
 
   layout('components/layout/app-shell.tsx', [
+    route('account/update-password', 'routes/account.update-password.tsx'),
     route('dashboard', 'routes/dashboard.tsx'),
     route('assets', 'routes/assets._index.tsx'),
     route('assets/new', 'routes/assets.new.tsx'),

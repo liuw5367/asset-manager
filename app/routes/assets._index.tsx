@@ -1,7 +1,7 @@
 import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { redirect, useLoaderData, useNavigate } from 'react-router'
+import { data, redirect, useLoaderData, useNavigate } from 'react-router'
 import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -22,10 +22,10 @@ import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const userId = user.id
   const [rawAssets, categories, tags, assetTagRows] = await Promise.all([
@@ -58,7 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     assetTagMap[row.assetId].push({ id: row.tagId, name: row.tagName, color: row.tagColor })
   }
 
-  return { assets: assetsWithCost, categories, tags, assetTagMap }
+  return data({ assets: assetsWithCost, categories, tags, assetTagMap }, { headers })
 }
 
 type SortOption = 'default' | 'price_asc' | 'price_desc' | 'cost_asc' | 'cost_desc' | 'date_desc' | 'date_asc'

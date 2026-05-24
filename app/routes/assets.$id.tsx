@@ -2,7 +2,7 @@ import type { Route } from './+types/assets.$id'
 import { IconBell, IconCheck, IconCoin, IconLoader2, IconPencil, IconPlus, IconRefresh, IconTrash, IconX } from '@tabler/icons-react'
 import currency from 'currency.js'
 import React, { useMemo, useState } from 'react'
-import { redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
+import { data, redirect, useLoaderData, useNavigate, useNavigation, useSubmit } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
 import {
   AlertDialog,
@@ -56,10 +56,10 @@ import { calcOneTimeDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const userId = user.id
   const assetId = params.id
@@ -90,7 +90,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       : calcOneTimeDailyCost(Number(asset.purchasePrice), asset.purchaseDate || new Date().toISOString().split('T')[0])
     : 0
 
-  return {
+  return data({
     asset,
     tagIds,
     warranty,
@@ -103,14 +103,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     paymentAccounts,
     tradedFromAsset,
     tradeToAsset,
-  }
+  }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = formData.get('intent') as string
@@ -125,7 +125,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     const tradeInPrice = formData.get('tradeInPrice') as string
     const tradedInAt = formData.get('tradedInAt') as string
     await markAssetAsTradedIn(assetId, user.id, tradeInPrice, tradedInAt)
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'add-repair') {
@@ -138,7 +138,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       result: (formData.get('result') as string) || undefined,
       isDone: formData.get('isDone') === 'true',
     })
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'update-repair') {
@@ -151,13 +151,13 @@ export async function action({ request, params }: Route.ActionArgs) {
       result: (formData.get('result') as string) || undefined,
       isDone: formData.get('isDone') === 'true',
     })
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'delete-repair') {
     const repairId = formData.get('repairId') as string
     await deleteRepairRecord(repairId)
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
   if (intent === 'upsert-warranty') {
@@ -166,7 +166,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     const notes = String(formData.get('notes') || '')
 
     if (!startDate || !endDate)
-      return { ok: false, error: '保修开始和结束日期不能为空' }
+      return data({ ok: false, error: '保修开始和结束日期不能为空' }, { headers })
 
     await upsertWarranty({
       assetId,
@@ -175,10 +175,10 @@ export async function action({ request, params }: Route.ActionArgs) {
       notes: notes || undefined,
     })
 
-    return { ok: true }
+    return data({ ok: true }, { headers })
   }
 
-  return { ok: false }
+  return data({ ok: false }, { headers })
 }
 
 export default function AssetDetailPage() {

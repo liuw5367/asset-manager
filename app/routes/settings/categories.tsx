@@ -9,7 +9,7 @@ import {
 } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
 import { useMemo, useState } from 'react'
-import { Form, redirect, useLoaderData, useNavigation } from 'react-router'
+import { data, Form, redirect, useLoaderData, useNavigation } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -24,20 +24,20 @@ import {
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const categories = await getSettingsCategoriesByUserId(user.id)
-  return { categories }
+  return data({ categories }, { headers })
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const intent = String(formData.get('intent') || '')
@@ -46,32 +46,32 @@ export async function action({ request }: Route.ActionArgs) {
     const name = String(formData.get('name') || '').trim()
     const emoji = String(formData.get('emoji') || '📦').trim() || '📦'
     if (!name)
-      return { ok: false, intent, error: '分类名称不能为空' }
+      return data({ ok: false, intent, error: '分类名称不能为空' }, { headers })
 
     await createSettingsCategory(user.id, { name, emoji })
-    return { ok: true, intent }
+    return data({ ok: true, intent }, { headers })
   }
 
   if (intent === 'update') {
     const id = String(formData.get('id') || '')
     const name = String(formData.get('name') || '').trim()
     if (!id || !name)
-      return { ok: false, intent, error: '参数不完整' }
+      return data({ ok: false, intent, error: '参数不完整' }, { headers })
 
     await updateSettingsCategory(user.id, id, { name })
-    return { ok: true, intent }
+    return data({ ok: true, intent }, { headers })
   }
 
   if (intent === 'delete') {
     const id = String(formData.get('id') || '')
     if (!id)
-      return { ok: false, intent, error: '参数不完整' }
+      return data({ ok: false, intent, error: '参数不完整' }, { headers })
 
     await softDeleteSettingsCategory(user.id, id)
-    return { ok: true, intent }
+    return data({ ok: true, intent }, { headers })
   }
 
-  return { ok: false, intent, error: '不支持的操作' }
+  return data({ ok: false, intent, error: '不支持的操作' }, { headers })
 }
 
 export default function CategoriesPage() {

@@ -6,7 +6,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { Link, data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -47,10 +47,10 @@ interface EditableMemberNote {
 const CURRENT_YEAR = new Date().getFullYear()
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const [yearStr, monthStr] = (params.month ?? '').split('-')
   const year = Number(yearStr)
@@ -101,7 +101,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
           amount: '',
         })))
 
-    return {
+    return loaderDataFn({
       mode: 'edit' as const,
       blankMode: false,
       planId: params.id,
@@ -114,7 +114,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       recordUpdatedAt: recordData.record.updatedAt?.toISOString(),
       memberNotes: normalizedNotes,
       items: [...existingItems, ...missingDefaultItems],
-    }
+    }, { headers })
   }
 
   const defaultItems = planDetail.members.flatMap((member, memberIndex) =>
@@ -126,7 +126,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       amount: '',
     })))
 
-  return {
+  return loaderDataFn({
     mode: 'create' as const,
     blankMode,
     planId: params.id,
@@ -145,14 +145,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       avatarEmoji: member.avatarEmoji,
     })),
     items: defaultItems,
-  }
+  }, { headers })
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect('/login', { headers })
 
   const formData = await request.formData()
   const payloadText = String(formData.get('payload') || '')
@@ -162,12 +162,12 @@ export async function action({ request, params }: Route.ActionArgs) {
     payloadRaw = JSON.parse(payloadText)
   }
   catch {
-    return { error: '提交数据格式错误' }
+    return loaderDataFn({ error: '提交数据格式错误' }, { headers })
   }
 
   const parsed = planRecordPatchSchema.safeParse(payloadRaw)
   if (!parsed.success)
-    return { error: parsed.error.issues[0].message }
+    return loaderDataFn({ error: parsed.error.issues[0].message }, { headers })
 
   try {
     const result = await savePlanRecordPatch({
@@ -186,7 +186,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect(`/plans/${params.id}/records/${result.monthKey}`, { headers })
   }
   catch (error) {
-    return { error: error instanceof Error ? error.message : '保存失败' }
+    return loaderDataFn({ error: error instanceof Error ? error.message : '保存失败' }, { headers })
   }
 }
 

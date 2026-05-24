@@ -7,12 +7,12 @@ import { registerSchema } from '~/lib/auth.schema'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { supabase } = createSupabaseServerClient(request)
+  const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (user) {
-    return redirect('/dashboard')
+    return redirect('/dashboard', { headers })
   }
-  return null
+  return new Response(null, { headers })
 }
 
 export async function action({ request }: Route.ActionArgs) {
