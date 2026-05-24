@@ -121,6 +121,9 @@ interface PlanRecordPatchAccumulateInput extends PlanRecordPatchInputBase {
 
 interface PlanRecordPatchSnapshotInput extends PlanRecordPatchInputBase {
   mode: 'snapshot'
+  addedItems: Array<{ memberId: string, itemType: PlanItemType, name: string, amount: string }>
+  updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }>
+  deletedItems: Array<{ id: string, expectedUpdatedAt?: string }>
   recordedTotalValue: string
   memberNotes: Array<{ memberId: string, note: string, expectedUpdatedAt?: string }>
 }
@@ -302,8 +305,12 @@ function buildRecordViews(
   const ascendingViews = ascendingRecords.map((record, index) => {
     const items = itemMap.get(record.id) || []
     const memberNotes = noteMap.get(record.id) || []
-    let totalIncome = 0
-    let totalExpense = 0
+    const totalIncome = items
+      .filter(item => item.itemType === 'income')
+      .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
+    const totalExpense = items
+      .filter(item => item.itemType === 'expense')
+      .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
     let netIncome = 0
     let totalValue = startingValue
     let recordedTotalValue: number | null = null
@@ -314,17 +321,9 @@ function buildRecordViews(
       netIncome = index === 0
         ? currency(currentTotal).subtract(startingValue).value
         : currency(currentTotal).subtract(previousTotal).value
-      totalIncome = netIncome
-      totalExpense = 0
       totalValue = currentTotal
     }
     else {
-      totalIncome = items
-        .filter(item => item.itemType === 'income')
-        .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
-      totalExpense = items
-        .filter(item => item.itemType === 'expense')
-        .reduce((sum, item) => currency(sum).add(item.amount).value, 0)
       netIncome = currency(totalIncome).subtract(totalExpense).value
       totalValue = currency(previousTotal).add(netIncome).value
     }
@@ -821,71 +820,6 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
       }
     }
 
-    if (input.mode === 'snapshot') {
-      const snapshotTotalValue = toAmount(input.recordedTotalValue)
-      await tx
-        .update(planRecords)
-        .set({
-          recordedTotalValue: snapshotTotalValue.toFixed(2),
-          updatedAt: now,
-        })
-        .where(eq(planRecords.id, record.id))
-
-      const existingNotesAll = await tx
-        .select()
-        .from(planRecordMemberNotes)
-        .where(eq(planRecordMemberNotes.recordId, record.id))
-
-      const existingNotesMap = new Map(existingNotesAll.map(note => [note.memberId, note]))
-
-      for (const noteInput of input.memberNotes) {
-        assertMemberEditable(access.canEditAllItems, noteInput.memberId, input.userId)
-
-        const normalizedNote = noteInput.note.trim()
-        const existing = existingNotesMap.get(noteInput.memberId)
-
-        if (existing) {
-          if (noteInput.expectedUpdatedAt && existing.updatedAt) {
-            const expected = new Date(noteInput.expectedUpdatedAt).getTime()
-            const actual = new Date(existing.updatedAt).getTime()
-            if (expected !== actual)
-              throw new Error('成员备注已变更，请刷新后重试')
-          }
-
-          await tx
-            .update(planRecordMemberNotes)
-            .set({
-              note: normalizedNote,
-              deletedAt: normalizedNote ? null : now,
-              updatedAt: now,
-            })
-            .where(eq(planRecordMemberNotes.id, existing.id))
-          continue
-        }
-
-        if (!normalizedNote)
-          continue
-
-        await tx
-          .insert(planRecordMemberNotes)
-          .values({
-            recordId: record.id,
-            memberId: noteInput.memberId,
-            note: normalizedNote,
-          })
-      }
-
-      await tx
-        .update(planRecordItems)
-        .set({ deletedAt: now, updatedAt: now })
-        .where(and(eq(planRecordItems.recordId, record.id), isNull(planRecordItems.deletedAt)))
-
-      return {
-        recordId: record.id,
-        monthKey: formatMonthKey(input.year, input.month),
-      }
-    }
-
     const existingItems = await tx
       .select()
       .from(planRecordItems)
@@ -957,9 +891,58 @@ export async function savePlanRecordPatch(input: PlanRecordPatchInput): Promise<
         })
     }
 
+    if (input.mode === 'snapshot') {
+      const existingNotesAll = await tx
+        .select()
+        .from(planRecordMemberNotes)
+        .where(eq(planRecordMemberNotes.recordId, record.id))
+
+      const existingNotesMap = new Map(existingNotesAll.map(note => [note.memberId, note]))
+
+      for (const noteInput of input.memberNotes) {
+        assertMemberEditable(access.canEditAllItems, noteInput.memberId, input.userId)
+
+        const normalizedNote = noteInput.note.trim()
+        const existing = existingNotesMap.get(noteInput.memberId)
+
+        if (existing) {
+          if (noteInput.expectedUpdatedAt && existing.updatedAt) {
+            const expected = new Date(noteInput.expectedUpdatedAt).getTime()
+            const actual = new Date(existing.updatedAt).getTime()
+            if (expected !== actual)
+              throw new Error('成员备注已变更，请刷新后重试')
+          }
+
+          await tx
+            .update(planRecordMemberNotes)
+            .set({
+              note: normalizedNote,
+              deletedAt: normalizedNote ? null : now,
+              updatedAt: now,
+            })
+            .where(eq(planRecordMemberNotes.id, existing.id))
+          continue
+        }
+
+        if (!normalizedNote)
+          continue
+
+        await tx
+          .insert(planRecordMemberNotes)
+          .values({
+            recordId: record.id,
+            memberId: noteInput.memberId,
+            note: normalizedNote,
+          })
+      }
+    }
+
     await tx
       .update(planRecords)
-      .set({ recordedTotalValue: null, updatedAt: now })
+      .set({
+        recordedTotalValue: input.mode === 'snapshot' ? toAmount(input.recordedTotalValue).toFixed(2) : null,
+        updatedAt: now,
+      })
       .where(eq(planRecords.id, record.id))
 
     return {

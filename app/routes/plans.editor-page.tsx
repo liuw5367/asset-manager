@@ -314,60 +314,52 @@ export function PlanEditorPage({
         />
       </div>
 
-      {planMode === 'accumulate'
-        ? (
-            <div className="mb-5">
-              <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-                默认项目
-              </label>
-              <div className="flex flex-col gap-2">
-                {defaultItems.map(item => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
-                    style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
-                  >
-                    <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium" style={{ background: item.itemType === 'income' ? 'var(--color-success)' : 'var(--color-error)', color: '#fff', opacity: 0.85 }}>
-                      {item.itemType === 'income' ? '收入' : '支出'}
-                    </span>
-                    <span className="text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
-                    <Button type="button" variant="ghost" size="icon-sm" className="ml-auto" onClick={() => removeDefaultItem(item.id)}>
-                      <IconTrash size={14} />
-                    </Button>
-                  </div>
-                ))}
+      <div className="mb-5">
+        <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+          默认项目
+        </label>
+        <div className="flex flex-col gap-2">
+          {defaultItems.map(item => (
+            <div
+              key={item.id}
+              className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
+              style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
+            >
+              <span className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium" style={{ background: item.itemType === 'income' ? 'var(--color-success)' : 'var(--color-error)', color: '#fff', opacity: 0.85 }}>
+                {item.itemType === 'income' ? '收入' : '支出'}
+              </span>
+              <span className="text-sm" style={{ color: 'var(--color-ink)' }}>{item.name}</span>
+              <Button type="button" variant="ghost" size="icon-sm" className="ml-auto" onClick={() => removeDefaultItem(item.id)}>
+                <IconTrash size={14} />
+              </Button>
+            </div>
+          ))}
 
-                <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2.5" style={{ borderColor: 'var(--color-hairline)' }}>
-                  <Select value={newItemType} onValueChange={v => setNewItemType((v || 'income') as 'income' | 'expense')}>
-                    <SelectTrigger className="h-8 w-20">
-                      <SelectValue>{value => value === 'expense' ? '支出' : '收入'}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="income">收入</SelectItem>
-                        <SelectItem value="expense">支出</SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="text"
-                    value={newItemName}
-                    onChange={e => setNewItemName(e.target.value)}
-                    placeholder="项目名称"
-                    className="h-8 flex-1"
-                  />
-                  <Button type="button" variant="ghost" size="icon-sm" onClick={addDefaultItem}>
-                    <IconPlus size={16} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )
-        : (
-            <div className="mb-5 text-xs" style={{ color: 'var(--color-muted)' }}>
-              总额记录模式下，不使用默认收入/支出项目。
-            </div>
-          )}
+          <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2.5" style={{ borderColor: 'var(--color-hairline)' }}>
+            <Select value={newItemType} onValueChange={v => setNewItemType((v || 'income') as 'income' | 'expense')}>
+              <SelectTrigger className="h-8 w-20">
+                <SelectValue>{value => value === 'expense' ? '支出' : '收入'}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="income">收入</SelectItem>
+                  <SelectItem value="expense">支出</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              value={newItemName}
+              onChange={e => setNewItemName(e.target.value)}
+              placeholder="项目名称"
+              className="h-8 flex-1"
+            />
+            <Button type="button" variant="ghost" size="icon-sm" onClick={addDefaultItem}>
+              <IconPlus size={16} />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {actionData?.error && (
         <div className="text-sm" style={{ color: 'var(--color-error)' }}>
