@@ -11,6 +11,16 @@ import {
 import { useState } from 'react'
 import { Form, Link, redirect, useLoaderData, useNavigation } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '~/components/ui/alert-dialog'
 import { Button } from '~/components/ui/button'
 import {
   ChartContainer,
@@ -83,6 +93,7 @@ export default function PlansDetail() {
   const detail = useLoaderData<typeof loader>()
   const navigation = useNavigation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const isSubmittingDelete = navigation.state !== 'idle'
     && navigation.formData?.get('intent') === 'delete-plan'
@@ -129,18 +140,19 @@ export default function PlansDetail() {
                     borderColor: 'var(--color-hairline)',
                   }}
                 >
-                  <Form method="post" onSubmit={() => setMenuOpen(false)}>
-                    <input type="hidden" name="intent" value="delete-plan" />
-                    <button
-                      type="submit"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
-                      style={{ color: 'var(--color-error)' }}
-                      disabled={isSubmittingDelete}
-                    >
-                      <IconTrash size={14} />
-                      {isSubmittingDelete ? '删除中...' : '删除计划'}
-                    </button>
-                  </Form>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
+                    style={{ color: 'var(--color-error)' }}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setDeleteDialogOpen(true)
+                    }}
+                    disabled={isSubmittingDelete}
+                  >
+                    <IconTrash size={14} />
+                    {isSubmittingDelete ? '删除中...' : '删除计划'}
+                  </button>
                 </div>
               )}
             </div>
@@ -354,6 +366,28 @@ export default function PlansDetail() {
           )}
         </div>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除计划</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后不可恢复，计划下所有月度记录将一并隐藏。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="secondary" className="h-10">
+              取消
+            </AlertDialogCancel>
+            <Form method="post">
+              <input type="hidden" name="intent" value="delete-plan" />
+              <AlertDialogAction type="submit" variant="destructive" className="h-10" disabled={isSubmittingDelete}>
+                {isSubmittingDelete ? '删除中...' : '确认删除'}
+              </AlertDialogAction>
+            </Form>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

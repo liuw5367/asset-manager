@@ -39,6 +39,7 @@ interface EditableMemberNote {
   note: string
   expectedUpdatedAt?: string
   displayName: string
+  avatarEmoji: string
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -62,9 +63,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (!planDetail)
     throw new Response('Not Found', { status: 404 })
 
-  const currentUserMember = planDetail.members.find(m => m.userId === user.id)
-  const defaultMemberId = currentUserMember?.userId || planDetail.members[0]?.userId || user.id
-
   if (recordData) {
     const existingNoteMap = new Map(recordData.record.memberNotes.map(note => [note.memberId, note]))
     const normalizedNotes = planDetail.members.map((member) => {
@@ -74,8 +72,29 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         note: existing?.note || '',
         expectedUpdatedAt: existing?.updatedAt ? existing.updatedAt.toISOString() : undefined,
         displayName: member.displayName,
+        avatarEmoji: member.avatarEmoji,
       }
     })
+
+    const existingItems = recordData.record.items.map(item => ({
+      id: item.id,
+      itemType: item.itemType,
+      memberId: item.memberId,
+      name: item.name,
+      amount: Number(item.amount) === 0 ? '' : String(item.amount),
+      expectedUpdatedAt: item.updatedAt?.toISOString(),
+    }))
+    const existingDefaultKeys = new Set(existingItems.map(item => `${item.memberId}::${item.itemType}::${item.name}`))
+    const missingDefaultItems = planDetail.members.flatMap((member, memberIndex) =>
+      planDetail.defaultItems
+        .filter(item => !existingDefaultKeys.has(`${member.userId}::${item.itemType}::${item.name}`))
+        .map((item, itemIndex) => ({
+          id: `new-default-${memberIndex}-${itemIndex}`,
+          itemType: item.itemType,
+          memberId: member.userId,
+          name: item.name,
+          amount: '',
+        })))
 
     return {
       mode: 'edit' as const,
@@ -89,24 +108,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       recordUpdatedAt: recordData.record.updatedAt?.toISOString(),
       recordedTotalValue: String(recordData.record.recordedTotalValue ?? recordData.record.totalValue ?? planDetail.startingValue),
       memberNotes: normalizedNotes,
-      items: recordData.record.items.map(item => ({
-        id: item.id,
-        itemType: item.itemType,
-        memberId: item.memberId,
-        name: item.name,
-        amount: String(item.amount),
-        expectedUpdatedAt: item.updatedAt?.toISOString(),
-      })),
+      items: [...existingItems, ...missingDefaultItems],
     }
   }
 
-  const defaultItems = planDetail.defaultItems.map((item, index) => ({
-    id: `new-default-${index}`,
-    itemType: item.itemType,
-    memberId: defaultMemberId,
-    name: item.name,
-    amount: '0',
-  }))
+  const defaultItems = planDetail.members.flatMap((member, memberIndex) =>
+    planDetail.defaultItems.map((item, itemIndex) => ({
+      id: `new-default-${memberIndex}-${itemIndex}`,
+      itemType: item.itemType,
+      memberId: member.userId,
+      name: item.name,
+      amount: '',
+    })))
 
   return {
     mode: 'create' as const,
@@ -124,6 +137,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       note: '',
       expectedUpdatedAt: undefined,
       displayName: member.displayName,
+      avatarEmoji: member.avatarEmoji,
     })),
     items: defaultItems,
   }
@@ -162,6 +176,7 @@ export async function action({ request, params }: Route.ActionArgs) {
           addedItems: parsed.data.addedItems,
           updatedItems: parsed.data.updatedItems,
           deletedItems: parsed.data.deletedItems,
+          memberNotes: parsed.data.memberNotes,
         })
       : await savePlanRecordPatch({
           planId: params.id,
@@ -230,7 +245,7 @@ export default function PlansRecordsMonthEdit() {
       itemType: type,
       memberId,
       name: '',
-      amount: '0',
+      amount: '',
     }])
   }
 
@@ -257,8 +272,13 @@ export default function PlansRecordsMonthEdit() {
     const updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }> = []
 
     for (const item of items) {
+      const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
       const amountText = item.amount.trim() || '0'
       if (item.id.startsWith('new-')) {
+        if (!editable)
+          continue
+        if (item.id.startsWith('new-default-') && item.amount.trim() === '')
+          continue
         if (!item.name.trim())
           continue
         addedItems.push({
@@ -272,6 +292,8 @@ export default function PlansRecordsMonthEdit() {
 
       const initial = initialMap.get(item.id)
       if (!initial)
+        continue
+      if (!editable)
         continue
 
       const changed
@@ -291,20 +313,20 @@ export default function PlansRecordsMonthEdit() {
       })
     }
 
-    if (data.planMode === 'snapshot') {
-      const changedNotes = memberNotes
-        .filter((note) => {
-          const initial = initialNotesMap.get(note.memberId)
-          if (!initial)
-            return note.note.trim().length > 0
-          return initial.note !== note.note
-        })
-        .map(note => ({
-          memberId: note.memberId,
-          note: note.note,
-          expectedUpdatedAt: note.expectedUpdatedAt,
-        }))
+    const changedNotes = memberNotes
+      .filter((note) => {
+        const initial = initialNotesMap.get(note.memberId)
+        if (!initial)
+          return note.note.trim().length > 0
+        return initial.note !== note.note
+      })
+      .map(note => ({
+        memberId: note.memberId,
+        note: note.note,
+        expectedUpdatedAt: note.expectedUpdatedAt,
+      }))
 
+    if (data.planMode === 'snapshot') {
       return {
         mode: 'snapshot' as const,
         year: selectedYear,
@@ -326,6 +348,7 @@ export default function PlansRecordsMonthEdit() {
       addedItems,
       updatedItems,
       deletedItems,
+      memberNotes: changedNotes,
     }
   }
 
@@ -339,6 +362,10 @@ export default function PlansRecordsMonthEdit() {
   const incomeItems = items.filter(item => item.itemType === 'income')
   const expenseItems = items.filter(item => item.itemType === 'expense')
   const currentMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`
+  const memberMap = useMemo(
+    () => new Map(data.members.map(member => [member.userId, member])),
+    [data.members],
+  )
 
   return (
     <div className="pt-6 pb-24">
@@ -415,54 +442,18 @@ export default function PlansRecordsMonthEdit() {
       </div>
 
       {data.planMode === 'snapshot' && (
-        <>
-          <div className="mb-6">
-            <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-              当月总额
-            </h2>
-            <Input
-              type="number"
-              value={recordedTotalValue}
-              onChange={e => setRecordedTotalValue(e.target.value)}
-              placeholder="填写当月总额"
-              className="h-10 font-[family-name:var(--font-mono)]"
-            />
-          </div>
-
-          <div className="mb-6">
-            <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-              成员备注
-            </h2>
-            <div className="flex flex-col gap-2">
-              {memberNotes.map((note) => {
-                const editable = data.canEditAllItems || note.memberId === data.currentUserId
-                return (
-                  <div
-                    key={note.memberId}
-                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
-                    style={{
-                      background: 'var(--color-surface-card)',
-                      borderColor: 'var(--color-hairline)',
-                      opacity: editable ? 1 : 0.5,
-                    }}
-                  >
-                    <span className="w-20 shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
-                      {note.displayName}
-                    </span>
-                    <Input
-                      type="text"
-                      value={note.note}
-                      onChange={e => updateMemberNote(note.memberId, e.target.value)}
-                      placeholder={editable ? '填写本月备注' : '无编辑权限'}
-                      className="h-8 flex-1 text-xs"
-                      disabled={!editable}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </>
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+            当月总额
+          </h2>
+          <Input
+            type="number"
+            value={recordedTotalValue}
+            onChange={e => setRecordedTotalValue(e.target.value)}
+            placeholder="填写当月总额"
+            className="h-10 font-[family-name:var(--font-mono)]"
+          />
+        </div>
       )}
 
       <div className="mb-6">
@@ -482,33 +473,19 @@ export default function PlansRecordsMonthEdit() {
                   opacity: editable ? 1 : 0.5,
                 }}
               >
-                <Select
-                  value={item.memberId}
-                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                  disabled={!editable}
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white"
+                  title={memberMap.get(item.memberId)?.displayName || '成员'}
+                  style={{ background: 'var(--color-info)' }}
                 >
-                  <SelectTrigger className="h-8 w-28 shrink-0">
-                    <SelectValue placeholder="成员">
-                      {(value) => {
-                        const member = data.members.find(m => m.userId === value)
-                        return member?.displayName || '成员'
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {data.members.map(member => (
-                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  {memberMap.get(item.memberId)?.avatarEmoji || '😊'}
+                </div>
                 <Input
                   type="text"
                   value={item.name}
                   onChange={e => updateItem(item.id, { name: e.target.value })}
                   placeholder="项目名称"
-                  className="h-8 min-w-0 flex-1"
+                  className="h-9 min-w-0 flex-1"
                   disabled={!editable}
                 />
                 <Input
@@ -516,7 +493,7 @@ export default function PlansRecordsMonthEdit() {
                   value={item.amount}
                   onChange={e => updateItem(item.id, { amount: e.target.value })}
                   placeholder="金额"
-                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                  className="h-9 w-28 shrink-0 font-[family-name:var(--font-mono)]"
                   disabled={!editable}
                 />
                 <Button
@@ -556,33 +533,19 @@ export default function PlansRecordsMonthEdit() {
                   opacity: editable ? 1 : 0.5,
                 }}
               >
-                <Select
-                  value={item.memberId}
-                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                  disabled={!editable}
+                <div
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white"
+                  title={memberMap.get(item.memberId)?.displayName || '成员'}
+                  style={{ background: 'var(--color-info)' }}
                 >
-                  <SelectTrigger className="h-8 w-28 shrink-0">
-                    <SelectValue placeholder="成员">
-                      {(value) => {
-                        const member = data.members.find(m => m.userId === value)
-                        return member?.displayName || '成员'
-                      }}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {data.members.map(member => (
-                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                  {memberMap.get(item.memberId)?.avatarEmoji || '😊'}
+                </div>
                 <Input
                   type="text"
                   value={item.name}
                   onChange={e => updateItem(item.id, { name: e.target.value })}
                   placeholder="项目名称"
-                  className="h-8 min-w-0 flex-1"
+                  className="h-9 min-w-0 flex-1"
                   disabled={!editable}
                 />
                 <Input
@@ -590,7 +553,7 @@ export default function PlansRecordsMonthEdit() {
                   value={item.amount}
                   onChange={e => updateItem(item.id, { amount: e.target.value })}
                   placeholder="金额"
-                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                  className="h-9 w-28 shrink-0 font-[family-name:var(--font-mono)]"
                   disabled={!editable}
                 />
                 <Button
@@ -610,6 +573,51 @@ export default function PlansRecordsMonthEdit() {
             <IconPlus size={16} />
             添加支出项
           </Button>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+          备注
+        </h2>
+        <div className="flex flex-col gap-2">
+          {memberNotes.map((note) => {
+            const isSelf = note.memberId === data.currentUserId
+            return (
+              <div
+                key={note.memberId}
+                className="flex items-start gap-2.5 rounded-lg border px-3 py-2.5"
+                style={{
+                  background: 'var(--color-surface-card)',
+                  borderColor: 'var(--color-hairline)',
+                }}
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs text-white" style={{ background: 'var(--color-info)' }}>
+                  {note.avatarEmoji}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                    {note.displayName}
+                  </div>
+                  {isSelf
+                    ? (
+                        <Input
+                          type="text"
+                          value={note.note}
+                          onChange={e => updateMemberNote(note.memberId, e.target.value)}
+                          placeholder="填写备注"
+                          className="h-9 text-xs"
+                        />
+                      )
+                    : (
+                        <div className="rounded-md bg-[var(--color-surface-soft)] px-2.5 py-2 text-xs leading-5" style={{ color: 'var(--color-body)' }}>
+                          {note.note || '暂无备注'}
+                        </div>
+                      )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
