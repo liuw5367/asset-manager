@@ -59,6 +59,23 @@ const snapshotPatchSchema = z.object({
   year: z.number().int().min(2000).max(2200),
   month: z.number().int().min(1).max(12),
   expectedRecordUpdatedAt: z.string().optional(),
+  addedItems: z.array(z.object({
+    memberId: z.string().min(1),
+    itemType: z.enum(['income', 'expense']),
+    name: z.string().trim().max(50),
+    amount: amountString,
+  })).default([]),
+  updatedItems: z.array(z.object({
+    id: z.string().min(1),
+    memberId: z.string().min(1),
+    name: z.string().trim().min(1).max(50),
+    amount: amountString,
+    expectedUpdatedAt: z.string().optional(),
+  })).default([]),
+  deletedItems: z.array(z.object({
+    id: z.string().min(1),
+    expectedUpdatedAt: z.string().optional(),
+  })).default([]),
   recordedTotalValue: amountString,
   memberNotes: z.array(z.object({
     memberId: z.string().min(1),

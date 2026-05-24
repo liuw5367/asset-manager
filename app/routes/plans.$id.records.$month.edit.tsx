@@ -170,6 +170,9 @@ export async function action({ request, params }: Route.ActionArgs) {
           year: parsed.data.year,
           month: parsed.data.month,
           expectedRecordUpdatedAt: parsed.data.expectedRecordUpdatedAt,
+          addedItems: parsed.data.addedItems,
+          updatedItems: parsed.data.updatedItems,
+          deletedItems: parsed.data.deletedItems,
           recordedTotalValue: parsed.data.recordedTotalValue,
           memberNotes: parsed.data.memberNotes,
         })
@@ -250,30 +253,6 @@ export default function PlansRecordsMonthEdit() {
   }
 
   function buildPatch() {
-    if (data.planMode === 'snapshot') {
-      const changedNotes = memberNotes
-        .filter((note) => {
-          const initial = initialNotesMap.get(note.memberId)
-          if (!initial)
-            return note.note.trim().length > 0
-          return initial.note !== note.note
-        })
-        .map(note => ({
-          memberId: note.memberId,
-          note: note.note,
-          expectedUpdatedAt: note.expectedUpdatedAt,
-        }))
-
-      return {
-        mode: 'snapshot' as const,
-        year: selectedYear,
-        month: selectedMonth,
-        expectedRecordUpdatedAt: data.recordUpdatedAt,
-        recordedTotalValue: recordedTotalValue.trim() || '0',
-        memberNotes: changedNotes,
-      }
-    }
-
     const addedItems: Array<{ memberId: string, itemType: 'income' | 'expense', name: string, amount: string }> = []
     const updatedItems: Array<{ id: string, memberId: string, name: string, amount: string, expectedUpdatedAt?: string }> = []
 
@@ -310,6 +289,33 @@ export default function PlansRecordsMonthEdit() {
         amount: amountText,
         expectedUpdatedAt: item.expectedUpdatedAt,
       })
+    }
+
+    if (data.planMode === 'snapshot') {
+      const changedNotes = memberNotes
+        .filter((note) => {
+          const initial = initialNotesMap.get(note.memberId)
+          if (!initial)
+            return note.note.trim().length > 0
+          return initial.note !== note.note
+        })
+        .map(note => ({
+          memberId: note.memberId,
+          note: note.note,
+          expectedUpdatedAt: note.expectedUpdatedAt,
+        }))
+
+      return {
+        mode: 'snapshot' as const,
+        year: selectedYear,
+        month: selectedMonth,
+        expectedRecordUpdatedAt: data.recordUpdatedAt,
+        addedItems,
+        updatedItems,
+        deletedItems,
+        recordedTotalValue: recordedTotalValue.trim() || '0',
+        memberNotes: changedNotes,
+      }
     }
 
     return {
@@ -408,208 +414,204 @@ export default function PlansRecordsMonthEdit() {
         </div>
       </div>
 
-      {data.planMode === 'snapshot'
-        ? (
-            <>
-              <div className="mb-6">
-                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                  当月总额
-                </h2>
+      {data.planMode === 'snapshot' && (
+        <>
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+              当月总额
+            </h2>
+            <Input
+              type="number"
+              value={recordedTotalValue}
+              onChange={e => setRecordedTotalValue(e.target.value)}
+              placeholder="填写当月总额"
+              className="h-10 font-[family-name:var(--font-mono)]"
+            />
+          </div>
+
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+              成员备注
+            </h2>
+            <div className="flex flex-col gap-2">
+              {memberNotes.map((note) => {
+                const editable = data.canEditAllItems || note.memberId === data.currentUserId
+                return (
+                  <div
+                    key={note.memberId}
+                    className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
+                    style={{
+                      background: 'var(--color-surface-card)',
+                      borderColor: 'var(--color-hairline)',
+                      opacity: editable ? 1 : 0.5,
+                    }}
+                  >
+                    <span className="w-20 shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
+                      {note.displayName}
+                    </span>
+                    <Input
+                      type="text"
+                      value={note.note}
+                      onChange={e => updateMemberNote(note.memberId, e.target.value)}
+                      placeholder={editable ? '填写本月备注' : '无编辑权限'}
+                      className="h-8 flex-1 text-xs"
+                      disabled={!editable}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="mb-6">
+        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+          收入明细
+        </h2>
+        <div className="flex flex-col gap-2">
+          {incomeItems.map((item) => {
+            const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
+                style={{
+                  background: 'var(--color-surface-card)',
+                  borderColor: 'var(--color-hairline)',
+                  opacity: editable ? 1 : 0.5,
+                }}
+              >
+                <Select
+                  value={item.memberId}
+                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
+                  disabled={!editable}
+                >
+                  <SelectTrigger className="h-8 w-28 shrink-0">
+                    <SelectValue placeholder="成员">
+                      {(value) => {
+                        const member = data.members.find(m => m.userId === value)
+                        return member?.displayName || '成员'
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {data.members.map(member => (
+                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="text"
+                  value={item.name}
+                  onChange={e => updateItem(item.id, { name: e.target.value })}
+                  placeholder="项目名称"
+                  className="h-8 min-w-0 flex-1"
+                  disabled={!editable}
+                />
                 <Input
                   type="number"
-                  value={recordedTotalValue}
-                  onChange={e => setRecordedTotalValue(e.target.value)}
-                  placeholder="填写当月总额"
-                  className="h-10 font-[family-name:var(--font-mono)]"
+                  value={item.amount}
+                  onChange={e => updateItem(item.id, { amount: e.target.value })}
+                  placeholder="金额"
+                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                  disabled={!editable}
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeItem(item.id)}
+                  disabled={!editable}
+                  className="shrink-0"
+                >
+                  <IconTrash size={14} />
+                </Button>
               </div>
+            )
+          })}
+          <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('income')}>
+            <IconPlus size={16} />
+            添加收入项
+          </Button>
+        </div>
+      </div>
 
-              <div className="mb-6">
-                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                  成员备注
-                </h2>
-                <div className="flex flex-col gap-2">
-                  {memberNotes.map((note) => {
-                    const editable = data.canEditAllItems || note.memberId === data.currentUserId
-                    return (
-                      <div
-                        key={note.memberId}
-                        className="flex items-center gap-2.5 rounded-lg border px-3 py-2.5"
-                        style={{
-                          background: 'var(--color-surface-card)',
-                          borderColor: 'var(--color-hairline)',
-                          opacity: editable ? 1 : 0.5,
-                        }}
-                      >
-                        <span className="w-20 shrink-0 text-xs" style={{ color: 'var(--color-muted)' }}>
-                          {note.displayName}
-                        </span>
-                        <Input
-                          type="text"
-                          value={note.note}
-                          onChange={e => updateMemberNote(note.memberId, e.target.value)}
-                          placeholder={editable ? '填写本月备注' : '无编辑权限'}
-                          className="h-8 flex-1 text-xs"
-                          disabled={!editable}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
+      <div className="mb-6">
+        <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+          支出明细
+        </h2>
+        <div className="flex flex-col gap-2">
+          {expenseItems.map((item) => {
+            const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
+                style={{
+                  background: 'var(--color-surface-card)',
+                  borderColor: 'var(--color-hairline)',
+                  opacity: editable ? 1 : 0.5,
+                }}
+              >
+                <Select
+                  value={item.memberId}
+                  onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
+                  disabled={!editable}
+                >
+                  <SelectTrigger className="h-8 w-28 shrink-0">
+                    <SelectValue placeholder="成员">
+                      {(value) => {
+                        const member = data.members.find(m => m.userId === value)
+                        return member?.displayName || '成员'
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {data.members.map(member => (
+                        <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="text"
+                  value={item.name}
+                  onChange={e => updateItem(item.id, { name: e.target.value })}
+                  placeholder="项目名称"
+                  className="h-8 min-w-0 flex-1"
+                  disabled={!editable}
+                />
+                <Input
+                  type="number"
+                  value={item.amount}
+                  onChange={e => updateItem(item.id, { amount: e.target.value })}
+                  placeholder="金额"
+                  className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
+                  disabled={!editable}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => removeItem(item.id)}
+                  disabled={!editable}
+                  className="shrink-0"
+                >
+                  <IconTrash size={14} />
+                </Button>
               </div>
-            </>
-          )
-        : (
-            <>
-              <div className="mb-6">
-                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                  收入明细
-                </h2>
-                <div className="flex flex-col gap-2">
-                  {incomeItems.map((item) => {
-                    const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
-                        style={{
-                          background: 'var(--color-surface-card)',
-                          borderColor: 'var(--color-hairline)',
-                          opacity: editable ? 1 : 0.5,
-                        }}
-                      >
-                        <Select
-                          value={item.memberId}
-                          onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                          disabled={!editable}
-                        >
-                          <SelectTrigger className="h-8 w-28 shrink-0">
-                            <SelectValue placeholder="成员">
-                              {(value) => {
-                                const member = data.members.find(m => m.userId === value)
-                                return member?.displayName || '成员'
-                              }}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {data.members.map(member => (
-                                <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="text"
-                          value={item.name}
-                          onChange={e => updateItem(item.id, { name: e.target.value })}
-                          placeholder="项目名称"
-                          className="h-8 min-w-0 flex-1"
-                          disabled={!editable}
-                        />
-                        <Input
-                          type="number"
-                          value={item.amount}
-                          onChange={e => updateItem(item.id, { amount: e.target.value })}
-                          placeholder="金额"
-                          className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
-                          disabled={!editable}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => removeItem(item.id)}
-                          disabled={!editable}
-                          className="shrink-0"
-                        >
-                          <IconTrash size={14} />
-                        </Button>
-                      </div>
-                    )
-                  })}
-                  <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('income')}>
-                    <IconPlus size={16} />
-                    添加收入项
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <h2 className="mb-3 text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                  支出明细
-                </h2>
-                <div className="flex flex-col gap-2">
-                  {expenseItems.map((item) => {
-                    const editable = itemEditable(item, data.currentUserId, data.canEditAllItems)
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2 rounded-lg border px-3 py-2.5"
-                        style={{
-                          background: 'var(--color-surface-card)',
-                          borderColor: 'var(--color-hairline)',
-                          opacity: editable ? 1 : 0.5,
-                        }}
-                      >
-                        <Select
-                          value={item.memberId}
-                          onValueChange={v => updateItem(item.id, { memberId: v || item.memberId })}
-                          disabled={!editable}
-                        >
-                          <SelectTrigger className="h-8 w-28 shrink-0">
-                            <SelectValue placeholder="成员">
-                              {(value) => {
-                                const member = data.members.find(m => m.userId === value)
-                                return member?.displayName || '成员'
-                              }}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectGroup>
-                              {data.members.map(member => (
-                                <SelectItem key={member.userId} value={member.userId}>{member.displayName}</SelectItem>
-                              ))}
-                            </SelectGroup>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          type="text"
-                          value={item.name}
-                          onChange={e => updateItem(item.id, { name: e.target.value })}
-                          placeholder="项目名称"
-                          className="h-8 min-w-0 flex-1"
-                          disabled={!editable}
-                        />
-                        <Input
-                          type="number"
-                          value={item.amount}
-                          onChange={e => updateItem(item.id, { amount: e.target.value })}
-                          placeholder="金额"
-                          className="h-8 w-24 shrink-0 font-[family-name:var(--font-mono)]"
-                          disabled={!editable}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => removeItem(item.id)}
-                          disabled={!editable}
-                          className="shrink-0"
-                        >
-                          <IconTrash size={14} />
-                        </Button>
-                      </div>
-                    )
-                  })}
-                  <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('expense')}>
-                    <IconPlus size={16} />
-                    添加支出项
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
+            )
+          })}
+          <Button type="button" variant="outline" className="h-10 border-dashed" onClick={() => addItem('expense')}>
+            <IconPlus size={16} />
+            添加支出项
+          </Button>
+        </div>
+      </div>
 
       {actionData?.error && (
         <div className="mb-4 text-sm" style={{ color: 'var(--color-error)' }}>

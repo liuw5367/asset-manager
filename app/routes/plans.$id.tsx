@@ -219,7 +219,7 @@ export default function PlansDetail() {
           }}
         >
           <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-            {detail.planMode === 'snapshot' ? '最近变化' : '最近净收入'}
+            最近净收入
           </div>
           <div
             className="font-[family-name:var(--font-mono)] text-xl font-semibold"
@@ -334,17 +334,15 @@ export default function PlansDetail() {
                 </div>
                 <div className="flex gap-4 text-xs">
                   <span style={{ color: 'var(--color-success)' }}>
-                    {detail.planMode === 'snapshot' ? '当月变化' : '收入'}
+                    收入
                     {' '}
                     {record.totalIncome.toLocaleString()}
                   </span>
-                  {detail.planMode === 'accumulate' && (
-                    <span style={{ color: 'var(--color-error)' }}>
-                      支出
-                      {' '}
-                      {record.totalExpense.toLocaleString()}
-                    </span>
-                  )}
+                  <span style={{ color: 'var(--color-error)' }}>
+                    支出
+                    {' '}
+                    {record.totalExpense.toLocaleString()}
+                  </span>
                 </div>
               </Link>
             )
