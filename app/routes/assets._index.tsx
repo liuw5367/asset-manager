@@ -292,6 +292,14 @@ export default function AssetsIndex() {
         })}
       </div>
 
+      <div className="mt-4 text-center text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+        共
+        {' '}
+        {filteredAssets.length}
+        {' '}
+        件
+      </div>
+
       <Sheet open={sheetType === 'tag'} onOpenChange={open => !open && setSheetType(null)}>
         <SheetContent side="bottom" className="rounded-t-xl">
           <SheetHeader className="pb-1">
