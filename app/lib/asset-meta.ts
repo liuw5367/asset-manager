@@ -3,6 +3,14 @@ import { differenceInDays, isAfter } from 'date-fns'
 
 export type AssetType = 'one_time' | 'subscription'
 export type BillingCycle = 'monthly' | 'quarterly' | 'yearly'
+export interface CalculateAssetDurationDaysInput {
+  assetType: AssetType
+  purchaseDate?: string | null
+  subscriptionStartDate?: string | null
+  tradedInAt?: string | null
+  subscriptionStoppedAt?: string | null
+  ended?: boolean
+}
 
 export function getAssetDetailPath(asset: { id: string, assetType: AssetType }) {
   return asset.assetType === 'subscription' ? `/subscriptions/${asset.id}` : `/assets/${asset.id}`
@@ -46,6 +54,18 @@ export function calculateHoldingDays(startDate?: string | null, endDate?: string
   if (isAfter(start, end))
     return 0
   return Math.max(0, differenceInDays(end, start))
+}
+
+export function calculateAssetDurationDays(input: CalculateAssetDurationDaysInput) {
+  const startDate = input.assetType === 'subscription'
+    ? input.subscriptionStartDate || input.purchaseDate
+    : input.purchaseDate
+  const endDate = input.assetType === 'subscription' ? input.subscriptionStoppedAt : input.tradedInAt
+
+  if (input.ended && !endDate)
+    return 0
+
+  return calculateHoldingDays(startDate, endDate)
 }
 
 export function formatNumber(value: unknown, digits = 2) {

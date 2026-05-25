@@ -428,6 +428,7 @@ export async function getAssetsWithCategoryName(userId: string) {
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
       purchaseDate: assets.purchaseDate,
+      subscriptionStartDate: assets.subscriptionStartDate,
       tradedInAt: assets.tradedInAt,
       tradeInPrice: assets.tradeInPrice,
       tradedFromAssetId: assets.tradedFromAssetId,

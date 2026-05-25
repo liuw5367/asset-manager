@@ -17,7 +17,7 @@ import {
   getCategoriesByUserId,
   getTagsByUserId,
 } from '~/db/queries/assets'
-import { getAssetDetailPath, subAmount } from '~/lib/asset-meta'
+import { calculateAssetDurationDays, getAssetDetailPath, subAmount } from '~/lib/asset-meta'
 import { calcOneTimeDailyCost, calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -72,13 +72,6 @@ const sortLabels: Record<SortOption, string> = {
   cost_desc: '每日成本降序',
   date_desc: '日期降序',
   date_asc: '日期升序',
-}
-
-function getHoldingDays(purchaseDate?: string | null, endedAt?: string | null) {
-  if (!purchaseDate)
-    return 0
-  const end = endedAt ? new Date(endedAt) : new Date()
-  return Math.max(0, Math.floor((end.getTime() - new Date(purchaseDate).getTime()) / (1000 * 60 * 60 * 24)))
 }
 
 export default function AssetsIndex() {
@@ -235,10 +228,14 @@ export default function AssetsIndex() {
           const isEnded = asset.assetType === 'subscription'
             ? asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
             : Boolean(asset.tradedInAt)
-          const holdingDays = getHoldingDays(
-            asset.purchaseDate,
-            asset.assetType === 'subscription' ? asset.subscriptionStoppedAt : asset.tradedInAt,
-          )
+          const holdingDays = calculateAssetDurationDays({
+            assetType: asset.assetType,
+            purchaseDate: asset.purchaseDate,
+            subscriptionStartDate: asset.subscriptionStartDate,
+            tradedInAt: asset.tradedInAt,
+            subscriptionStoppedAt: asset.subscriptionStoppedAt,
+            ended: isEnded,
+          })
 
           return (
             <button

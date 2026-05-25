@@ -37,7 +37,7 @@ import {
   softDeleteAsset,
   stopSubscription,
 } from '~/db/queries/assets'
-import { calculateHoldingDays, formatInteger, formatNumber, getBillingCycleLabel } from '~/lib/asset-meta'
+import { calculateAssetDurationDays, formatInteger, formatNumber, getBillingCycleLabel } from '~/lib/asset-meta'
 import { calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -62,7 +62,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(user.id),
   ])
 
-  const holdingDays = calculateHoldingDays(asset.purchaseDate, asset.subscriptionStoppedAt)
+  const ended = asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
+  const holdingDays = calculateAssetDurationDays({
+    assetType: 'subscription',
+    purchaseDate: asset.purchaseDate,
+    subscriptionStartDate: asset.subscriptionStartDate,
+    subscriptionStoppedAt: asset.subscriptionStoppedAt,
+    ended,
+  })
   const dailyCost = asset.subscriptionPrice && asset.billingCycle
     ? calcSubscriptionDailyCost(Number(asset.subscriptionPrice), asset.billingCycle)
     : 0
@@ -146,7 +153,7 @@ export default function SubscriptionDetailPage() {
   const assetTags = allTags.filter(t => tagIds.includes(t.id))
   const paymentType = asset.paymentTypeId ? paymentTypes.find(p => p.id === asset.paymentTypeId) : null
   const paymentAccount = asset.paymentAccountId ? paymentAccounts.find(a => a.id === asset.paymentAccountId) : null
-  const nextRenewalDate = calcNextRenewalDate(asset.purchaseDate || asset.subscriptionStartDate, asset.billingCycle)
+  const nextRenewalDate = calcNextRenewalDate(asset.subscriptionStartDate || asset.purchaseDate, asset.billingCycle)
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
@@ -195,8 +202,8 @@ export default function SubscriptionDetailPage() {
         </Badge>
       ),
     },
-    asset.purchaseDate || asset.subscriptionStartDate
-      ? { label: '订阅日期', value: asset.purchaseDate || asset.subscriptionStartDate || '' }
+    asset.subscriptionStartDate || asset.purchaseDate
+      ? { label: '订阅日期', value: asset.subscriptionStartDate || asset.purchaseDate || '' }
       : null,
     { label: '订阅天数', value: `${holdingDays} 天` },
     ended && asset.subscriptionStoppedAt
