@@ -51,7 +51,7 @@ import {
   updateRepairRecord,
   upsertWarranty,
 } from '~/db/queries/assets'
-import { calculateHoldingDays, formatInteger, formatNumber, getAssetDetailPath, subAmount } from '~/lib/asset-meta'
+import { calculateHoldingDays, formatDaysWithYears, formatInteger, formatNumber, getAssetDetailPath, subAmount } from '~/lib/asset-meta'
 import { calcOneTimeDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -321,7 +321,7 @@ export default function AssetDetailPage() {
   const basicRows: Array<{ label: string, value: React.ReactNode, primary?: boolean }> = []
   if (asset.purchasePrice)
     basicRows.push({ label: '购入价', value: formatInteger(asset.purchasePrice) })
-  basicRows.push({ label: '持有天数', value: `${holdingDays} 天` })
+  basicRows.push({ label: '持有天数', value: formatDaysWithYears(holdingDays) })
   basicRows.push({ label: '每日成本', value: `${formatNumber(dailyCost)}/天`, primary: true })
   if (paymentType)
     basicRows.push({ label: '支付类型', value: paymentType.name })

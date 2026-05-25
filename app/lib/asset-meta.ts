@@ -68,6 +68,14 @@ export function calculateAssetDurationDays(input: CalculateAssetDurationDaysInpu
   return calculateHoldingDays(startDate, endDate)
 }
 
+export function formatDaysWithYears(days: number) {
+  const safeDays = Math.max(0, Math.floor(days))
+  if (safeDays <= 365)
+    return `${safeDays} 天`
+  const years = Math.floor(safeDays / 365)
+  return `${safeDays} 天（${years} 年+）`
+}
+
 export function formatNumber(value: unknown, digits = 2) {
   const num = toAmount(value)
   return num.toLocaleString('zh-CN', {

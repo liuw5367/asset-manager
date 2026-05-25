@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateAssetDurationDays } from './asset-meta'
+import { calculateAssetDurationDays, formatDaysWithYears } from './asset-meta'
 
 describe('calculateAssetDurationDays', () => {
   it('订阅结束时使用 subscriptionStoppedAt 计算天数', () => {
@@ -34,5 +34,16 @@ describe('calculateAssetDurationDays', () => {
     })
 
     expect(days).toBe(0)
+  })
+})
+
+describe('formatDaysWithYears', () => {
+  it('365 天及以下只显示天数', () => {
+    expect(formatDaysWithYears(365)).toBe('365 天')
+  })
+
+  it('超过 365 天显示年数', () => {
+    expect(formatDaysWithYears(366)).toBe('366 天（1 年+）')
+    expect(formatDaysWithYears(500)).toBe('500 天（1 年+）')
   })
 })

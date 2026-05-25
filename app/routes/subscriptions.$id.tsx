@@ -37,7 +37,7 @@ import {
   softDeleteAsset,
   stopSubscription,
 } from '~/db/queries/assets'
-import { calculateAssetDurationDays, formatInteger, formatNumber, getBillingCycleLabel } from '~/lib/asset-meta'
+import { calculateAssetDurationDays, formatDaysWithYears, formatInteger, formatNumber, getBillingCycleLabel } from '~/lib/asset-meta'
 import { calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
@@ -205,7 +205,7 @@ export default function SubscriptionDetailPage() {
     asset.subscriptionStartDate || asset.purchaseDate
       ? { label: '订阅日期', value: asset.subscriptionStartDate || asset.purchaseDate || '' }
       : null,
-    { label: '订阅天数', value: `${holdingDays} 天` },
+    { label: '订阅天数', value: formatDaysWithYears(holdingDays) },
     ended && asset.subscriptionStoppedAt
       ? { label: '取消日期', value: asset.subscriptionStoppedAt }
       : null,
