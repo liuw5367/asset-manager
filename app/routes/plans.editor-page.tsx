@@ -22,15 +22,24 @@ interface PlanEditorActionData {
   error?: string
   inviteLink?: string | null
   inviteExpiresAt?: string | null
+  importResult?: {
+    insertedMonths: number
+    skippedDuplicateMonths: number
+    skippedExistingMonths: number
+  }
 }
 
 interface PlanEditorPageProps {
   data: PlanEditorLoaderData
   actionData?: PlanEditorActionData
-  isSubmitting: boolean
+  isSaving: boolean
+  isRegeneratingInvite: boolean
+  isRevokingInvite: boolean
+  isImportingHistory: boolean
   onSubmitSave: (payload: unknown) => void
   onRegenerateInvite: () => void
   onRevokeInvite: () => void
+  onImportHistory: (file: File) => void
 }
 
 interface EditableMember {
@@ -50,10 +59,14 @@ interface EditableDefaultItem {
 export function PlanEditorPage({
   data,
   actionData,
-  isSubmitting,
+  isSaving,
+  isRegeneratingInvite,
+  isRevokingInvite,
+  isImportingHistory,
   onSubmitSave,
   onRegenerateInvite,
   onRevokeInvite,
+  onImportHistory,
 }: PlanEditorPageProps) {
   const [emoji, setEmoji] = useState(data.emoji)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -71,6 +84,7 @@ export function PlanEditorPage({
   )
   const [newItemName, setNewItemName] = useState('')
   const [newItemType, setNewItemType] = useState<'income' | 'expense'>('income')
+  const [historyFile, setHistoryFile] = useState<File | null>(null)
 
   const inviteLink = actionData?.inviteLink ?? data.inviteLink
   const inviteExpiresAt = actionData?.inviteExpiresAt ?? data.inviteExpiresAt
@@ -141,10 +155,10 @@ export function PlanEditorPage({
           className="flex items-center gap-1 text-sm font-medium"
           style={{ color: 'var(--color-primary)' }}
           onClick={() => onSubmitSave(payload)}
-          disabled={isSubmitting}
+          disabled={isSaving}
         >
           <IconCheck size={16} />
-          {isSubmitting ? '保存中...' : '保存'}
+          {isSaving ? '保存中...' : '保存'}
         </button>
       </div>
 
@@ -197,7 +211,8 @@ export function PlanEditorPage({
             <PlanInvitePanel
               inviteLink={inviteLink}
               inviteExpiresAt={inviteExpiresAt}
-              isSubmitting={isSubmitting}
+              isRegenerating={isRegeneratingInvite}
+              isRevoking={isRevokingInvite}
               onRegenerateInvite={onRegenerateInvite}
               onRevokeInvite={onRevokeInvite}
             />
@@ -342,11 +357,53 @@ export function PlanEditorPage({
         </div>
       </div>
 
-      {actionData?.error && (
-        <div className="text-sm" style={{ color: 'var(--color-error)' }}>
-          {actionData.error}
+      {data.mode === 'edit' && data.canManage && (
+        <div className="mb-5">
+          <label className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+            导入历史（CSV）
+          </label>
+          <div className="rounded-lg border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+            <div className="mb-2 text-xs" style={{ color: 'var(--color-muted)' }}>
+              表头示例：记录日期、`邮箱|余额`、`邮箱|公积金`、备注。同月重复会自动忽略后续行。
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="file"
+                accept=".csv,text/csv"
+                className="h-10 flex-1"
+                onChange={e => setHistoryFile(e.currentTarget.files?.[0] || null)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                disabled={!historyFile || isImportingHistory}
+                onClick={() => historyFile && onImportHistory(historyFile)}
+              >
+                {isImportingHistory ? '导入中...' : '导入'}
+              </Button>
+            </div>
+            {data.planMode !== 'snapshot' && (
+              <div className="mt-2 text-xs" style={{ color: 'var(--color-muted)' }}>
+                当前计划是“收支累加”模式，历史导入仅支持“总额记录”模式。
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      {actionData?.importResult && (
+        <div className="mb-2 text-sm" style={{ color: 'var(--color-success)' }}>
+          导入完成：新增
+          {actionData.importResult.insertedMonths}
+          月，跳过同月重复
+          {actionData.importResult.skippedDuplicateMonths}
+          条，跳过已存在月份
+          {actionData.importResult.skippedExistingMonths}
+          条。
+        </div>
+      )}
+      {actionData?.error && <div className="text-sm" style={{ color: 'var(--color-error)' }}>{actionData.error}</div>}
     </div>
   )
 }

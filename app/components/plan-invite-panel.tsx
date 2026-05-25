@@ -13,7 +13,8 @@ import { Input } from '~/components/ui/input'
 interface PlanInvitePanelProps {
   inviteLink: string | null
   inviteExpiresAt: string | null
-  isSubmitting: boolean
+  isRegenerating: boolean
+  isRevoking: boolean
   onRegenerateInvite: () => void
   onRevokeInvite: () => void
 }
@@ -21,7 +22,8 @@ interface PlanInvitePanelProps {
 export function PlanInvitePanel({
   inviteLink,
   inviteExpiresAt,
-  isSubmitting,
+  isRegenerating,
+  isRevoking,
   onRegenerateInvite,
   onRevokeInvite,
 }: PlanInvitePanelProps) {
@@ -65,19 +67,19 @@ export function PlanInvitePanel({
                     <Button type="button" variant="outline" className="h-8" onClick={async () => await navigator.clipboard.writeText(inviteLink)}>
                       复制链接
                     </Button>
-                    <Button type="button" variant="destructive" className="h-8" onClick={onRevokeInvite} disabled={isSubmitting}>
-                      吊销链接
+                    <Button type="button" variant="destructive" className="h-8" onClick={onRevokeInvite} disabled={isRevoking}>
+                      {isRevoking ? '吊销中...' : '吊销链接'}
                     </Button>
-                    <Button type="button" variant="outline" className="h-8" onClick={onRegenerateInvite} disabled={isSubmitting}>
-                      重新生成
+                    <Button type="button" variant="outline" className="h-8" onClick={onRegenerateInvite} disabled={isRegenerating}>
+                      {isRegenerating ? '生成中...' : '重新生成'}
                     </Button>
                   </DialogFooter>
                 </div>
               )
             : (
                 <DialogFooter>
-                  <Button type="button" className="h-9" onClick={onRegenerateInvite} disabled={isSubmitting}>
-                    生成邀请链接（30天有效）
+                  <Button type="button" className="h-9" onClick={onRegenerateInvite} disabled={isRegenerating}>
+                    {isRegenerating ? '生成中...' : '生成邀请链接（30天有效）'}
                   </Button>
                 </DialogFooter>
               )}

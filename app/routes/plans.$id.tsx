@@ -228,7 +228,8 @@ export default function PlansDetail() {
             <PlanInvitePanel
               inviteLink={inviteLink}
               inviteExpiresAt={inviteExpiresAt}
-              isSubmitting={isInviteSubmitting}
+              isRegenerating={isInviteSubmitting}
+              isRevoking={isInviteSubmitting}
               onRegenerateInvite={() => submitIntent('regenerate-invite')}
               onRevokeInvite={() => submitIntent('revoke-invite')}
             />

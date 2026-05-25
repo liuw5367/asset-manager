@@ -57,7 +57,10 @@ export default function PlansNewRoute() {
   const navigation = useNavigation()
   const submit = useSubmit()
 
-  const isSubmitting = navigation.state !== 'idle'
+  const submittingIntent = String(navigation.formData?.get('intent') || '')
+  const isSaving = navigation.state !== 'idle' && submittingIntent === 'save-plan'
+  const isRegeneratingInvite = navigation.state !== 'idle' && submittingIntent === 'regenerate-invite'
+  const isRevokingInvite = navigation.state !== 'idle' && submittingIntent === 'revoke-invite'
 
   function submitIntent(intent: string, payload?: unknown) {
     const fd = new FormData()
@@ -71,10 +74,14 @@ export default function PlansNewRoute() {
     <PlanEditorPage
       data={data}
       actionData={actionData || undefined}
-      isSubmitting={isSubmitting}
+      isSaving={isSaving}
+      isRegeneratingInvite={isRegeneratingInvite}
+      isRevokingInvite={isRevokingInvite}
+      isImportingHistory={false}
       onSubmitSave={payload => submitIntent('save-plan', payload)}
       onRegenerateInvite={() => submitIntent('regenerate-invite')}
       onRevokeInvite={() => submitIntent('revoke-invite')}
+      onImportHistory={() => {}}
     />
   )
 }

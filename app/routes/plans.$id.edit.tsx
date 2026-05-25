@@ -57,24 +57,37 @@ export default function PlansEditRoute() {
   const navigation = useNavigation()
   const submit = useSubmit()
 
-  const isSubmitting = navigation.state !== 'idle'
+  const submittingIntent = String(navigation.formData?.get('intent') || '')
+  const isSaving = navigation.state !== 'idle' && submittingIntent === 'save-plan'
+  const isRegeneratingInvite = navigation.state !== 'idle' && submittingIntent === 'regenerate-invite'
+  const isRevokingInvite = navigation.state !== 'idle' && submittingIntent === 'revoke-invite'
+  const isImportingHistory = navigation.state !== 'idle' && submittingIntent === 'import-history'
 
-  function submitIntent(intent: string, payload?: unknown) {
+  function submitIntent(intent: string, payload?: unknown, file?: File) {
     const fd = new FormData()
     fd.set('intent', intent)
     if (payload)
       fd.set('payload', JSON.stringify(payload))
-    submit(fd, { method: 'post' })
+    if (file)
+      fd.set('csvFile', file)
+    submit(fd, {
+      method: 'post',
+      encType: file ? 'multipart/form-data' : 'application/x-www-form-urlencoded',
+    })
   }
 
   return (
     <PlanEditorPage
       data={data}
       actionData={actionData || undefined}
-      isSubmitting={isSubmitting}
+      isSaving={isSaving}
+      isRegeneratingInvite={isRegeneratingInvite}
+      isRevokingInvite={isRevokingInvite}
+      isImportingHistory={isImportingHistory}
       onSubmitSave={payload => submitIntent('save-plan', payload)}
       onRegenerateInvite={() => submitIntent('regenerate-invite')}
       onRevokeInvite={() => submitIntent('revoke-invite')}
+      onImportHistory={file => submitIntent('import-history', undefined, file)}
     />
   )
 }
