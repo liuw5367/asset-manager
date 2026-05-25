@@ -172,7 +172,14 @@ export default function TagsPage() {
                       className="h-9"
                       autoFocus
                     />
-                    <Form method="post" className="flex items-center">
+                    <Form
+                      method="post"
+                      className="flex items-center"
+                      onSubmit={() => {
+                        setEditingId(null)
+                        setEditName('')
+                      }}
+                    >
                       <input type="hidden" name="intent" value="update" />
                       <input type="hidden" name="id" value={item.id} />
                       <input type="hidden" name="name" value={editName} />
@@ -183,10 +190,6 @@ export default function TagsPage() {
                         variant="ghost"
                         disabled={!editName.trim() || isUpdatingCurrent(item.id)}
                         style={{ color: 'var(--color-primary)' }}
-                        onClick={() => {
-                          if (editName.trim())
-                            setEditingId(null)
-                        }}
                       >
                         {isUpdatingCurrent(item.id) ? <IconLoader2 className="animate-spin" /> : <IconCheck />}
                       </Button>
