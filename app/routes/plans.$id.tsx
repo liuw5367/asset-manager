@@ -58,13 +58,14 @@ function currentMonthKey() {
 }
 
 function formatTrendYAxis(value: number) {
+  const trimZeros = (n: number) => n.toFixed(2).replace(/\.?0+$/, '')
   const num = Number(value) || 0
   const sign = num < 0 ? '-' : ''
   const abs = Math.abs(num)
   if (abs >= 10000)
-    return `${sign}${(abs / 10000).toFixed(1)}w`
+    return `${sign}${trimZeros(abs / 10000)}w`
   if (abs >= 1000)
-    return `${sign}${(abs / 1000).toFixed(1)}k`
+    return `${sign}${trimZeros(abs / 1000)}k`
   return `${num}`
 }
 
@@ -356,7 +357,7 @@ export default function PlansDetail() {
       </div>
 
       <div
-        className="mb-6 rounded-xl border p-4"
+        className="mb-6 rounded-xl border px-4 pb-4 pt-2"
         style={{
           background: 'var(--color-surface-card)',
           borderColor: 'var(--color-hairline)',

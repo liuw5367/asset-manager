@@ -235,7 +235,7 @@ export default function SettingsPage() {
                           style={{ color: 'var(--color-primary)' }}
                           onClick={() => setEditingDisplayName(true)}
                         >
-                          <IconPencil />
+                          <IconPencil size={18} />
                         </Button>
                       )}
                 </div>
@@ -362,7 +362,7 @@ export default function SettingsPage() {
 
       <logoutFetcher.Form method="post">
         <input type="hidden" name="intent" value="logout" />
-        <Button type="submit" variant="destructive" className="w-full">
+        <Button type="submit" variant="destructive" className="w-full py-6">
           {isLoggingOut ? <IconLoader2 className="animate-spin" /> : <IconLogout />}
           退出登录
         </Button>
