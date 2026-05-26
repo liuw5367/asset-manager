@@ -70,6 +70,7 @@ export interface PlanSummaryView {
   id: string
   name: string
   emoji: string
+  planMode: PlanMode
   permission: PlanPermission
   members: PlanMemberView[]
   latestNetIncome: number
@@ -442,6 +443,7 @@ export async function getPlanSummariesByUserId(userId: string) {
       id: row.id,
       name: row.name,
       emoji: row.emoji,
+      planMode: row.planMode,
       permission: row.permission,
       members: membersMap.get(row.id) || [],
       latestNetIncome: latest?.netIncome ?? 0,

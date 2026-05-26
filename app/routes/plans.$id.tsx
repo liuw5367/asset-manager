@@ -40,15 +40,32 @@ import { buildPlanAvatarToneMap } from '~/lib/plan-avatar'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 const trendChartConfig = {
-  amount: {
-    label: '总额',
+  netValue: {
+    label: '净值',
+    color: 'var(--color-primary)',
+  },
+  netIncome: {
+    label: '净收入',
     color: 'var(--color-primary)',
   },
 } satisfies ChartConfig
 
+type TrendMetric = 'netValue' | 'netIncome'
+
 function currentMonthKey() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function formatTrendYAxis(value: number) {
+  const num = Number(value) || 0
+  const sign = num < 0 ? '-' : ''
+  const abs = Math.abs(num)
+  if (abs >= 10000)
+    return `${sign}${(abs / 10000).toFixed(1)}w`
+  if (abs >= 1000)
+    return `${sign}${(abs / 1000).toFixed(1)}k`
+  return `${num}`
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -117,6 +134,7 @@ export default function PlansDetail() {
   const submit = useSubmit()
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [trendMetric, setTrendMetric] = useState<TrendMetric>('netValue')
 
   const isSubmittingDelete = navigation.state !== 'idle'
     && navigation.formData?.get('intent') === 'delete-plan'
@@ -127,6 +145,22 @@ export default function PlansDetail() {
     [detail.members],
   )
   const planModeLabel = detail.planMode === 'snapshot' ? '总额记录' : '收支累加'
+  const trendData = useMemo(() => {
+    const netIncomeByMonth = new Map(
+      detail.records.map(record => [`${record.year}-${String(record.month).padStart(2, '0')}`, record.netIncome]),
+    )
+
+    return detail.trend.map((point) => {
+      const monthNumber = String(Number(point.month.split('-')[1] || '0'))
+      return {
+        ...point,
+        monthNumber,
+        netValue: point.amount,
+        netIncome: netIncomeByMonth.get(point.month) ?? 0,
+      }
+    })
+  }, [detail.records, detail.trend])
+  const trendDataKey: TrendMetric = trendMetric === 'netIncome' ? 'netIncome' : 'netValue'
   const inviteLink = actionData && 'inviteLink' in actionData ? actionData.inviteLink : detail.inviteLink
   const inviteExpiresAt = actionData && 'inviteExpiresAt' in actionData ? actionData.inviteExpiresAt : detail.inviteExpiresAt
   const isInviteSubmitting = navigation.state !== 'idle'
@@ -328,20 +362,45 @@ export default function PlansDetail() {
           borderColor: 'var(--color-hairline)',
         }}
       >
-        <div className="mb-3 text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-          净值趋势（最近12个月）
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+            净值趋势（最近12个月）
+          </div>
+          <div
+            className="inline-flex items-center rounded-md border p-0.5"
+            style={{ borderColor: 'var(--color-hairline)' }}
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={trendMetric === 'netValue' ? 'default' : 'ghost'}
+              className="h-6 px-2 text-xs"
+              onClick={() => setTrendMetric('netValue')}
+            >
+              净值
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={trendMetric === 'netIncome' ? 'default' : 'ghost'}
+              className="h-6 px-2 text-xs"
+              onClick={() => setTrendMetric('netIncome')}
+            >
+              净收入
+            </Button>
+          </div>
         </div>
         <ChartContainer config={trendChartConfig} className="aspect-video h-[180px] w-full">
-          <AreaChart data={detail.trend} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+          <AreaChart data={trendData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="fillPlanAmount" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--color-amount)" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="var(--color-amount)" stopOpacity={0.01} />
+                <stop offset="5%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.15} />
+                <stop offset="95%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.01} />
               </linearGradient>
             </defs>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} />
+            <XAxis dataKey="monthNumber" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} tickFormatter={value => formatTrendYAxis(Number(value))} />
             <ChartTooltip
               content={(
                 <ChartTooltipContent
@@ -352,7 +411,13 @@ export default function PlansDetail() {
                 />
               )}
             />
-            <Area dataKey="amount" type="monotone" fill="url(#fillPlanAmount)" stroke="var(--color-amount)" strokeWidth={2} />
+            <Area
+              dataKey={trendDataKey}
+              type="monotone"
+              fill="url(#fillPlanAmount)"
+              stroke={`var(--color-${trendDataKey})`}
+              strokeWidth={2}
+            />
           </AreaChart>
         </ChartContainer>
       </div>
@@ -380,60 +445,70 @@ export default function PlansDetail() {
             const monthStr = `${record.year}-${String(record.month).padStart(2, '0')}`
             const isUp = record.netIncome >= 0
             return (
-              <Link
-                key={record.id}
-                to={`/plans/${detail.id}/records/${monthStr}`}
-                className="rounded-xl border p-4 transition-shadow hover:shadow-md"
-                style={{
-                  background: 'var(--color-surface-card)',
-                  borderColor: 'var(--color-hairline)',
-                }}
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-                    {record.year}
-                    年
-                    {record.month}
-                    月
-                  </span>
-                  {isUp
-                    ? <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
-                    : <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />}
-                </div>
-                <div className="flex items-center gap-4 mb-2 ">
-                  <div
-                    className="font-[family-name:var(--font-mono)] text-lg font-semibold"
-                    style={{ color: 'var(--color-ink)' }}
-                  >
-                    {record.totalValue.toLocaleString()}
+              <div key={record.id} className="relative">
+                <Link
+                  to={`/plans/${detail.id}/records/${monthStr}`}
+                  className="block rounded-xl border p-4 pr-11 transition-shadow hover:shadow-md"
+                  style={{
+                    background: 'var(--color-surface-card)',
+                    borderColor: 'var(--color-hairline)',
+                  }}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+                      {record.year}
+                      年
+                      {record.month}
+                      月
+                    </span>
+                    {isUp
+                      ? <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
+                      : <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />}
                   </div>
+                  <div className="mb-2 flex items-center gap-4">
+                    <div
+                      className="font-[family-name:var(--font-mono)] text-lg font-semibold"
+                      style={{ color: 'var(--color-ink)' }}
+                    >
+                      {record.totalValue.toLocaleString()}
+                    </div>
 
-                  {record.netIncome > 0
-                    ? (
-                        <span style={{ color: 'var(--color-success)' }}>
-                          +
-                          {record.netIncome.toLocaleString()}
-                        </span>
-                      )
-                    : (
-                        <span style={{ color: 'var(--color-error)' }}>
-                          {record.netIncome.toLocaleString()}
-                        </span>
-                      )}
-                </div>
-                <div className="flex gap-4 text-xs">
-                  <span style={{ color: 'var(--color-success)' }}>
-                    收入
-                    {' '}
-                    {record.totalIncome.toLocaleString()}
-                  </span>
-                  <span style={{ color: 'var(--color-error)' }}>
-                    支出
-                    {' '}
-                    {record.totalExpense.toLocaleString()}
-                  </span>
-                </div>
-              </Link>
+                    {record.netIncome > 0
+                      ? (
+                          <span style={{ color: 'var(--color-success)' }}>
+                            +
+                            {record.netIncome.toLocaleString()}
+                          </span>
+                        )
+                      : (
+                          <span style={{ color: 'var(--color-error)' }}>
+                            {record.netIncome.toLocaleString()}
+                          </span>
+                        )}
+                  </div>
+                  <div className="flex gap-4 text-xs">
+                    <span style={{ color: 'var(--color-success)' }}>
+                      收入
+                      {' '}
+                      {record.totalIncome.toLocaleString()}
+                    </span>
+                    <span style={{ color: 'var(--color-error)' }}>
+                      支出
+                      {' '}
+                      {record.totalExpense.toLocaleString()}
+                    </span>
+                  </div>
+                </Link>
+                <Link
+                  to={`/plans/${detail.id}/records/${monthStr}/edit`}
+                  className="absolute right-2.5 bottom-2.5 rounded-md p-1 transition-colors"
+                  style={{ color: 'var(--color-primary)', background: 'var(--color-primary-muted)' }}
+                  aria-label="编辑月记录"
+                  title="编辑月记录"
+                >
+                  <IconPencil size={13} />
+                </Link>
+              </div>
             )
           })}
           {detail.records.length === 0 && (

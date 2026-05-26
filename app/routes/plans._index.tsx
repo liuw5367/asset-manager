@@ -28,12 +28,21 @@ export default function PlansIndex() {
           <Link
             key={plan.id}
             to={`/plans/${plan.id}`}
-            className="rounded-xl border p-4 transition-shadow hover:shadow-md"
+            className="relative rounded-xl border p-4 transition-shadow hover:shadow-md"
             style={{
               background: 'var(--color-surface-card)',
               borderColor: 'var(--color-hairline)',
             }}
           >
+            <span
+              className="absolute top-3 right-3 rounded-md px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                background: 'var(--color-primary-muted)',
+                color: 'var(--color-primary)',
+              }}
+            >
+              {plan.planMode === 'snapshot' ? '总额记录' : '收支累加'}
+            </span>
             <div className="mb-3 flex items-center gap-2.5">
               <span className="text-2xl">{plan.emoji}</span>
               <span
