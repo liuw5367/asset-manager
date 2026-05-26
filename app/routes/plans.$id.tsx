@@ -448,7 +448,7 @@ export default function PlansDetail() {
               <div key={record.id} className="relative">
                 <Link
                   to={`/plans/${detail.id}/records/${monthStr}`}
-                  className="block rounded-xl border p-4 pr-11 transition-shadow hover:shadow-md"
+                  className="block rounded-xl border p-4 transition-shadow hover:shadow-md"
                   style={{
                     background: 'var(--color-surface-card)',
                     borderColor: 'var(--color-hairline)',
@@ -501,8 +501,8 @@ export default function PlansDetail() {
                 </Link>
                 <Link
                   to={`/plans/${detail.id}/records/${monthStr}/edit`}
-                  className="absolute right-2.5 bottom-2.5 rounded-md p-1 transition-colors"
-                  style={{ color: 'var(--color-primary)', background: 'var(--color-primary-muted)' }}
+                  className="absolute right-3 bottom-2 rounded-md p-2 transition-colors"
+                  style={{ color: 'var(--color-primary)' }}
                   aria-label="编辑月记录"
                   title="编辑月记录"
                 >

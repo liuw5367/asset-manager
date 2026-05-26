@@ -53,19 +53,22 @@ export default function Dashboard() {
   ]
 
   const renderStatsToggle = () => (
-    <div className="inline-flex items-center gap-1 rounded-lg p-1" style={{ background: 'var(--color-surface-strong)' }}>
+    <div
+      className="inline-flex items-center rounded-md border p-0.5"
+      style={{ borderColor: 'var(--color-hairline)' }}
+    >
       <Button
-        size="xs"
-        variant={statsModel === 'one_time' ? 'secondary' : 'ghost'}
-        className="h-6 px-2 text-[11px]"
+        size="sm"
+        variant={statsModel === 'one_time' ? 'default' : 'ghost'}
+        className="h-6 px-2 text-xs"
         onClick={() => setStatsModel('one_time')}
       >
         买断
       </Button>
       <Button
-        size="xs"
-        variant={statsModel === 'subscription' ? 'secondary' : 'ghost'}
-        className="h-6 px-2 text-[11px]"
+        size="sm"
+        variant={statsModel === 'subscription' ? 'default' : 'ghost'}
+        className="h-6 px-2 text-xs"
         onClick={() => setStatsModel('subscription')}
       >
         订阅

@@ -57,7 +57,10 @@ export function calcOneTimeCostRange(
   if (nEnd < 1 || nStart > nEnd)
     return 0
   const s = Math.max(1, nStart)
-  return purchasePrice * Math.log(nEnd / (s - 1))
+  let harmonic = 0
+  for (let n = s; n <= nEnd; n++)
+    harmonic += 1 / n
+  return purchasePrice * harmonic
 }
 
 /**
@@ -82,7 +85,10 @@ export function calcSoldOneTimeCostRange(
   if (nEnd < 1)
     return 0
   const s = Math.max(1, nStart)
-  return (purchasePrice - tradeInPrice) * Math.log(nEnd / (s - 1))
+  let harmonic = 0
+  for (let n = s; n <= nEnd; n++)
+    harmonic += 1 / n
+  return (purchasePrice - tradeInPrice) * harmonic
 }
 
 /**
