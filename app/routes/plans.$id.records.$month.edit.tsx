@@ -591,11 +591,10 @@ export default function PlansRecordsMonthEdit() {
       )}
 
       <div
-        className="fixed bottom-0 left-0 right-0 z-40 border-t px-4 py-3 md:hidden"
+        className="py-3 md:hidden"
         style={{
           background: 'var(--color-canvas)',
           borderColor: 'var(--color-hairline)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
         }}
       >
         <Button type="button" className="h-11 w-full" onClick={handleSave} disabled={isSubmitting}>
