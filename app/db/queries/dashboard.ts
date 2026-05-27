@@ -1,5 +1,5 @@
 import currency from 'currency.js'
-import { addDays, endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
+import { addDays, addMonths, addYears, endOfMonth, format, startOfMonth, subDays, subMonths } from 'date-fns'
 import { and, eq, gte, isNull, lte } from 'drizzle-orm'
 import { db } from '~/db'
 import { assets, categories, warranties } from '~/db/schema'
@@ -48,6 +48,7 @@ interface AssetOverview {
   purchaseDate: string | null
   subscriptionPrice: string | null
   billingCycle: 'monthly' | 'quarterly' | 'yearly' | null
+  nextRenewalDate: string | null
   subscriptionStatus: string | null
   subscriptionStoppedAt: string | null
   subscriptionStartDate: string | null
@@ -232,6 +233,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       purchaseDate: assets.purchaseDate,
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
+      nextRenewalDate: assets.nextRenewalDate,
       subscriptionStatus: assets.subscriptionStatus,
       subscriptionStoppedAt: assets.subscriptionStoppedAt,
       subscriptionStartDate: assets.subscriptionStartDate,
@@ -343,26 +345,37 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
   for (const a of activeAssets) {
     if (a.assetType !== 'subscription' || !a.subscriptionStatus || a.subscriptionStatus !== 'active')
       continue
-    // 计算下次续费日
-    if (a.purchaseDate && a.billingCycle) {
-      let next = new Date(a.purchaseDate)
-      while (format(next, 'yyyy-MM-dd') <= todayStr) {
-        if (a.billingCycle === 'monthly')
-          next = addDays(next, 30)
-        else if (a.billingCycle === 'quarterly')
-          next = addDays(next, 91)
-        else next = addDays(next, 365)
+
+    // 获取下次续费日：优先用 DB 存储值，否则从开始日期计算
+    let nextRenewalStr: string | null = null
+    if (a.nextRenewalDate && a.nextRenewalDate > todayStr) {
+      nextRenewalStr = a.nextRenewalDate
+    }
+    else if (a.billingCycle) {
+      const startDate = a.subscriptionStartDate || a.purchaseDate
+      if (startDate) {
+        const cycleMonths = { monthly: 1, quarterly: 3, yearly: 12 } as const
+        const months = cycleMonths[a.billingCycle]
+        let next = new Date(`${startDate}T00:00:00`)
+        while (format(next, 'yyyy-MM-dd') <= todayStr) {
+          next = a.billingCycle === 'yearly' ? addYears(next, 1) : addMonths(next, months)
+        }
+        nextRenewalStr = format(next, 'yyyy-MM-dd')
       }
-      const nextStr = format(next, 'yyyy-MM-dd')
-      if (nextStr <= thirtyDaysLater) {
-        const daysLeft = Math.ceil((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-        expiring.push({
-          id: a.id,
-          emoji: a.emoji,
-          name: a.name,
-          detail: `订阅 · ${nextStr} 到期（${daysLeft} 天后）`,
-        })
-      }
+    }
+
+    if (!nextRenewalStr)
+      continue
+    if (nextRenewalStr <= thirtyDaysLater) {
+      const expiryDate = subDays(new Date(`${nextRenewalStr}T00:00:00`), 1)
+      const expiryStr = format(expiryDate, 'yyyy-MM-dd')
+      const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+      expiring.push({
+        id: a.id,
+        emoji: a.emoji,
+        name: a.name,
+        detail: `订阅 · ${expiryStr} 到期（${daysLeft} 天后）`,
+      })
     }
   }
 
