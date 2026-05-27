@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS public.categories (
   emoji TEXT NOT NULL DEFAULT '📦',
   is_preset BOOLEAN DEFAULT FALSE,
   sort_order INTEGER DEFAULT 0,
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.tags (
   user_id UUID NOT NULL,
   name TEXT NOT NULL,
   color TEXT NOT NULL DEFAULT '#cc785c',
+  deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -42,7 +44,8 @@ CREATE TABLE IF NOT EXISTS public.payment_types (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   name TEXT NOT NULL,
-  is_preset BOOLEAN DEFAULT FALSE
+  is_preset BOOLEAN DEFAULT FALSE,
+  deleted_at TIMESTAMPTZ
 );
 
 -- 5. payment_accounts（支付账户）
@@ -50,7 +53,8 @@ CREATE TABLE IF NOT EXISTS public.payment_accounts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   payment_type_id UUID NOT NULL,
-  name TEXT NOT NULL
+  name TEXT NOT NULL,
+  deleted_at TIMESTAMPTZ
 );
 
 -- 6. assets（资产）
@@ -74,6 +78,7 @@ CREATE TABLE IF NOT EXISTS public.assets (
   next_renewal_date DATE,
   subscription_start_date DATE,
   subscription_status TEXT DEFAULT 'active',
+  subscription_stopped_at DATE,
 
   -- 通用
   payment_type_id UUID,
@@ -86,6 +91,11 @@ CREATE TABLE IF NOT EXISTS public.assets (
 
   -- 软删除
   deleted_at TIMESTAMPTZ,
+
+  -- 以旧换新
+  traded_in_at DATE,
+  trade_in_price NUMERIC(12, 2),
+  traded_from_asset_id UUID,
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -175,7 +185,7 @@ CREATE TABLE IF NOT EXISTS public.plan_default_items (
 CREATE TABLE IF NOT EXISTS public.plan_invite_links (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_id UUID NOT NULL,
-  token TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
   created_by_user_id UUID NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   revoked_at TIMESTAMPTZ,

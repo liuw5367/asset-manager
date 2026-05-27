@@ -43,7 +43,7 @@ export function activeDaysInRange(
 
 /**
  * 买断持有中资产在区间 [A, B] 的持有成本
- * 调和级数连续近似：P_b × ln(n_end / (n_start - 1))
+ * 调和级数逐项求和：P_b × Σ(1/n)，n ∈ [max(n_start, 1), n_end]
  * n_start = A - D_b + 1，n_end = B - D_b + 1
  */
 export function calcOneTimeCostRange(

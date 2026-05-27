@@ -207,9 +207,202 @@ text-align: center
 
 ---
 
-## 10. Do / Don't
+## 10. 色彩 Token 完整清单
 
-### Do
+### Light（默认）
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--color-canvas` | `#faf9f5` | 页面背景 |
+| `--color-surface-soft` | `#f5f0e8` | 侧边栏、hover 背景 |
+| `--color-surface-card` | `#efe9de` | 卡片、弹窗背景 |
+| `--color-surface-strong` | `#e8e0d2` | 徽标、禁用态背景 |
+| `--color-hairline` | `#e6dfd8` | 边框、分割线 |
+| `--color-primary` | `#cc785c` | 主色（珊瑚色）|
+| `--color-primary-active` | `#a9583e` | 主色 hover/active |
+| `--color-primary-muted` | `#f0e4dc` | 主色浅底（focus ring）|
+| `--color-ink` | `#141413` | 主文字 |
+| `--color-body` | `#3d3d3a` | 正文文字 |
+| `--color-muted` | `#6c6a64` | 次要文字 |
+| `--color-muted-soft` | `#8e8b82` | 弱化文字（placeholder）|
+| `--color-success` | `#5db872` | 成功状态 |
+| `--color-warning` | `#d4a017` | 警告状态 |
+| `--color-error` | `#c64545` | 错误状态 |
+| `--color-info` | `#5db8a6` | 信息状态 |
+
+### Dark（`.dark`）
+
+| Token | 值 |
+|---|---|
+| `--color-canvas` | `#181715` |
+| `--color-surface-soft` | `#1f1e1b` |
+| `--color-surface-card` | `#252320` |
+| `--color-surface-strong` | `#302e2a` |
+| `--color-hairline` | `#3a3835` |
+| `--color-ink` | `#faf9f5` |
+| `--color-body` | `#d4d0c8` |
+| `--color-muted` | `#a09d96` |
+| `--color-muted-soft` | `#8e8b82` |
+
+### 圆角
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `--radius-xs` | 4px | 小元素 |
+| `--radius-sm` | 6px | tag |
+| `--radius-md` | 8px | 内部元素 |
+| `--radius-lg` | 12px | 卡片 |
+| `--radius-xl` | 16px | 弹窗、Sheet |
+| `--radius-pill` | 9999px | 徽标、胶囊按钮 |
+
+---
+
+## 11. App Shell 布局
+
+认证后的所有页面共享 `app-shell.tsx` 布局。
+
+### 桌面端（≥ 768px）
+
+```
+┌─────────────────────────────────────────────┐
+│ ┌──────┐ ┌──────────────────────────────┐   │
+│ │Holdly│ │                              │   │
+│ │      │ │      Main Content            │   │
+│ │ 统计  │ │      max-width: 800px       │   │
+│ │ 资产  │ │      padding: 32px          │   │
+│ │ 计划  │ │                              │   │
+│ │ 设置  │ │                              │   │
+│ │      │ │                              │   │
+│ └──────┘ └──────────────────────────────┘   │
+└─────────────────────────────────────────────┘
+```
+
+- 左侧固定侧边栏：宽 220px，`position: fixed`，背景 `surface-soft`
+- 品牌名：EB Garamond，22px，主色
+- 导航项：icon (18px) + label (15px)，active 态主色 + `primary-muted` 背景
+- 内容区：`margin-left: 220px`，`max-width: 800px` 居中，`padding: 32px`
+
+### 移动端（< 768px）
+
+```
+┌──────────────────────┐
+│                      │
+│     Main Content     │
+│     max-width: 640px │
+│     padding: 16px    │
+│                      │
+├──────────────────────┤
+│  统计   资产   计划   设置  │  ← 底部 Tab Bar
+└──────────────────────┘
+```
+
+- 底部固定 Tab Bar：4 个等分项，高度 `--tab-bar-height` (80px)，支持 `safe-area-inset-bottom`
+- Tab 项：icon (22px) + label (10px)，active 态主色
+- 内容区：`max-width: 640px`，`padding: 16px`，`padding-bottom: 80px`
+
+---
+
+## 12. 应用主体页面规范
+
+### 12.1 Dashboard (`/dashboard`)
+
+**布局**：单列
+
+- **KPI 卡片**：2×2 网格，每卡片显示指标名（`muted` 12px）+ 数值（`ink` 20px bold）。卡片背景 `surface-card`，圆角 `radius-lg`，内边距 16px。
+- **分类花费**：分段标题 + 水平进度条。进度条高度 6px，背景 `hairline`，填充 `primary`。右侧显示百分比和金额。
+- **月度趋势图**：Recharts AreaChart，高度 200px，渐变填充。坐标轴文字 `muted` 12px。
+- **即将到期**：列表项 emoji + 名称 + 到期信息。顶部警告横幅背景 `warning` 浅底。
+
+**买断/订阅切换**：Toggle Group 组件，切换分类花费和趋势图的数据视图。
+
+### 12.2 资产列表 (`/assets`)
+
+**筛选栏**：
+- 搜索框：`Input` 组件 + 搜索 icon，placeholder「搜索资产...」
+- 类型筛选：水平 pill 按钮组（买断型/订阅型/已取消）
+- 分类筛选：水平滚动 pill 按钮（全部 + 各分类 emoji+名称）
+- 标签筛选/排序：icon 按钮，点击打开底部 Sheet
+
+**资产卡片**：
+- 布局：emoji（左侧）+ 名称/标签（中间）+ 价格/成本（右侧）
+- 背景 `surface-card`，圆角 `radius-lg`，内边距 16px，margin-bottom 8px
+- 每日成本：主色高亮，数字使用 `font-mono`
+- 状态指示点：活跃=绿色，已结束=灰色
+
+### 12.3 资产详情 (`/assets/:id`)
+
+**Hero 区**：emoji 大图标（48px）+ 名称（`font-display` 24px）+ 状态徽标 + 分类/标签行
+
+**信息卡片**：背景 `surface-card`，圆角 `radius-lg`，内边距 16px，margin-bottom 12px
+- 行布局：label（`muted` 14px 左）+ value（`ink` 14px 右）
+- 每日成本 value 使用主色 + `font-mono` 18px bold
+
+**操作按钮**：底部 sticky 栏或卡片底部，主要操作 primary 按钮，次要操作 ghost 按钮
+
+**维修记录**：时间轴样式，竖线 + 圆点，每条记录为卡片
+
+### 12.4 资产表单（新建/编辑）
+
+共享 `AssetForm` 组件，布局从上到下：
+- Emoji 选择器（Popover 弹出）
+- 表单字段：Label（12px muted）+ Input/Select（h-44px，radius-10px）
+- 支付类型/账户：并排两列
+- 底部 sticky 提交栏：primary 按钮 full-width
+
+### 12.5 计划详情 (`/plans/:id`)
+
+- 趋势图：同 Dashboard 图表风格
+- KPI 卡片：2 列
+- 月度记录列表：每行显示月份 + 总额 + 净收入（绿色/红色箭头）+ 收支摘要
+
+### 12.6 计划编辑器
+
+共享 `PlanEditorPage` 组件：
+- Emoji 选择器 + 名称输入
+- 模式选择器（accumulate/snapshot）
+- 权限选择器（own/all）
+- 成员列表：头像 + 名称 + 角色 + 备注输入
+- 默认项目列表：按 income/expense 分组，可增删
+- CSV 导入区域（snapshot 模式）
+- 邀请链接管理面板
+
+### 12.7 设置页
+
+- 分组：标题（`muted` 12px uppercase）+ 列表项
+- 列表项：icon + label + 右侧 value/arrow，h-48px
+- 行内编辑：点击切换为 input + 保存/取消按钮
+- 数据管理：各子页面入口显示条目计数 badge
+
+---
+
+## 13. 通用组件规范
+
+### 13.1 加载状态
+
+- 页面加载：骨架屏或 spinner 居中
+- 按钮操作：`disabled` + Spinner icon，不禁用其他按钮
+- 路由切换：NProgress 顶部 2px 进度条（主色）
+
+### 13.2 错误状态
+
+- 表单错误：字段下方红色文字 12px
+- 页面错误：ErrorBoundary 居中显示状态码 + 文案 + 返回按钮
+- Toast 错误：Sonner `toast.error()`，顶部居中
+
+### 13.3 空状态
+
+（注：当前资产列表未实现空状态 UI，规范供后续使用）
+
+- 居中布局：icon/插图 + 标题（16px ink）+ 描述（14px muted）+ CTA 按钮
+- 背景 `surface-card`，圆角 `radius-xl`，padding 32px
+
+---
+
+## 14. Do / Don't
+
+### 认证页面
+
+#### Do
 - 使用 `var(--font-display)` (EB Garamond) 做品牌名和标题
 - 使用原始 HTML 元素（`<button>`, `<input>`, `<label>`），不使用 shadcn 组件
 - 所有颜色使用 `--color-*` 前缀的 CSS 变量
@@ -217,10 +410,24 @@ text-align: center
 - 按钮必须有 hover（颜色加深）和 active（scale 0.98）过渡动画
 - 品牌规范参考 `docs/DESIGN-CLAUDE.md`
 
-### Don't
+#### Don't
 - 不使用 shadcn 的 `Button`、`Input`、`Label` 组件
 - 不使用 `--background`、`--foreground`、`--border` 等 shadcn CSS 变量
 - 不使用 Tailwind 的 `font-sans` 做标题字体
 - 分隔线字号不要用 13px，统一 12px
 - footer 不要用 `justify-between`，用 `justify-center` + `gap: 24px`
 - 不要使用 `@theme inline` 覆盖 `--color-*` token
+
+### 应用主体页面
+
+#### Do
+- 使用 shadcn/ui 组件（`Button`、`Input`、`Select`、`Card` 等）
+- 颜色使用 shadcn 映射 token（`bg-card`、`text-foreground`、`border-border`）
+- 金额/数字使用 `font-[family-name:var(--font-mono)]`
+- 按钮异步操作必须有独立 loading 状态
+- 路由 loader 中处理认证，未登录重定向 `/login`
+
+#### Don't
+- 不使用原始 `<button>`、`<input>` 元素（认证页面例外）
+- 不硬编码颜色值，使用 CSS 变量或 Tailwind token
+- 不因一个按钮 loading 而禁用全页按钮
