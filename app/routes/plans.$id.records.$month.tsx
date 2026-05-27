@@ -1,12 +1,11 @@
 import type { Route } from './+types/plans.$id.records.$month'
 import {
-  IconArrowLeft,
-  IconDots,
   IconPencil,
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Form, Link, data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation } from 'react-router'
+import { Form, data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import {
@@ -75,7 +74,6 @@ export default function PlansRecordsMonth() {
   const actionData = useActionData<typeof action>()
   const navigation = useNavigation()
 
-  const [menuOpen, setMenuOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [confirmMonth, setConfirmMonth] = useState('')
 
@@ -96,63 +94,24 @@ export default function PlansRecordsMonth() {
 
   return (
     <div className="pt-6 pb-8">
-      <div className="mb-5 flex items-center justify-between">
-        <Link
-          to={`/plans/${data.planId}`}
-          className="flex items-center gap-1 text-sm transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={16} />
-          返回
-        </Link>
-        <h1 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          {data.record.year}
-          年
-          {data.record.month}
-          月
-        </h1>
-        <div className="flex items-center gap-3">
-          <Link
-            to={`/plans/${data.planId}/records/${monthKey}/edit`}
-            className="flex items-center gap-1 text-sm"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            <IconPencil size={14} />
-            编辑
-          </Link>
-          {data.canManage && (
-            <div className="relative">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setMenuOpen(prev => !prev)}
-                style={{ color: 'var(--color-muted)' }}
-              >
-                <IconDots size={18} />
-              </Button>
-              {menuOpen && (
-                <button
-                  type="button"
-                  className="absolute right-0 top-8 z-10 flex w-36 items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-                  style={{
-                    background: 'var(--color-surface-card)',
-                    borderColor: 'var(--color-hairline)',
-                    color: 'var(--color-error)',
-                  }}
-                  onClick={() => {
-                    setMenuOpen(false)
-                    setDeleteOpen(true)
-                  }}
-                >
-                  <IconTrash size={14} />
-                  删除记录
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      <SubPageHeader
+        backTo={`/plans/${data.planId}`}
+        backLabel="返回"
+        title={`${data.record.year}年${data.record.month}月`}
+        primaryAction={{
+          label: '编辑',
+          icon: IconPencil,
+          to: `/plans/${data.planId}/records/${monthKey}/edit`,
+        }}
+        moreItems={data.canManage
+          ? [{
+              label: '删除记录',
+              icon: IconTrash,
+              variant: 'destructive',
+              onClick: () => setDeleteOpen(true),
+            }]
+          : undefined}
+      />
 
       <div className="mb-5 text-xs" style={{ color: 'var(--color-muted)' }}>
         创建于
@@ -160,20 +119,20 @@ export default function PlansRecordsMonth() {
         {data.record.createdAt ? new Date(data.record.createdAt).toLocaleDateString('zh-CN') : '--'}
       </div>
 
-      <div className="mb-6 grid grid-cols-3 gap-3">
-        <div className="rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+      <div className="mb-6 flex gap-3">
+        <div className="flex-[1_1_auto] rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
           <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>收入</div>
           <div className="font-[family-name:var(--font-mono)] text-lg font-semibold" style={{ color: 'var(--color-success)' }}>
             {data.record.totalIncome.toLocaleString()}
           </div>
         </div>
-        <div className="rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+        <div className="flex-[1_1_auto] rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
           <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>支出</div>
           <div className="font-[family-name:var(--font-mono)] text-lg font-semibold" style={{ color: 'var(--color-error)' }}>
             {data.record.totalExpense.toLocaleString()}
           </div>
         </div>
-        <div className="rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
+        <div className="flex-[1_1_auto] rounded-xl border p-3" style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}>
           <div className="mb-1 text-xs" style={{ color: 'var(--color-muted)' }}>净收入</div>
           <div className="font-[family-name:var(--font-mono)] text-lg font-semibold" style={{ color: data.record.netIncome >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
             {data.record.netIncome.toLocaleString()}

@@ -225,7 +225,7 @@ export default function PlansRecordsMonthEdit() {
 
   const isSubmitting = navigation.state !== 'idle'
 
-  const years = Array.from({ length: 22 }, (_, i) => CURRENT_YEAR - 20 + i)
+  const years = Array.from({ length: CURRENT_YEAR + 2 - 2020 + 1 }, (_, i) => 2020 + i)
   const months = Array.from({ length: 12 }, (_, i) => i + 1)
 
   function addItem(type: 'income' | 'expense') {

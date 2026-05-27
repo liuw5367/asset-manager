@@ -30,6 +30,14 @@ import {
   ChartTooltipContent,
 } from '~/components/ui/chart'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '~/components/ui/select'
+import {
   getActiveInviteLink,
   getPlanDetailById,
   regenerateInviteLink,
@@ -136,6 +144,7 @@ export default function PlansDetail() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('netValue')
+  const [selectedYear, setSelectedYear] = useState<string>('all')
 
   const isSubmittingDelete = navigation.state !== 'idle'
     && navigation.formData?.get('intent') === 'delete-plan'
@@ -148,6 +157,22 @@ export default function PlansDetail() {
   const memberNameMap = useMemo(
     () => new Map(detail.members.map(member => [member.userId, member.displayName])),
     [detail.members],
+  )
+  const availableYears = useMemo(
+    () => [...new Set(detail.records.map(record => record.year))].sort((a, b) => b - a),
+    [detail.records],
+  )
+  const filteredRecords = useMemo(
+    () => selectedYear === 'all'
+      ? detail.records
+      : detail.records.filter(record => String(record.year) === selectedYear),
+    [detail.records, selectedYear],
+  )
+  const annualNetIncome = useMemo(
+    () => selectedYear === 'all'
+      ? null
+      : filteredRecords.reduce((sum, record) => sum + record.netIncome, 0),
+    [filteredRecords, selectedYear],
   )
   const planModeLabel = detail.planMode === 'snapshot' ? '总额记录' : '收支累加'
   const trendData = useMemo(() => {
@@ -429,9 +454,29 @@ export default function PlansDetail() {
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-            月度记录
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
+              月度记录
+            </h2>
+            {availableYears.length > 0 && (
+              <Select value={selectedYear} onValueChange={v => setSelectedYear(v ?? 'all')}>
+                <SelectTrigger className="w-auto text-xs" style={{ height: 26, padding: '0px 8px' }}>
+                  <SelectValue placeholder="全部">{value => value === 'all' ? '全部' : `${value}年`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">全部</SelectItem>
+                    {availableYears.map(year => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                        年
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <Link
             to={`/plans/${detail.id}/records/${currentMonth}/edit?blank=1`}
             className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors"
@@ -446,7 +491,25 @@ export default function PlansDetail() {
         </div>
 
         <div className="flex flex-col gap-2.5">
-          {detail.records.map((record) => {
+          {annualNetIncome !== null && (
+            <div
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+              style={{ background: 'var(--color-surface-soft)' }}
+            >
+              <span style={{ color: 'var(--color-muted)' }}>
+                {selectedYear}
+                年收入
+              </span>
+              <span
+                className="font-semibold"
+                style={{ color: annualNetIncome >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}
+              >
+                {annualNetIncome >= 0 ? '+' : ''}
+                {annualNetIncome.toLocaleString()}
+              </span>
+            </div>
+          )}
+          {filteredRecords.map((record) => {
             const monthStr = `${record.year}-${String(record.month).padStart(2, '0')}`
             const netIncome = record.netIncome
             const isUp = netIncome > 0
@@ -558,12 +621,21 @@ export default function PlansDetail() {
               </div>
             )
           })}
-          {detail.records.length === 0 && (
+          {filteredRecords.length === 0 && (
             <div className="rounded-xl border p-6 text-center text-sm" style={{ borderColor: 'var(--color-hairline)', color: 'var(--color-muted)' }}>
-              暂无记录，点击“添加本月记录”开始。
+              暂无记录，点击"添加本月记录"开始。
             </div>
           )}
         </div>
+        {detail.records.length > 0 && (
+          <div className="mt-2 text-center text-xs" style={{ color: 'var(--color-muted)' }}>
+            共
+            {' '}
+            {filteredRecords.length}
+            {' '}
+            条
+          </div>
+        )}
       </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -578,9 +650,9 @@ export default function PlansDetail() {
             <AlertDialogCancel variant="secondary" className="h-10">
               取消
             </AlertDialogCancel>
-            <Form method="post">
+            <Form method="post" className="w-full sm:w-auto">
               <input type="hidden" name="intent" value="delete-plan" />
-              <AlertDialogAction type="submit" variant="destructive" className="h-10" disabled={isSubmittingDelete}>
+              <AlertDialogAction type="submit" variant="destructive" className="h-10 w-full" disabled={isSubmittingDelete}>
                 {isSubmittingDelete ? '删除中...' : '确认删除'}
               </AlertDialogAction>
             </Form>
