@@ -348,8 +348,8 @@ export default function PlansRecordsMonthEdit() {
   )
 
   return (
-    <div className="pt-6 pb-24">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="pb-24">
+      <div className="pt-3 mb-6 flex items-center justify-between">
         <Link
           to={data.blankMode ? `/plans/${data.planId}` : `/plans/${data.planId}/records/${data.year}-${String(data.month).padStart(2, '0')}`}
           className="flex items-center gap-1 text-sm transition-colors"

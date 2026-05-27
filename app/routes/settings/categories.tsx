@@ -94,7 +94,7 @@ export default function CategoriesPage() {
   const canSubmitCreate = useMemo(() => newName.trim().length > 0 && !isCreating, [isCreating, newName])
 
   return (
-    <div className="pb-8 pt-3">
+    <div className="pb-8">
       <SubPageHeader backTo="/settings" backLabel="设置" title="分类管理" />
 
       <Form

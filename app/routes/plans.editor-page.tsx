@@ -5,6 +5,16 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '~/components/ui/alert-dialog'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
@@ -85,6 +95,7 @@ export function PlanEditorPage({
   const [newItemName, setNewItemName] = useState('')
   const [newItemType, setNewItemType] = useState<'income' | 'expense'>('income')
   const [historyFile, setHistoryFile] = useState<File | null>(null)
+  const [deleteMemberId, setDeleteMemberId] = useState<string | null>(null)
 
   const inviteLink = actionData?.inviteLink ?? data.inviteLink
   const inviteExpiresAt = actionData?.inviteExpiresAt ?? data.inviteExpiresAt
@@ -97,6 +108,11 @@ export function PlanEditorPage({
 
   function updateMemberNote(userId: string, note: string) {
     setMembers(prev => prev.map(member => member.userId === userId ? { ...member, note } : member))
+  }
+
+  function removeMember(userId: string) {
+    setMembers(prev => prev.filter(member => member.userId !== userId))
+    setDeleteMemberId(null)
   }
 
   function removeDefaultItem(id: string) {
@@ -137,7 +153,7 @@ export function PlanEditorPage({
   }, [name, emoji, planMode, permission, startingValue, members, defaultItems])
 
   return (
-    <div className="pt-6 pb-8">
+    <div className="pt-3 pb-8">
       <div className="mb-6 flex items-center justify-between">
         <Link
           to={data.mode === 'create' ? '/plans' : `/plans/${data.planId}`}
@@ -236,6 +252,16 @@ export function PlanEditorPage({
                 <span className="text-sm" style={{ color: 'var(--color-ink)' }}>
                   {member.displayName}
                 </span>
+                {canManageMembers && member.role !== 'owner' && (
+                  <button
+                    type="button"
+                    className="text-xs font-medium"
+                    style={{ color: 'var(--color-primary)' }}
+                    onClick={() => setDeleteMemberId(member.userId)}
+                  >
+                    移除
+                  </button>
+                )}
                 <span className="ml-auto text-xs" style={{ color: 'var(--color-muted)' }}>
                   {member.role === 'owner' ? '所有者' : '编辑者'}
                 </span>
@@ -404,6 +430,26 @@ export function PlanEditorPage({
         </div>
       )}
       {actionData?.error && <div className="text-sm" style={{ color: 'var(--color-error)' }}>{actionData.error}</div>}
+
+      <AlertDialog open={!!deleteMemberId} onOpenChange={open => !open && setDeleteMemberId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认移除成员</AlertDialogTitle>
+            <AlertDialogDescription>
+              移除后需点击保存才能生效。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel variant="secondary">取消</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => deleteMemberId && removeMember(deleteMemberId)}
+            >
+              确认移除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -68,9 +68,6 @@ export default function PlansIndex() {
                   />
                 )
               })}
-              <span className="ml-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                {plan.permission === 'own' ? '成员仅编辑自己' : '成员可编辑全部'}
-              </span>
             </div>
 
             <div className="flex items-center justify-between">

@@ -93,7 +93,7 @@ export default function PlansRecordsMonth() {
   )
 
   return (
-    <div className="pt-6 pb-8">
+    <div className="pb-8">
       <SubPageHeader
         backTo={`/plans/${data.planId}`}
         backLabel="返回"

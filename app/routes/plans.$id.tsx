@@ -219,7 +219,7 @@ export default function PlansDetail() {
   }
 
   return (
-    <div className="pt-6 pb-8">
+    <div className="pt-3 pb-8">
       <div className="mb-5 flex items-center justify-between">
         <Link
           to="/plans"
@@ -227,55 +227,58 @@ export default function PlansDetail() {
           style={{ color: 'var(--color-primary)' }}
         >
           <IconArrowLeft size={16} />
-          月度计划
+          返回
         </Link>
-        <div className="flex items-center gap-3">
-          <Link
-            to={`/plans/${detail.id}/edit`}
-            className="flex items-center gap-1 text-sm"
-            style={{ color: 'var(--color-primary)' }}
-          >
-            <IconPencil size={14} />
-            编辑
-          </Link>
-          {detail.canManage && (
-            <div className="relative">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setMenuOpen(prev => !prev)}
-                className="text-[16px]"
-                style={{ color: 'var(--color-muted)' }}
-              >
-                ···
-              </Button>
-              {menuOpen && (
-                <div
-                  className="absolute right-0 top-8 z-10 w-36 rounded-lg border py-1 shadow-lg"
-                  style={{
-                    background: 'var(--color-surface-card)',
-                    borderColor: 'var(--color-hairline)',
-                  }}
+        {detail.canManage
+          ? (
+              <div className="flex items-center gap-3">
+                <Link
+                  to={`/plans/${detail.id}/edit`}
+                  className="flex items-center gap-1 text-sm"
+                  style={{ color: 'var(--color-primary)' }}
                 >
-                  <button
+                  <IconPencil size={14} />
+                  编辑
+                </Link>
+                <div className="relative">
+                  <Button
                     type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
-                    style={{ color: 'var(--color-error)' }}
-                    onClick={() => {
-                      setMenuOpen(false)
-                      setDeleteDialogOpen(true)
-                    }}
-                    disabled={isSubmittingDelete}
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setMenuOpen(prev => !prev)}
+                    className="text-[16px]"
+                    style={{ color: 'var(--color-muted)' }}
                   >
-                    <IconTrash size={14} />
-                    {isSubmittingDelete ? '删除中...' : '删除计划'}
-                  </button>
+                    ···
+                  </Button>
+                  {menuOpen && (
+                    <div
+                      className="absolute right-0 top-8 z-10 w-36 rounded-lg border py-1 shadow-lg"
+                      style={{
+                        background: 'var(--color-surface-card)',
+                        borderColor: 'var(--color-hairline)',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
+                        style={{ color: 'var(--color-error)' }}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setDeleteDialogOpen(true)
+                        }}
+                        disabled={isSubmittingDelete}
+                      >
+                        <IconTrash size={14} />
+                        {isSubmittingDelete ? '删除中...' : '删除计划'}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )
+          : <div />}
+
       </div>
 
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -301,8 +304,19 @@ export default function PlansDetail() {
 
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            成员
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
+              成员
+            </div>
+            <span
+              className="rounded-md px-2 py-0.5 text-[11px] font-medium"
+              style={{
+                background: 'var(--color-primary-muted)',
+                color: 'var(--color-primary)',
+              }}
+            >
+              {detail.permission === 'own' ? '仅编辑自己' : '可编辑全部'}
+            </span>
           </div>
           {detail.canManage && (
             <PlanInvitePanel

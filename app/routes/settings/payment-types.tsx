@@ -88,7 +88,7 @@ export default function PaymentTypesPage() {
   const canSubmitCreate = useMemo(() => newName.trim().length > 0 && !isCreating, [isCreating, newName])
 
   return (
-    <div className="pb-8 pt-3">
+    <div className="pb-8">
       <SubPageHeader backTo="/settings" backLabel="设置" title="支付类型管理" />
 
       <Form

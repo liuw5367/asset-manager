@@ -105,7 +105,7 @@ export default function PaymentAccountsPage() {
   const canSubmitCreate = useMemo(() => newName.trim().length > 0 && !!newTypeId && !isCreating, [isCreating, newName, newTypeId])
 
   return (
-    <div className="pb-8 pt-3">
+    <div className="pb-8">
       <SubPageHeader backTo="/settings" backLabel="设置" title="支付账户管理" />
 
       <Form
