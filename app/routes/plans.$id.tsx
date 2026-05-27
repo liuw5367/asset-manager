@@ -1,7 +1,6 @@
 import type { Route } from './+types/plans.$id'
 import type { ChartConfig } from '~/components/ui/chart'
 import {
-  IconArrowLeft,
   IconPencil,
   IconPlus,
   IconTrash,
@@ -11,6 +10,7 @@ import {
 import { useMemo, useState } from 'react'
 import { data, Form, Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { SubPageHeader } from '~/components/page-header'
 import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
 import {
@@ -145,7 +145,6 @@ export default function PlansDetail() {
   const actionData = useActionData<typeof action>()
   const navigation = useNavigation()
   const submit = useSubmit()
-  const [menuOpen, setMenuOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [trendMetric, setTrendMetric] = useState<TrendMetric>('netValue')
   const [selectedYear, setSelectedYear] = useState<string>('all')
@@ -219,67 +218,27 @@ export default function PlansDetail() {
   }
 
   return (
-    <div className="pt-3 pb-8">
-      <div className="mb-5 flex items-center justify-between">
-        <Link
-          to="/plans"
-          className="flex items-center gap-1 text-sm transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={16} />
-          返回
-        </Link>
-        {detail.canManage
-          ? (
-              <div className="flex items-center gap-3">
-                <Link
-                  to={`/plans/${detail.id}/edit`}
-                  className="flex items-center gap-1 text-sm"
-                  style={{ color: 'var(--color-primary)' }}
-                >
-                  <IconPencil size={14} />
-                  编辑
-                </Link>
-                <div className="relative">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setMenuOpen(prev => !prev)}
-                    className="text-[16px]"
-                    style={{ color: 'var(--color-muted)' }}
-                  >
-                    ···
-                  </Button>
-                  {menuOpen && (
-                    <div
-                      className="absolute right-0 top-8 z-10 w-36 rounded-lg border py-1 shadow-lg"
-                      style={{
-                        background: 'var(--color-surface-card)',
-                        borderColor: 'var(--color-hairline)',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors"
-                        style={{ color: 'var(--color-error)' }}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          setDeleteDialogOpen(true)
-                        }}
-                        disabled={isSubmittingDelete}
-                      >
-                        <IconTrash size={14} />
-                        {isSubmittingDelete ? '删除中...' : '删除计划'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          : <div />}
-
-      </div>
+    <div className="pb-8">
+      <SubPageHeader
+        backTo="/plans"
+        backLabel="返回"
+        title=""
+        primaryAction={detail.canManage
+          ? {
+              label: '编辑',
+              icon: IconPencil,
+              to: `/plans/${detail.id}/edit`,
+            }
+          : undefined}
+        moreItems={detail.canManage
+          ? [{
+              label: '删除计划',
+              icon: IconTrash,
+              variant: 'destructive',
+              onClick: () => setDeleteDialogOpen(true),
+            }]
+          : undefined}
+      />
 
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">

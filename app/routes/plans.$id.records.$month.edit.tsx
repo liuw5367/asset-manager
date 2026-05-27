@@ -1,12 +1,12 @@
 import type { Route } from './+types/plans.$id.records.$month.edit'
 import {
-  IconArrowLeft,
   IconCheck,
   IconPlus,
   IconTrash,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Link, data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { data as loaderDataFn, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -349,29 +349,16 @@ export default function PlansRecordsMonthEdit() {
 
   return (
     <div className="pb-24">
-      <div className="pt-3 mb-6 flex items-center justify-between">
-        <Link
-          to={data.blankMode ? `/plans/${data.planId}` : `/plans/${data.planId}/records/${data.year}-${String(data.month).padStart(2, '0')}`}
-          className="flex items-center gap-1 text-sm transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={16} />
-          返回
-        </Link>
-        <h1 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          {currentMonthKey}
-        </h1>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSubmitting}
-          className="flex items-center gap-1 text-sm font-medium"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconCheck size={16} />
-          {isSubmitting ? '保存中...' : '保存'}
-        </button>
-      </div>
+      <SubPageHeader
+        backTo={data.blankMode ? `/plans/${data.planId}` : `/plans/${data.planId}/records/${data.year}-${String(data.month).padStart(2, '0')}`}
+        backLabel="返回"
+        title={currentMonthKey}
+        primaryAction={{
+          label: isSubmitting ? '保存中...' : '保存',
+          icon: IconCheck,
+          onClick: handleSave,
+        }}
+      />
 
       <div className="mb-6 grid grid-cols-2 gap-3">
         <div>

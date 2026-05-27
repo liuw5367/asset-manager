@@ -1,8 +1,8 @@
 import type { PlanEditorLoaderData } from './plans.shared'
-import { IconArrowLeft, IconCheck, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconCheck, IconPlus, IconTrash } from '@tabler/icons-react'
 import EmojiPicker from 'emoji-picker-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router'
+import { SubPageHeader } from '~/components/page-header'
 import { PlanInvitePanel } from '~/components/plan-invite-panel'
 import { PublicAvatar } from '~/components/public-avatar'
 import {
@@ -153,30 +153,17 @@ export function PlanEditorPage({
   }, [name, emoji, planMode, permission, startingValue, members, defaultItems])
 
   return (
-    <div className="pt-3 pb-8">
-      <div className="mb-6 flex items-center justify-between">
-        <Link
-          to={data.mode === 'create' ? '/plans' : `/plans/${data.planId}`}
-          className="flex items-center gap-1 text-sm transition-colors"
-          style={{ color: 'var(--color-primary)' }}
-        >
-          <IconArrowLeft size={16} />
-          返回
-        </Link>
-        <h1 className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
-          {data.mode === 'create' ? '新建计划' : '编辑计划'}
-        </h1>
-        <button
-          type="button"
-          className="flex items-center gap-1 text-sm font-medium"
-          style={{ color: 'var(--color-primary)' }}
-          onClick={() => onSubmitSave(payload)}
-          disabled={isSaving}
-        >
-          <IconCheck size={16} />
-          {isSaving ? '保存中...' : '保存'}
-        </button>
-      </div>
+    <div className="pb-8">
+      <SubPageHeader
+        backTo={data.mode === 'create' ? '/plans' : `/plans/${data.planId}`}
+        backLabel="返回"
+        title={data.mode === 'create' ? '新建计划' : '编辑计划'}
+        primaryAction={{
+          label: isSaving ? '保存中...' : '保存',
+          icon: IconCheck,
+          onClick: () => onSubmitSave(payload),
+        }}
+      />
 
       <div className="mb-5 flex justify-center">
         <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -430,6 +417,24 @@ export function PlanEditorPage({
         </div>
       )}
       {actionData?.error && <div className="text-sm" style={{ color: 'var(--color-error)' }}>{actionData.error}</div>}
+
+      <div
+        className="py-3 md:hidden"
+        style={{
+          background: 'var(--color-canvas)',
+          borderColor: 'var(--color-hairline)',
+        }}
+      >
+        <Button
+          type="button"
+          className="h-11 w-full"
+          onClick={() => onSubmitSave(payload)}
+          disabled={isSaving}
+        >
+          <IconCheck size={16} />
+          {isSaving ? '保存中...' : '保存计划'}
+        </Button>
+      </div>
 
       <AlertDialog open={!!deleteMemberId} onOpenChange={open => !open && setDeleteMemberId(null)}>
         <AlertDialogContent>
