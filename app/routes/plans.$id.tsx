@@ -56,9 +56,13 @@ const trendChartConfig = {
     label: '净收入',
     color: 'var(--color-primary)',
   },
+  annualNetIncome: {
+    label: '年度净收入',
+    color: 'var(--color-primary)',
+  },
 } satisfies ChartConfig
 
-type TrendMetric = 'netValue' | 'netIncome'
+type TrendMetric = 'netValue' | 'netIncome' | 'annual'
 
 function currentMonthKey() {
   const now = new Date()
@@ -190,6 +194,18 @@ export default function PlansDetail() {
       }
     })
   }, [detail.records, detail.trend])
+  const annualData = useMemo(() => {
+    const yearMap = new Map<number, number>()
+    for (const record of detail.records) {
+      yearMap.set(record.year, (yearMap.get(record.year) ?? 0) + record.netIncome)
+    }
+    const years = [...yearMap.keys()].sort((a, b) => b - a).slice(0, 6).reverse()
+    return years.map(year => ({
+      year,
+      yearShort: String(year).slice(-2),
+      annualNetIncome: yearMap.get(year) ?? 0,
+    }))
+  }, [detail.records])
   const trendDataKey: TrendMetric = trendMetric === 'netIncome' ? 'netIncome' : 'netValue'
   const inviteLink = actionData && 'inviteLink' in actionData ? actionData.inviteLink : detail.inviteLink
   const inviteExpiresAt = actionData && 'inviteExpiresAt' in actionData ? actionData.inviteExpiresAt : detail.inviteExpiresAt
@@ -394,7 +410,7 @@ export default function PlansDetail() {
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-xs font-medium" style={{ color: 'var(--color-muted)' }}>
-            净值趋势（最近12个月）
+            {trendMetric === 'annual' ? '年度净收入（近6年）' : '净值趋势（最近12个月）'}
           </div>
           <div
             className="inline-flex items-center rounded-md border p-0.5"
@@ -418,38 +434,82 @@ export default function PlansDetail() {
             >
               净收入
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={trendMetric === 'annual' ? 'default' : 'ghost'}
+              className="h-6 px-2 text-xs"
+              onClick={() => setTrendMetric('annual')}
+            >
+              年度
+            </Button>
           </div>
         </div>
-        <ChartContainer config={trendChartConfig} className="aspect-video h-[180px] w-full">
-          <AreaChart data={trendData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="fillPlanAmount" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.15} />
-                <stop offset="95%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.01} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-            <XAxis dataKey="monthNumber" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
-            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} tickFormatter={value => formatTrendYAxis(Number(value))} />
-            <ChartTooltip
-              content={(
-                <ChartTooltipContent
-                  formatter={(value) => {
-                    const num = typeof value === 'number' ? value : Number(value)
-                    return `${num.toLocaleString()} 元`
-                  }}
-                />
-              )}
-            />
-            <Area
-              dataKey={trendDataKey}
-              type="monotone"
-              fill="url(#fillPlanAmount)"
-              stroke={`var(--color-${trendDataKey})`}
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ChartContainer>
+        {trendMetric === 'annual'
+          ? (
+              <ChartContainer config={trendChartConfig} className="aspect-video h-[180px] w-full">
+                <AreaChart data={annualData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillAnnual" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.15} />
+                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="yearShort" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} tickFormatter={value => formatTrendYAxis(Number(value))} />
+                  <ChartTooltip
+                    content={(
+                      <ChartTooltipContent
+                        formatter={(value) => {
+                          const num = typeof value === 'number' ? value : Number(value)
+                          return `${num.toLocaleString()} 元`
+                        }}
+                      />
+                    )}
+                  />
+                  <Area
+                    dataKey="annualNetIncome"
+                    type="monotone"
+                    fill="url(#fillAnnual)"
+                    stroke="var(--color-primary)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ChartContainer>
+            )
+          : (
+              <ChartContainer config={trendChartConfig} className="aspect-video h-[180px] w-full">
+                <AreaChart data={trendData} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="fillPlanAmount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={`var(--color-${trendDataKey})`} stopOpacity={0.01} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="monthNumber" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={11} width={52} tickFormatter={value => formatTrendYAxis(Number(value))} />
+                  <ChartTooltip
+                    content={(
+                      <ChartTooltipContent
+                        formatter={(value) => {
+                          const num = typeof value === 'number' ? value : Number(value)
+                          return `${num.toLocaleString()} 元`
+                        }}
+                      />
+                    )}
+                  />
+                  <Area
+                    dataKey={trendDataKey}
+                    type="monotone"
+                    fill="url(#fillPlanAmount)"
+                    stroke={`var(--color-${trendDataKey})`}
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ChartContainer>
+            )}
       </div>
 
       <div>
