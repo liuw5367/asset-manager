@@ -1,12 +1,12 @@
 import type { Route } from './+types/plans.$id'
 import type { ChartConfig } from '~/components/ui/chart'
 import {
-  IconArrowDownRight,
   IconArrowLeft,
-  IconArrowUpRight,
   IconPencil,
   IconPlus,
   IconTrash,
+  IconTrendingDown,
+  IconTrendingUp,
 } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { data, Form, Link, redirect, useActionData, useLoaderData, useNavigation, useSubmit } from 'react-router'
@@ -143,6 +143,10 @@ export default function PlansDetail() {
   const currentMonth = currentMonthKey()
   const memberToneMap = useMemo(
     () => buildPlanAvatarToneMap(detail.members.map(member => member.userId)),
+    [detail.members],
+  )
+  const memberNameMap = useMemo(
+    () => new Map(detail.members.map(member => [member.userId, member.displayName])),
     [detail.members],
   )
   const planModeLabel = detail.planMode === 'snapshot' ? '总额记录' : '收支累加'
@@ -444,71 +448,113 @@ export default function PlansDetail() {
         <div className="flex flex-col gap-2.5">
           {detail.records.map((record) => {
             const monthStr = `${record.year}-${String(record.month).padStart(2, '0')}`
-            const isUp = record.netIncome >= 0
+            const netIncome = record.netIncome
+            const isUp = netIncome > 0
+            const isDown = netIncome < 0
+            const mergedNote = record.memberNotes
+              .map((note) => {
+                const noteText = note.note.trim()
+                if (!noteText)
+                  return null
+                const memberName = memberNameMap.get(note.memberId)?.trim()
+                return memberName ? `${memberName}：${noteText}` : noteText
+              })
+              .filter((note): note is string => Boolean(note))
+              .join('；')
             return (
-              <div key={record.id} className="relative">
+              <div
+                key={record.id}
+                className="flex overflow-hidden rounded-xl border"
+                style={{
+                  background: 'var(--color-surface-card)',
+                  borderColor: 'var(--color-hairline)',
+                }}
+              >
                 <Link
                   to={`/plans/${detail.id}/records/${monthStr}`}
-                  className="block rounded-xl border p-4 transition-shadow hover:shadow-md"
-                  style={{
-                    background: 'var(--color-surface-card)',
-                    borderColor: 'var(--color-hairline)',
-                  }}
+                  className="block min-w-0 flex-1 p-4 transition-shadow hover:shadow-md"
                 >
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <span className="text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
                       {record.year}
                       年
                       {record.month}
                       月
                     </span>
-                    {isUp
-                      ? <IconArrowUpRight size={16} style={{ color: 'var(--color-success)' }} />
-                      : <IconArrowDownRight size={16} style={{ color: 'var(--color-error)' }} />}
+                    <span className="inline-flex items-center gap-1.5">
+                      {isUp && <IconTrendingUp size={16} style={{ color: 'var(--color-success)' }} />}
+                      {isDown && <IconTrendingDown size={16} style={{ color: 'var(--color-error)' }} />}
+                      {isUp
+                        ? (
+                            <span className="font-semibold" style={{ color: 'var(--color-success)' }}>
+                              +
+                              {netIncome.toLocaleString()}
+                            </span>
+                          )
+                        : isDown
+                          ? (
+                              <span className="font-semibold" style={{ color: 'var(--color-error)' }}>
+                                {netIncome.toLocaleString()}
+                              </span>
+                            )
+                          : (
+                              <span className="font-semibold" style={{ color: 'var(--color-muted)' }}>
+                                —
+                                {' '}
+                                0
+                              </span>
+                            )}
+                    </span>
                   </div>
-                  <div className="mb-2 flex items-center gap-4">
-                    <div
-                      className="font-[family-name:var(--font-mono)] text-lg font-semibold"
-                      style={{ color: 'var(--color-ink)' }}
-                    >
-                      {record.totalValue.toLocaleString()}
+                  <div
+                    className="mb-2 font-[family-name:var(--font-mono)] text-lg font-semibold"
+                    style={{ color: 'var(--color-ink)' }}
+                  >
+                    {record.totalValue.toLocaleString()}
+                  </div>
+                  <div className="flex items-end justify-between gap-4">
+                    <div className="flex gap-4 text-xs">
+                      <span style={{ color: 'var(--color-success)' }}>
+                        收入
+                        {' '}
+                        {record.totalIncome.toLocaleString()}
+                      </span>
+                      <span style={{ color: 'var(--color-error)' }}>
+                        支出
+                        {' '}
+                        {record.totalExpense.toLocaleString()}
+                      </span>
                     </div>
 
-                    {record.netIncome > 0
-                      ? (
-                          <span style={{ color: 'var(--color-success)' }}>
-                            +
-                            {record.netIncome.toLocaleString()}
-                          </span>
-                        )
-                      : (
-                          <span style={{ color: 'var(--color-error)' }}>
-                            {record.netIncome.toLocaleString()}
-                          </span>
-                        )}
-                  </div>
-                  <div className="flex gap-4 text-xs">
-                    <span style={{ color: 'var(--color-success)' }}>
-                      收入
-                      {' '}
-                      {record.totalIncome.toLocaleString()}
-                    </span>
-                    <span style={{ color: 'var(--color-error)' }}>
-                      支出
-                      {' '}
-                      {record.totalExpense.toLocaleString()}
-                    </span>
+                    <Link
+                      to={`/plans/${detail.id}/records/${monthStr}/edit`}
+                      aria-label="编辑月记录"
+                      title="编辑月记录"
+                      className="flex items-center"
+                    >
+                      <span
+                        className="min-w-0 truncate text-xs text-right"
+                        style={{ color: 'var(--color-muted)' }}
+                        title={mergedNote || undefined}
+                      >
+                        {mergedNote}
+                      </span>
+
+                      <span className="pl-2">
+                        <IconPencil size={14} />
+                      </span>
+                    </Link>
                   </div>
                 </Link>
-                <Link
+                {/* <Link
                   to={`/plans/${detail.id}/records/${monthStr}/edit`}
-                  className="absolute right-3 bottom-2 rounded-md p-2 transition-colors"
-                  style={{ color: 'var(--color-primary)' }}
+                  className="flex w-12 shrink-0 items-center justify-center border-l transition-colors"
+                  style={{ color: 'var(--color-primary)', borderColor: 'var(--color-hairline)' }}
                   aria-label="编辑月记录"
                   title="编辑月记录"
                 >
-                  <IconPencil size={13} />
-                </Link>
+                  <IconPencil size={18} />
+                </Link> */}
               </div>
             )
           })}
