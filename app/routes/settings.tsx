@@ -3,7 +3,6 @@ import {
   IconCheck,
   IconChevronRight,
   IconDeviceDesktop,
-  IconDownload,
   IconLoader2,
   IconLogout,
   IconMoon,

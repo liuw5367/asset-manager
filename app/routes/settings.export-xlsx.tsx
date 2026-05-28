@@ -41,6 +41,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       notes: assets.notes,
       tradedInAt: assets.tradedInAt,
       tradeInPrice: assets.tradeInPrice,
+      tradedFromAssetId: assets.tradedFromAssetId,
       createdAt: assets.createdAt,
       updatedAt: assets.updatedAt,
     })
@@ -58,11 +59,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
     tagMap.set(row.assetId, existing ? `${existing}、${row.tagName}` : row.tagName)
   }
 
+  const assetNameMap = new Map(assetRows.map(a => [a.id, a.name]))
+
   const assetSheetRows = assetRows.map(a => ({
     名称: a.name,
     Emoji: a.emoji,
     类型: a.assetType === 'subscription' ? '订阅' : '买断',
     分类: a.categoryName ? `${a.categoryEmoji || ''} ${a.categoryName}`.trim() : '未分类',
+    标签: tagMap.get(a.id) || '',
     购入价: a.purchasePrice ? Number(a.purchasePrice) : '',
     当前估价: a.currentValue ? Number(a.currentValue) : '',
     购入日期: a.purchaseDate || '',
@@ -76,11 +80,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
     支付类型: a.paymentTypeName || '',
     支付账户: a.paymentAccountName || '',
     备注: a.notes || '',
-    以旧换新日期: a.tradedInAt || '',
-    回收价: a.tradeInPrice ? Number(a.tradeInPrice) : '',
+    卖出日期: a.tradedInAt || '',
+    卖出价格: a.tradeInPrice ? Number(a.tradeInPrice) : '',
+    旧资产: a.tradedFromAssetId ? (assetNameMap.get(a.tradedFromAssetId) || '') : '',
     创建时间: a.createdAt ? new Date(a.createdAt).toISOString().slice(0, 19) : '',
     更新时间: a.updatedAt ? new Date(a.updatedAt).toISOString().slice(0, 19) : '',
-    标签: tagMap.get(a.id) || '',
   }))
 
   const ws1 = XLSX.utils.json_to_sheet(assetSheetRows)
@@ -89,6 +93,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     { wch: 6 },
     { wch: 6 },
     { wch: 12 },
+    { wch: 16 },
     { wch: 10 },
     { wch: 10 },
     { wch: 12 },
@@ -129,7 +134,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ))
 
   for (const plan of userPlans) {
-    // 获取计划所有成员
     const planMemberRows = await db
       .select({
         userId: planMembers.userId,
@@ -138,6 +142,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .from(planMembers)
       .innerJoin(profiles, eq(planMembers.userId, profiles.id))
       .where(and(eq(planMembers.planId, plan.id), isNull(planMembers.deletedAt)))
+
+    const memberNameMap = new Map(planMemberRows.map(m => [m.userId, m.displayName || m.userId.slice(0, 8)]))
 
     const recordRows = await db
       .select()
@@ -160,45 +166,47 @@ export async function loader({ request }: LoaderFunctionArgs) {
         .where(and(inArray(planRecordMemberNotes.recordId, recordIds), isNull(planRecordMemberNotes.deletedAt))),
     ])
 
-    const itemMap = new Map<string, typeof itemRows>()
+    const itemByRecord = new Map<string, typeof itemRows>()
     for (const item of itemRows) {
-      const list = itemMap.get(item.recordId) || []
+      const list = itemByRecord.get(item.recordId) || []
       list.push(item)
-      itemMap.set(item.recordId, list)
+      itemByRecord.set(item.recordId, list)
     }
-    const noteMap = new Map<string, typeof noteRows>()
+    const noteByRecord = new Map<string, typeof noteRows>()
     for (const note of noteRows) {
-      const list = noteMap.get(note.recordId) || []
+      const list = noteByRecord.get(note.recordId) || []
       list.push(note)
-      noteMap.set(note.recordId, list)
+      noteByRecord.set(note.recordId, list)
     }
+
+    // 收集所有月份中出现的 unique member:itemName 组合
+    const itemColumns = new Map<string, string>() // "memberId:itemName" → column header
+    const seenSet = new Set<string>()
+    for (const items of itemByRecord.values()) {
+      for (const item of items) {
+        const key = `${item.memberId}:${item.name}`
+        if (!seenSet.has(key)) {
+          seenSet.add(key)
+          const name = memberNameMap.get(item.memberId) || item.memberId
+          itemColumns.set(key, `${name}:${item.name}`)
+        }
+      }
+    }
+    const itemColumnKeys = [...itemColumns.keys()]
+    const noteMembers = planMemberRows.map(m => ({
+      userId: m.userId,
+      name: memberNameMap.get(m.userId)!,
+    }))
 
     let previousTotal = Number(plan.startingValue)
     const sheetRows: Record<string, unknown>[] = []
 
     for (const rec of recordRows) {
-      const items = itemMap.get(rec.id) || []
-      const notes = noteMap.get(rec.id) || []
+      const items = itemByRecord.get(rec.id) || []
+      const notes = noteByRecord.get(rec.id) || []
 
-      // 按成员聚合收支
-      const incomeByMember = new Map<string, number>()
-      const expenseByMember = new Map<string, number>()
-      const notesByMember = new Map<string, string>()
-      for (const member of planMemberRows) {
-        incomeByMember.set(member.userId, 0)
-        expenseByMember.set(member.userId, 0)
-      }
-      for (const item of items) {
-        const map = item.itemType === 'income' ? incomeByMember : expenseByMember
-        map.set(item.memberId, (map.get(item.memberId) || 0) + Number(item.amount))
-      }
-      for (const note of notes) {
-        if (note.note.trim())
-          notesByMember.set(note.memberId, note.note.trim())
-      }
-
-      const monthIncome = [...incomeByMember.values()].reduce((s, v) => s + v, 0)
-      const monthExpense = [...expenseByMember.values()].reduce((s, v) => s + v, 0)
+      const monthIncome = items.filter(i => i.itemType === 'income').reduce((s, i) => s + Number(i.amount), 0)
+      const monthExpense = items.filter(i => i.itemType === 'expense').reduce((s, i) => s + Number(i.amount), 0)
       const monthNet = monthIncome - monthExpense
 
       let netIncome = monthNet
@@ -215,29 +223,37 @@ export async function loader({ request }: LoaderFunctionArgs) {
       const row: Record<string, unknown> = {
         年月: `${rec.year}-${String(rec.month).padStart(2, '0')}`,
         模式: plan.planMode === 'snapshot' ? '总额记录' : '收支累加',
-        月收入合计: monthIncome,
-        月支出合计: monthExpense,
+        月收入合计: monthIncome || '',
+        月支出合计: monthExpense || '',
         月净收入: netIncome,
-        总额: totalValue,
+        总额: totalValue === 0 && rec.year === 0 && rec.month === 0 ? '' : totalValue,
       }
 
-      for (const member of planMemberRows) {
-        const name = member.displayName || member.userId
-        const inc = incomeByMember.get(member.userId) || 0
-        const exp = expenseByMember.get(member.userId) || 0
-        const note = notesByMember.get(member.userId) || ''
-        row[`${name} 收入`] = inc || ''
-        row[`${name} 支出`] = exp || ''
-        if (note)
-          row[`${name} 备注`] = note
+      // 每个成员每项收支独立列
+      for (const colKey of itemColumnKeys) {
+        const [memberId, itemName] = colKey.split(':')
+        const amt = items
+          .filter(i => i.memberId === memberId && i.name === itemName)
+          .reduce((s, i) => s + Number(i.amount), 0)
+        if (amt !== 0)
+          row[itemColumns.get(colKey)!] = amt
+      }
+
+      // 成员备注
+      for (const m of noteMembers) {
+        const note = notes.find(n => n.memberId === m.userId)
+        if (note?.note?.trim())
+          row[`${m.name} 备注`] = note.note.trim()
       }
 
       sheetRows.push(row)
     }
 
     const ws = XLSX.utils.json_to_sheet(sheetRows)
-    const colCount = 6 + planMemberRows.length * (noteMap.size > 0 ? 3 : 2)
-    ws['!cols'] = Array.from({ length: colCount }, () => ({ wch: 12 }))
+    const colCount = 6 + itemColumnKeys.length + noteMembers.filter(m =>
+      [...noteByRecord.values()].some(notes => notes.some(n => n.memberId === m.userId && n.note.trim())),
+    ).length
+    ws['!cols'] = Array.from({ length: Math.max(colCount, 6) }, () => ({ wch: 12 }))
     const sheetName = `计划-${plan.name}`.slice(0, 31)
     XLSX.utils.book_append_sheet(wb, ws, sheetName)
   }
