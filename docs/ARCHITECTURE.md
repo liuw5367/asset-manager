@@ -84,7 +84,9 @@ app/
 │   ├── utils.ts             # cn() Tailwind class 合并
 │   ├── asset.schema.ts      # 资产/维修表单 Zod schema
 │   ├── auth.schema.ts       # 认证表单 Zod schema
-│   └── plan.schema.ts       # 计划表单 Zod schema
+│   ├── plan.schema.ts       # 计划表单 Zod schema
+│   ├── backup.server.ts     # 数据导出 XLSX + 备份邮件 HTML 生成
+│   └── email.server.ts      # Resend 邮件发送
 ├── routes.ts                # 路由配置（React Router v7 config-based）
 ├── routes/                  # 路由文件（loader/action/component）
 ├── root.tsx                 # 根布局（NProgress、PWA SW、主题、错误边界）
@@ -182,6 +184,9 @@ Supabase client 每请求创建（`app/lib/supabase.server.ts`），通过 cooki
 | `reminder_enabled` | BOOLEAN | 提醒总开关，默认 true |
 | `reminder_subscription_days` | INTEGER | 订阅提醒提前天数，默认 7 |
 | `reminder_warranty_days` | INTEGER | 保修提醒提前天数，默认 14 |
+| `backup_enabled` | BOOLEAN | 定时备份开关，默认 false |
+| `backup_day_of_month` | INTEGER | 每月备份发送日期（1-28），默认 1 |
+| `backup_frequency` | TEXT | 备份频率，默认 'monthly'（目前仅支持每月） |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
@@ -522,3 +527,15 @@ useEffect(() => {
 - **邮件发送**：通过 Resend API（`app/lib/email.server.ts`），需要 `RESEND_API_KEY` 环境变量
 - **提醒类型**：订阅续费到期、保修到期
 - **配置层级**：全局默认（设置页）→ 单资产覆盖（资产/订阅详情页）
+
+## 数据备份
+
+数据备份功能允许用户按月将全部资产和计划数据通过邮件发送给自己。核心架构：
+
+- **设置页**：`/settings/data`（`app/routes/settings/data.tsx`），备份开关 + 发送日期选择（1-28 日）+ 导出 XLSX 按钮
+- **Cron 端点**：`/api/cron/send-backup`（`app/routes/api.cron.send-backup.tsx`），每日 UTC 09:00 触发
+- **GitHub Actions**：`.github/workflows/send-backup.yml`，每日触发 cron 端点
+- **共享逻辑**：`app/lib/backup.server.ts`，导出 `generateExportXlsx`（生成 XLSX 文件）和 `generateBackupHtml`（生成 HTML 邮件正文）
+- **备份存储**：配置存储在 `profiles` 表（`backup_enabled`、`backup_day_of_month`、`backup_frequency`），不独立建表
+- **邮件发送**：通过 Resend API，HTML 表格形式发送（Resend 免费版不支持附件，未来可扩展）
+- **频率限制**：目前仅支持每月备份，频率字段 `backup_frequency` 已预留供未来扩展

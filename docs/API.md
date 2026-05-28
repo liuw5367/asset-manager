@@ -325,15 +325,6 @@
 - 已加入 → `/plans/:planId?invite=already`
 - 新加入 → `/plans/:planId?invite=joined`
 
----
-
-### `GET /settings/data`
-
-| 类型 | 说明 |
-|---|---|
-| Loader | 返回 `{ backupEnabled, backupDayOfMonth, backupFrequency }` |
-| Action `update_backup` | 更新 `backupEnabled` + `backupDayOfMonth` + `backupFrequency` |
-
 ## Settings 模块
 
 ### `GET /settings`
@@ -388,6 +379,38 @@
 | Action `update` | 参数 `id` + `name` |
 | Action `delete` | 参数 `id`，软删除 |
 
+### `GET /settings/data`
+
+| 类型 | 说明 |
+|---|---|
+| Loader | 返回 `{ backupEnabled, backupDayOfMonth, backupFrequency }` |
+| Action `update_backup` | 更新 `backupEnabled` + `backupDayOfMonth` + `backupFrequency` |
+
+### `GET /settings/export-xlsx`
+
+| 类型 | 说明 |
+|---|---|
+| Loader | 返回 XLSX 文件二进制流（`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`）|
+| Action | 无 |
+
+---
+
+## Cron 模块
+
+### `POST /api/cron/send-backup`
+
+| 类型 | 说明 |
+|---|---|
+| Action | 每日触发，匹配用户 `backupDayOfMonth` → 生成 HTML 邮件，通过 Resend 发送 |
+
+**鉴权**：`x-cron-secret`（GitHub Actions）或 `x-cron-trigger`（Vercel Cron）
+
+**处理逻辑**：
+1. 查询所有 `backupEnabled = true` 的用户
+2. 过滤 `backupDayOfMonth === today.getDate()` 且 `backupFrequency === 'monthly'` 的用户
+3. 对每个用户调用 `generateBackupHtml(userId)` 生成资产 + 计划数据的 HTML 表格
+4. 通过 Resend API 发送到 `profile.email`
+
 ---
 
 ## 数据查询层
@@ -399,7 +422,7 @@
 | `assets.ts` | 26 | 资产 CRUD + 保修/维修/换新/标签/分类 |
 | `dashboard.ts` | 1 | Dashboard 聚合（KPI + 分类花费 + 趋图 + 到期）|
 | `plans.ts` | 13 | 计划 CRUD + 成员/邀请/记录/导入 |
-| `settings.ts` | 18 | 个人资料/分类/标签/支付方式 CRUD |
+| `settings.ts` | 18 | 个人资料/分类/标签/支付方式/备份配置 CRUD |
 
 ---
 
