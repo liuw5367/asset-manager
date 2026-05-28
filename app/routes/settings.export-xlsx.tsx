@@ -243,7 +243,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       for (const m of noteMembers) {
         const note = notes.find(n => n.memberId === m.userId)
         if (note?.note?.trim())
-          row[`${m.name} 备注`] = note.note.trim()
+          row[`${m.name}:备注`] = note.note.trim()
       }
 
       sheetRows.push(row)
