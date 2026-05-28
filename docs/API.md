@@ -75,8 +75,10 @@
     }
   },
   expiring: [{
-    id, emoji, name, detail   // detail 为到期描述文本
+    id, emoji, name, detail   // detail 为到期描述文本（如"订阅 · 2026-06-15 到期（18 天后）"）
   }]
+
+> **到期日计算**：使用`nextRenewalDate`字段优先，否则从`subscriptionStartDate`/`purchaseDate`推算。到期日 = `nextRenewalDate - 1天`。
 }
 ```
 
