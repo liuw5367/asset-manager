@@ -38,4 +38,5 @@ export default [
     route('settings/payment-types', 'routes/settings/payment-types.tsx'),
     route('settings/payment-accounts', 'routes/settings/payment-accounts.tsx'),
   ]),
+  route('settings/export-xlsx', 'routes/settings.export-xlsx.tsx'),
 ] satisfies RouteConfig

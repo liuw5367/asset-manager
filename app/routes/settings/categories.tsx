@@ -55,10 +55,11 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === 'update') {
     const id = String(formData.get('id') || '')
     const name = String(formData.get('name') || '').trim()
+    const emoji = String(formData.get('emoji') || '').trim() || undefined
     if (!id || !name)
       return data({ ok: false, intent, error: '参数不完整' }, { headers })
 
-    await updateSettingsCategory(user.id, id, { name })
+    await updateSettingsCategory(user.id, id, { name, emoji })
     return data({ ok: true, intent }, { headers })
   }
 
@@ -84,6 +85,8 @@ export default function CategoriesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [editEmoji, setEditEmoji] = useState('')
+  const [editEmojiOpen, setEditEmojiOpen] = useState(false)
 
   const pendingIntent = String(navigation.formData?.get('intent') || '')
   const pendingId = String(navigation.formData?.get('id') || '')
@@ -155,10 +158,26 @@ export default function CategoriesPage() {
                   : undefined,
             }}
           >
-            <span className="text-lg">{item.emoji}</span>
             {editingId === item.id
               ? (
                   <>
+                    <Popover open={editEmojiOpen} onOpenChange={setEditEmojiOpen}>
+                      <PopoverTrigger render={<Button type="button" variant="secondary" size="icon" className="text-lg shrink-0" />}>
+                        {editEmoji}
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" side="bottom" align="start">
+                        <EmojiPicker
+                          onEmojiClick={(emojiData) => {
+                            setEditEmoji(emojiData.emoji)
+                            setEditEmojiOpen(false)
+                          }}
+                          lazyLoadEmojis
+                          skinTonesDisabled
+                          width={320}
+                          height={360}
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <Input
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
@@ -180,6 +199,7 @@ export default function CategoriesPage() {
                       <input type="hidden" name="intent" value="update" />
                       <input type="hidden" name="id" value={item.id} />
                       <input type="hidden" name="name" value={editName} />
+                      <input type="hidden" name="emoji" value={editEmoji} />
                       <Button
                         type="submit"
                         size="icon-sm"
@@ -203,6 +223,7 @@ export default function CategoriesPage() {
                 )
               : (
                   <>
+                    <span className="text-lg shrink-0">{item.emoji}</span>
                     <span
                       className="min-w-0 flex-1 truncate text-sm"
                       style={{ color: 'var(--color-ink)' }}
@@ -219,6 +240,7 @@ export default function CategoriesPage() {
                         onClick={() => {
                           setEditingId(item.id)
                           setEditName(item.name)
+                          setEditEmoji(item.emoji)
                         }}
                       >
                         <IconPencil />

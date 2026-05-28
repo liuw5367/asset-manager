@@ -208,7 +208,7 @@ async function getActivePlanForUser(planId: string, userId: string) {
   }
 }
 
-async function getMembersByPlanIds(planIds: string[]) {
+export async function getMembersByPlanIds(planIds: string[]) {
   if (!planIds.length)
     return new Map<string, PlanMemberView[]>()
 
@@ -243,7 +243,7 @@ async function getMembersByPlanIds(planIds: string[]) {
   return map
 }
 
-async function getRecordRowsByPlanIds(planIds: string[]) {
+export async function getRecordRowsByPlanIds(planIds: string[]) {
   if (!planIds.length)
     return [] as Array<typeof planRecords.$inferSelect>
 
@@ -254,7 +254,7 @@ async function getRecordRowsByPlanIds(planIds: string[]) {
     .orderBy(desc(planRecords.year), desc(planRecords.month), desc(planRecords.updatedAt))
 }
 
-async function getRecordItemsByRecordIds(recordIds: string[]) {
+export async function getRecordItemsByRecordIds(recordIds: string[]) {
   if (!recordIds.length)
     return [] as Array<typeof planRecordItems.$inferSelect>
 
@@ -264,7 +264,7 @@ async function getRecordItemsByRecordIds(recordIds: string[]) {
     .where(and(inArray(planRecordItems.recordId, recordIds), isNull(planRecordItems.deletedAt)))
 }
 
-async function getRecordMemberNotesByRecordIds(recordIds: string[]) {
+export async function getRecordMemberNotesByRecordIds(recordIds: string[]) {
   if (!recordIds.length)
     return [] as Array<typeof planRecordMemberNotes.$inferSelect>
 
@@ -274,7 +274,7 @@ async function getRecordMemberNotesByRecordIds(recordIds: string[]) {
     .where(and(inArray(planRecordMemberNotes.recordId, recordIds), isNull(planRecordMemberNotes.deletedAt)))
 }
 
-function buildRecordViews(
+export function buildRecordViews(
   recordRows: Array<typeof planRecords.$inferSelect>,
   itemRows: Array<typeof planRecordItems.$inferSelect>,
   noteRows: Array<typeof planRecordMemberNotes.$inferSelect>,

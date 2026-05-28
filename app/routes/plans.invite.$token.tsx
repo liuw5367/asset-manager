@@ -7,7 +7,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
   const { data: { user } } = await supabase.auth.getUser()
   if (!user)
-    throw redirect('/login')
+    throw redirect(`/login?next=/plans/invite/${params.token}`)
 
   const token = params.token
   const accepted = await acceptInviteByToken(token, user.id)

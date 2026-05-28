@@ -223,82 +223,129 @@ export default function AssetsIndex() {
       </div>
 
       <div className="space-y-2">
-        {filteredAssets.map((asset) => {
-          const tagsText = (assetTagMap[asset.id] || []).map(t => t.name).join('、')
-          const isEnded = asset.assetType === 'subscription'
-            ? asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
-            : Boolean(asset.tradedInAt)
-          const holdingDays = calculateAssetDurationDays({
-            assetType: asset.assetType,
-            purchaseDate: asset.purchaseDate,
-            subscriptionStartDate: asset.subscriptionStartDate,
-            tradedInAt: asset.tradedInAt,
-            subscriptionStoppedAt: asset.subscriptionStoppedAt,
-            ended: isEnded,
-          })
+        {filteredAssets.length > 0
+          ? filteredAssets.map((asset) => {
+              const tagsText = (assetTagMap[asset.id] || []).map(t => t.name).join('、')
+              const isEnded = asset.assetType === 'subscription'
+                ? asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
+                : Boolean(asset.tradedInAt)
+              const holdingDays = calculateAssetDurationDays({
+                assetType: asset.assetType,
+                purchaseDate: asset.purchaseDate,
+                subscriptionStartDate: asset.subscriptionStartDate,
+                tradedInAt: asset.tradedInAt,
+                subscriptionStoppedAt: asset.subscriptionStoppedAt,
+                ended: isEnded,
+              })
 
-          return (
-            <button
-              key={asset.id}
-              onClick={() => navigate(getAssetDetailPath(asset))}
-              className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors hover:opacity-85"
-              style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
-            >
-              <span
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[18px]"
-                style={{ background: 'var(--color-surface-strong)' }}
+              return (
+                <button
+                  key={asset.id}
+                  onClick={() => navigate(getAssetDetailPath(asset))}
+                  className="flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors hover:opacity-85"
+                  style={{ background: 'var(--color-surface-card)', borderColor: 'var(--color-hairline)' }}
+                >
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[18px]"
+                    style={{ background: 'var(--color-surface-strong)' }}
+                  >
+                    {asset.emoji}
+                  </span>
+
+                  <div className="min-w-0 flex-1 ">
+                    <div className="flex justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="truncate text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
+                          {asset.name}
+                        </span>
+                        {isEnded && (
+                          <span className="inline-block size-1.5 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] bg-red-500 opacity-85" />
+                        )}
+                      </div>
+
+                      <div className="shrink-0 text-right text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
+                        {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
+                      </div>
+                    </div>
+
+                    <div className="mt-0.5">
+                      <div className="flex justify-between">
+                        <div className="truncate text-[12px]" style={{ color: 'var(--color-muted)' }}>
+                          {asset.assetType === 'subscription' ? '订阅' : '买断'}
+                          {' · '}
+                          {asset.categoryName || '未分类'}
+                          {tagsText ? ` · ${tagsText}` : ''}
+                        </div>
+
+                        <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+                          {(asset.purchasePrice || asset.subscriptionPrice)
+                            ? `¥${Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')}`
+                            : '—'}
+                          {' · '}
+                          {`${(asset.assetType === 'subscription' ? '订阅 ' : '购买 ') + holdingDays} 天`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </button>
+              )
+            })
+          : (
+              <div
+                className="flex flex-col items-center justify-center rounded-2xl border py-14"
+                style={{ borderColor: 'var(--color-hairline)' }}
               >
-                {asset.emoji}
-              </span>
-
-              <div className="min-w-0 flex-1 ">
-                <div className="flex justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="truncate text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                      {asset.name}
-                    </span>
-                    {isEnded && (
-                      <span className="inline-block size-1.5 rounded-full shadow-[0_0_10px_rgba(220,38,38,0.6)] bg-red-500 opacity-85" />
-                    )}
+                <span className="mb-2 text-4xl">{assets.length === 0 ? '📦' : '🔍'}</span>
+                <p className="mb-4 text-sm" style={{ color: 'var(--color-muted)' }}>
+                  {assets.length === 0 ? '还没有资产，开始记录你的第一件物品' : '没有匹配的资产'}
+                </p>
+                {assets.length === 0 && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => navigate('/assets/new')}
+                      className="rounded-lg px-4 py-2 text-sm font-medium"
+                      style={{ background: 'var(--color-primary)', color: '#fff' }}
+                    >
+                      + 创建资产
+                    </button>
+                    <button
+                      onClick={() => navigate('/subscriptions/new')}
+                      className="rounded-lg px-4 py-2 text-sm font-medium"
+                      style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}
+                    >
+                      + 创建订阅
+                    </button>
                   </div>
-
-                  <div className="shrink-0 text-right text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
-                    {asset.dailyCost > 0 ? `${asset.dailyCost.toFixed(2)}/天` : '—'}
-                  </div>
-                </div>
-
-                <div className="mt-0.5">
-                  <div className="flex justify-between">
-                    <div className="truncate text-[12px]" style={{ color: 'var(--color-muted)' }}>
-                      {asset.assetType === 'subscription' ? '订阅' : '买断'}
-                      {' · '}
-                      {asset.categoryName || '未分类'}
-                      {tagsText ? ` · ${tagsText}` : ''}
-                    </div>
-
-                    <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-                      {(asset.purchasePrice || asset.subscriptionPrice)
-                        ? `¥${Number(asset.purchasePrice || asset.subscriptionPrice).toLocaleString('zh-CN')}`
-                        : '—'}
-                      {' · '}
-                      {`${(asset.assetType === 'subscription' ? '订阅 ' : '购买 ') + holdingDays} 天`}
-                    </div>
-                  </div>
-                </div>
+                )}
+                {assets.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setSearch('')
+                      setActiveType(null)
+                      setSelectedCategory(null)
+                      setSelectedTag(null)
+                      setSortOption('default')
+                    }}
+                    className="rounded-lg px-4 py-2 text-sm font-medium"
+                    style={{ color: 'var(--color-primary)' }}
+                  >
+                    重置筛选
+                  </button>
+                )}
               </div>
-
-            </button>
-          )
-        })}
+            )}
       </div>
 
-      <div className="mt-4 text-center text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-        共
-        {' '}
-        {filteredAssets.length}
-        {' '}
-        件
-      </div>
+      {filteredAssets.length > 0 && (
+        <div className="mt-4 text-center text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+          共
+          {' '}
+          {filteredAssets.length}
+          {' '}
+          件
+        </div>
+      )}
 
       <Sheet open={sheetType === 'tag'} onOpenChange={open => !open && setSheetType(null)}>
         <SheetContent side="bottom" className="rounded-t-xl">
