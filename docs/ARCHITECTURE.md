@@ -50,8 +50,10 @@ routes.ts
     ├── settings/tags              → settings/tags.tsx
     ├── settings/payment-types     → settings/payment-types.tsx
     ├── settings/payment-accounts  → settings/payment-accounts.tsx
-    └── settings/reminders         → settings/reminders.tsx
+    ├── settings/reminders         → settings/reminders.tsx
+    └── settings/data              → settings/data.tsx
 └── api/cron/send-reminders       → api.cron.send-reminders.tsx（无布局）
+└── api/cron/send-backup          → api.cron.send-backup.tsx（无布局）
 ```
 
 ## 目录结构

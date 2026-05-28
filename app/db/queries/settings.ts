@@ -20,6 +20,9 @@ export async function getSettingsProfileByUserId(userId: string) {
       reminderEnabled: profiles.reminderEnabled,
       reminderSubscriptionDays: profiles.reminderSubscriptionDays,
       reminderWarrantyDays: profiles.reminderWarrantyDays,
+      backupEnabled: profiles.backupEnabled,
+      backupDayOfMonth: profiles.backupDayOfMonth,
+      backupFrequency: profiles.backupFrequency,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
@@ -280,6 +283,24 @@ export async function updateSettingsPaymentAccount(userId: string, id: string, i
       ...(input.paymentTypeId ? { paymentTypeId: input.paymentTypeId } : {}),
     })
     .where(and(eq(paymentAccounts.id, id), eq(paymentAccounts.userId, userId), isNull(paymentAccounts.deletedAt)))
+}
+
+export async function updateBackupConfig(
+  userId: string,
+  input: { backupEnabled: boolean, backupDayOfMonth: number, backupFrequency: string },
+) {
+  const [row] = await db
+    .update(profiles)
+    .set({
+      backupEnabled: input.backupEnabled,
+      backupDayOfMonth: input.backupDayOfMonth,
+      backupFrequency: input.backupFrequency,
+      updatedAt: new Date(),
+    })
+    .where(eq(profiles.id, userId))
+    .returning({ id: profiles.id })
+
+  return row ?? null
 }
 
 export async function softDeleteSettingsPaymentAccount(userId: string, id: string) {

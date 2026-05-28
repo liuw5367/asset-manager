@@ -11,6 +11,10 @@ export default defineConfig({
     tailwindcss(),
     reactRouter(),
     VitePWA({
+      devOptions: {
+        enabled: true, // 开启 dev 模式支持
+        type: 'module', // SSR 项目用 module 类型
+      },
       registerType: 'autoUpdate',
       injectRegister: null,
       includeAssets: [

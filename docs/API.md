@@ -327,6 +327,13 @@
 
 ---
 
+### `GET /settings/data`
+
+| 类型 | 说明 |
+|---|---|
+| Loader | 返回 `{ backupEnabled, backupDayOfMonth, backupFrequency }` |
+| Action `update_backup` | 更新 `backupEnabled` + `backupDayOfMonth` + `backupFrequency` |
+
 ## Settings 模块
 
 ### `GET /settings`

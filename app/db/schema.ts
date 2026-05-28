@@ -20,6 +20,9 @@ export const profiles = pgTable('profiles', {
   reminderSubscriptionDays: integer('reminder_subscription_days').default(7),
   reminderWarrantyDays: integer('reminder_warranty_days').default(14),
   reminderEnabled: boolean('reminder_enabled').default(true),
+  backupEnabled: boolean('backup_enabled').default(false),
+  backupDayOfMonth: integer('backup_day_of_month').default(1),
+  backupFrequency: text('backup_frequency').default('monthly'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })

@@ -109,7 +109,6 @@ export default function SettingsPage() {
   const [editingDisplayName, setEditingDisplayName] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -270,87 +269,33 @@ export default function SettingsPage() {
             { label: '支付类型管理', to: '/settings/payment-types', desc: `${counts.paymentTypes} 个类型` },
             { label: '支付账户管理', to: '/settings/payment-accounts', desc: `${counts.paymentAccounts} 个账户` },
             { label: '提醒设置', to: '/settings/reminders', desc: '订阅续费 · 保修到期' },
-            { label: '导出数据', to: '/settings/export-xlsx', desc: '导出为 xlsx 文件' },
+            { label: '数据备份', to: '/settings/data', desc: '定时备份 · 导出数据' },
           ].map((item, i) => (
-            item.to === '/settings/export-xlsx'
-              ? (
-                  <button
-                    key={item.to}
-                    type="button"
-                    disabled={isExporting}
-                    onClick={async () => {
-                      if (isExporting)
-                        return
-                      setIsExporting(true)
-                      try {
-                        const res = await fetch(item.to)
-                        const blob = await res.blob()
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `holdly-export-${new Date().toISOString().slice(0, 10)}.xlsx`
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }
-                      catch {
-                        // ignore
-                      }
-                      finally {
-                        setIsExporting(false)
-                      }
-                    }}
-                    className="flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors hover:opacity-85"
-                    style={{
-                      borderBottom:
-                        i < 5 ? '1px solid var(--color-hairline)' : undefined,
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div>
-                        <span
-                          className="block text-sm"
-                          style={{ color: 'var(--color-ink)' }}
-                        >
-                          {item.label}
-                        </span>
-                        <span className="mt-0.5 block text-xs" style={{ color: 'var(--color-muted-soft)' }}>
-                          {isExporting ? '导出中...' : item.desc}
-                        </span>
-                      </div>
-                    </div>
-                    <IconChevronRight
-                      size={18}
-                      style={{ color: 'var(--color-muted-soft)' }}
-                    />
-                  </button>
-                )
-              : (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className="flex items-center justify-between px-4 py-3.5 transition-colors hover:opacity-85"
-                    style={{
-                      borderBottom:
-                        i < 5 ? '1px solid var(--color-hairline)' : undefined,
-                    }}
-                  >
-                    <div>
-                      <span
-                        className="block text-sm"
-                        style={{ color: 'var(--color-ink)' }}
-                      >
-                        {item.label}
-                      </span>
-                      <span className="mt-0.5 block text-xs" style={{ color: 'var(--color-muted-soft)' }}>
-                        {item.desc}
-                      </span>
-                    </div>
-                    <IconChevronRight
-                      size={18}
-                      style={{ color: 'var(--color-muted-soft)' }}
-                    />
-                  </Link>
-                )
+            <Link
+              key={item.to}
+              to={item.to}
+              className="flex items-center justify-between px-4 py-3.5 transition-colors hover:opacity-85"
+              style={{
+                borderBottom:
+                  i < 5 ? '1px solid var(--color-hairline)' : undefined,
+              }}
+            >
+              <div>
+                <span
+                  className="block text-sm"
+                  style={{ color: 'var(--color-ink)' }}
+                >
+                  {item.label}
+                </span>
+                <span className="mt-0.5 block text-xs" style={{ color: 'var(--color-muted-soft)' }}>
+                  {item.desc}
+                </span>
+              </div>
+              <IconChevronRight
+                size={18}
+                style={{ color: 'var(--color-muted-soft)' }}
+              />
+            </Link>
           ))}
         </div>
       </section>

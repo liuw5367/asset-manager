@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   reminder_subscription_days INTEGER DEFAULT 7,
   reminder_warranty_days INTEGER DEFAULT 14,
   reminder_enabled BOOLEAN DEFAULT TRUE,
+  backup_enabled BOOLEAN DEFAULT FALSE,
+  backup_day_of_month INTEGER DEFAULT 1,
+  backup_frequency TEXT DEFAULT 'monthly',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

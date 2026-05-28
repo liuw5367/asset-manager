@@ -169,7 +169,7 @@ export default function RemindersPage() {
         </div>
 
         {hasChanges && (
-          <div className="mt-3 flex items-center justify-end gap-2 border-t pt-3" style={{ borderColor: 'var(--color-hairline)' }}>
+          <div className="flex items-center justify-end gap-2 border-t pt-3" style={{ borderColor: 'var(--color-hairline)' }}>
             <Button
               variant="default"
               onClick={saveReminder}

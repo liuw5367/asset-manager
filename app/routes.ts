@@ -7,6 +7,8 @@ import {
 } from '@react-router/dev/routes'
 
 export default [
+  route('/.well-known/appspecific/com.chrome.devtools.json', 'routes/well-known.ts'),
+
   index('routes/_index.tsx'),
 
   route('login', 'routes/login.tsx'),
@@ -38,7 +40,9 @@ export default [
     route('settings/payment-types', 'routes/settings/payment-types.tsx'),
     route('settings/payment-accounts', 'routes/settings/payment-accounts.tsx'),
     route('settings/reminders', 'routes/settings/reminders.tsx'),
+    route('settings/data', 'routes/settings/data.tsx'),
   ]),
   route('settings/export-xlsx', 'routes/settings.export-xlsx.tsx'),
   route('api/cron/send-reminders', 'routes/api.cron.send-reminders.tsx'),
+  route('api/cron/send-backup', 'routes/api.cron.send-backup.tsx'),
 ] satisfies RouteConfig
