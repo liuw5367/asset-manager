@@ -49,7 +49,9 @@ routes.ts
     ├── settings/categories        → settings/categories.tsx
     ├── settings/tags              → settings/tags.tsx
     ├── settings/payment-types     → settings/payment-types.tsx
-    └── settings/payment-accounts  → settings/payment-accounts.tsx
+    ├── settings/payment-accounts  → settings/payment-accounts.tsx
+    └── settings/reminders         → settings/reminders.tsx
+└── api/cron/send-reminders       → api.cron.send-reminders.tsx（无布局）
 ```
 
 ## 目录结构
@@ -510,14 +512,11 @@ useEffect(() => {
 
 样式引入：`import 'nprogress/nprogress.css'`。自定义样式覆盖见 `app/app.css`。
 
-## 邮件提醒（未实现）
+## 邮件提醒
 
-数据库层面已有 `reminder_jobs` 表和用户级/资产级提醒配置字段，但 **cron 端点和邮件发送逻辑尚未实现**。
+提醒系统已完整实现，详见 `docs/REMINDER.md`。核心架构：
 
-预期架构：
-- Vercel Cron 定时触发 API route（如 `/api/cron/send-reminders`）
-- 查询 `reminder_jobs` 表中 `scheduled_at` 已到且 `sent_at IS NULL` 的记录
-- 通过 Resend API 发送邮件
-- 更新 `sent_at` 标记已发送
-
-当前状态：提醒 UI（详情页的提醒设置 Dialog）已实现，但保存按钮仅关闭 Dialog，无后端持久化。设置页的通知配置 section 被注释掉。
+- **Cron 端点**：`/api/cron/send-reminders`（`app/routes/api.cron.send-reminders.tsx`），每日 UTC 08:00 触发，也支持用户手动触发
+- **邮件发送**：通过 Resend API（`app/lib/email.server.ts`），需要 `RESEND_API_KEY` 环境变量
+- **提醒类型**：订阅续费到期、保修到期
+- **配置层级**：全局默认（设置页）→ 单资产覆盖（资产/订阅详情页）

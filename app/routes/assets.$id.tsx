@@ -30,6 +30,7 @@ import {
   FieldLabel,
 } from '~/components/ui/field'
 import { Input } from '~/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '~/components/ui/sheet'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
@@ -48,9 +49,11 @@ import {
   getTradeToAsset,
   markAssetAsTradedIn,
   softDeleteAsset,
+  updateAssetReminder,
   updateRepairRecord,
   upsertWarranty,
 } from '~/db/queries/assets'
+import { getSettingsProfileByUserId } from '~/db/queries/settings'
 import { calculateHoldingDays, formatDaysWithYears, formatInteger, formatNumber, getAssetDetailPath, subAmount } from '~/lib/asset-meta'
 import { calcOneTimeDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
@@ -71,7 +74,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (asset.assetType === 'subscription')
     throw redirect(`/subscriptions/${asset.id}`)
 
-  const [tagIds, warranty, repairRecords, allCategories, allTags, paymentTypes, paymentAccounts, tradedFromAsset, tradeToAsset] = await Promise.all([
+  const [tagIds, warranty, repairRecords, allCategories, allTags, paymentTypes, paymentAccounts, tradedFromAsset, tradeToAsset, profile] = await Promise.all([
     getAssetWithTags(assetId),
     getAssetWarranty(assetId),
     getAssetRepairRecords(assetId),
@@ -81,6 +84,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     getPaymentAccountsByUserId(userId),
     asset.tradedFromAssetId ? getTradedFromAsset(asset.tradedFromAssetId) : Promise.resolve(null),
     getTradeToAsset(asset.id, userId),
+    getSettingsProfileByUserId(userId),
   ])
 
   const holdingDays = calculateHoldingDays(asset.purchaseDate, asset.tradedInAt)
@@ -103,6 +107,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     paymentAccounts,
     tradedFromAsset,
     tradeToAsset,
+    globalReminderWarrantyDays: profile?.reminderWarrantyDays ?? 14,
   }, { headers })
 }
 
@@ -178,6 +183,16 @@ export async function action({ request, params }: Route.ActionArgs) {
     return data({ ok: true }, { headers })
   }
 
+  if (intent === 'update_reminder') {
+    const reminderEnabled = formData.get('reminderEnabled') === 'true'
+    const daysRaw = formData.get('reminderWarrantyDaysOverride')
+    const reminderWarrantyDaysOverride = daysRaw && daysRaw !== 'null' ? Number(daysRaw) : null
+
+    await updateAssetReminder(assetId, user.id, { reminderEnabled, reminderWarrantyDaysOverride })
+
+    return data({ ok: true }, { headers })
+  }
+
   return data({ ok: false }, { headers })
 }
 
@@ -195,6 +210,7 @@ export default function AssetDetailPage() {
     paymentAccounts,
     tradedFromAsset,
     tradeToAsset,
+    globalReminderWarrantyDays,
   } = useLoaderData<typeof loader>()
 
   const navigate = useNavigate()
@@ -226,7 +242,11 @@ export default function AssetDetailPage() {
   const [sellPrice, setSellPrice] = useState('')
   const [sellDate, setSellDate] = useState(todayDate)
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
-  const [warrantyReminder, setWarrantyReminder] = useState('跟随全局（14天）')
+  const [reminderEnabled, setReminderEnabled] = useState(asset.reminderEnabled ?? false)
+  const [reminderWarrantyDaysOverride, setReminderWarrantyDaysOverride] = useState<number | null>(
+    asset.reminderWarrantyDaysOverride ?? null,
+  )
+  const reminderFollowGlobal = reminderWarrantyDaysOverride === null
   const warrantyStatus = warranty ? (warranty.endDate >= todayDate ? '保修中' : '已过保') : null
 
   const assetStatus = asset.tradedInAt ? (tradeToAsset ? '已换新' : '已卖出') : '持有中'
@@ -318,11 +338,26 @@ export default function AssetDetailPage() {
     setWarrantyDialogOpen(false)
   }
 
+  function handleSaveReminder() {
+    const fd = new FormData()
+    fd.append('intent', 'update_reminder')
+    fd.append('reminderEnabled', String(reminderEnabled))
+    fd.append('reminderWarrantyDaysOverride', reminderFollowGlobal ? 'null' : String(reminderWarrantyDaysOverride))
+    submit(fd, { method: 'post' })
+    setReminderDialogOpen(false)
+  }
+
+  function handleOpenReminderDialog() {
+    setReminderEnabled(asset.reminderEnabled ?? false)
+    setReminderWarrantyDaysOverride(asset.reminderWarrantyDaysOverride ?? null)
+    setReminderDialogOpen(true)
+  }
+
   const basicRows: Array<{ label: string, value: React.ReactNode, primary?: boolean }> = []
   if (asset.purchasePrice)
     basicRows.push({ label: '购入价', value: formatInteger(asset.purchasePrice) })
-  basicRows.push({ label: '持有天数', value: formatDaysWithYears(holdingDays) })
   basicRows.push({ label: '每日成本', value: `${formatNumber(dailyCost)}/天`, primary: true })
+  basicRows.push({ label: '持有天数', value: formatDaysWithYears(holdingDays) })
   if (paymentType)
     basicRows.push({ label: '支付类型', value: paymentType.name })
   if (paymentAccount)
@@ -461,8 +496,26 @@ export default function AssetDetailPage() {
             )}
           />
           <DetailRow label="保修开始" value={warranty.startDate} />
-          <DetailRow label="保修结束" value={warranty.endDate} isLast={!warranty.notes} />
-          {warranty.notes && <DetailRow label="备注" value={warranty.notes} isLast />}
+          <DetailRow label="保修结束" value={warranty.endDate} />
+          {warranty.notes && <DetailRow label="备注" value={warranty.notes} />}
+          <DetailRow
+            label="保修提醒"
+            value={(
+              <span className="flex items-center gap-1">
+                {asset.reminderEnabled
+                  ? (
+                      <>
+                        <IconBell size={14} className="text-primary" />
+                        {' '}
+                        {asset.reminderWarrantyDaysOverride ?? globalReminderWarrantyDays}
+                        天前
+                      </>
+                    )
+                  : <span style={{ color: 'var(--color-muted-soft)' }}>已关闭</span>}
+              </span>
+            )}
+            isLast
+          />
         </SectionCard>
       )}
 
@@ -593,7 +646,7 @@ export default function AssetDetailPage() {
           <IconPencil size={14} data-icon="inline-start" />
           编辑资产
         </Button>
-        <Button className="h-10 text-[13px]" variant="default" onClick={() => setReminderDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={handleOpenReminderDialog}>
           <IconBell size={14} data-icon="inline-start" />
           提醒设置
         </Button>
@@ -701,17 +754,54 @@ export default function AssetDetailPage() {
       <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>提醒设置</DialogTitle>
+            <DialogTitle>保修提醒设置</DialogTitle>
           </DialogHeader>
           <FieldGroup>
-            <Field>
-              <FieldLabel>保修提醒</FieldLabel>
-              <Input placeholder="例如：7天前提醒" value={warrantyReminder} onChange={e => setWarrantyReminder(e.target.value)} />
+            <Field orientation="horizontal" className="justify-between">
+              <FieldLabel>开启提醒</FieldLabel>
+              <Switch checked={reminderEnabled} onCheckedChange={setReminderEnabled} />
             </Field>
+            {reminderEnabled && (
+              <Field>
+                <FieldLabel>提醒时间</FieldLabel>
+                <Select
+                  value={reminderFollowGlobal ? 'global' : String(reminderWarrantyDaysOverride)}
+                  onValueChange={(v) => {
+                    if (v === 'global') {
+                      setReminderWarrantyDaysOverride(null)
+                    }
+                    else {
+                      setReminderWarrantyDaysOverride(Number(v))
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {value => value === 'global' ? `跟随全局（${globalReminderWarrantyDays}天）` : `${value} 天前`}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">
+                      跟随全局（
+                      {globalReminderWarrantyDays}
+                      天）
+                    </SelectItem>
+                    <SelectItem value="7">7 天前</SelectItem>
+                    <SelectItem value="14">14 天前</SelectItem>
+                    <SelectItem value="30">30 天前</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10" variant="default" onClick={() => setReminderDialogOpen(false)}>
-              <IconCheck size={14} data-icon="inline-start" />
+            <Button className="h-10" variant="secondary" onClick={() => setReminderDialogOpen(false)}>
+              <IconX size={14} data-icon="inline-start" />
+              取消
+            </Button>
+            <Button className="h-10" variant="default" onClick={handleSaveReminder} disabled={isSubmitting}>
+              {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+              {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
               保存
             </Button>
           </DialogFooter>

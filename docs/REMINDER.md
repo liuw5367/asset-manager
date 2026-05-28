@@ -1,0 +1,240 @@
+# 提醒系统设计方案
+
+> 版本：v1.0 | 日期：2026-05-28 | 状态：待实现
+
+---
+
+## 1. 设计目标
+
+实现完整的邮件提醒闭环，覆盖两种提醒类型：**订阅续费到期** 和 **保修到期**。
+
+### 范围
+
+- 全局提醒开关与天数配置（设置页）
+- 单资产提醒开关与天数覆盖（资产详情页）
+- 邮件发送（Resend + Vercel Cron）
+- Dashboard 提醒状态展示
+
+### 非范围
+
+- 站内通知 / 通知中心
+- PWA 推送通知
+- 提醒历史发送记录展示
+- 短信 / 其他推送渠道
+
+---
+
+## 2. 数据模型变更
+
+### 2.1 新增字段
+
+`assets` 表新增一个字段：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `reminder_enabled` | boolean | `false` | 单资产提醒开关 |
+
+新资产创建时默认 `false`，用户需在详情页手动开启。
+
+### 2.2 提醒天数解析规则
+
+```
+有效提醒天数 = asset 有 override → 用 override
+             否则 → 用 profile 全局默认
+```
+
+### 2.3 提醒生效条件（全量满足才执行）
+
+```
+profile.reminder_enabled = true
+  AND asset.reminder_enabled = true
+  AND asset 未软删除
+  AND 提醒日已到
+  AND 尚未发送过
+```
+
+### 2.4 `reminder_jobs` 表（已存在，无需变更）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | UUID PK | |
+| asset_id | UUID | 关联资产 |
+| user_id | UUID | 所属用户 |
+| reminder_type | enum | `subscription_renewal` / `warranty_expiry` |
+| scheduled_at | TIMESTAMPTZ | 应发送时间 |
+| sent_at | TIMESTAMPTZ? | 实际发送时间（null=未发送） |
+| cancelled_at | TIMESTAMPTZ? | 取消时间 |
+
+---
+
+## 3. 用户体验设计
+
+### 3.1 设置页 — 全局默认
+
+位置：`/settings`，取消现有注释，替换为：
+
+```
+┌──────────────────────────────────┐
+│  通知                             │
+│                                   │
+│  ┌──────────────────────────────┐ │
+│  │ 启用邮件提醒            [开关] │ │
+│  │                              │ │
+│  │ 订阅续费提醒      [7天前 ▾]   │ │
+│  │ 保修到期提醒     [14天前 ▾]   │ │
+│  │                              │ │
+│  │  ┌────────────────────────┐  │ │
+│  │  │ 立即检查提醒           │  │ │
+│  │  └────────────────────────┘  │ │
+│  └──────────────────────────────┘ │
+└──────────────────────────────────┘
+```
+
+- 天数选择固定选项：续费 3/7/14 天，保修 7/14/30 天（匹配 `docs/REQUIREMENT.md §3.8`）
+- 「立即检查提醒」按钮 → POST 到 cron endpoint，手动触发全量检查
+- 全局开关关闭时，cron 端点直接跳过该用户
+
+### 3.2 资产详情页 — 单资产提醒
+
+#### 3.2.1 状态展示
+
+在资产详情页的对应区域新增一行提醒状态：
+
+**买断资产（保修区块内）：**
+
+```
+保修提醒：已关闭  [设置]
+或
+保修提醒：7天前 🔔 已开启  [设置]
+```
+
+**订阅资产（基本信息区）：**
+
+```
+续费提醒：已关闭  [设置]
+或  
+续费提醒：7天前 🔔 已开启  [设置]
+```
+
+#### 3.2.2 设置弹窗
+
+点击「设置」按钮弹出 Dialog（替代当前自由文本输入框）：
+
+```
+┌────────────── Dialog ──────────────┐
+│  续费提醒设置（或"保修提醒设置"）      │
+│                                      │
+│  开启提醒              [开关]         │
+│                                      │
+│  提醒时间    [7天前 ▾]               │
+│             ◉ 跟随全局（7天）         │
+│             ○ 自定义                 │
+│                                      │
+│       [取消]            [保存]        │
+└──────────────────────────────────────┘
+```
+
+关键交互细节：
+- 「开启提醒」开关关闭时，「提醒时间」行置灰不可编辑
+- 「开启提醒」默认关闭（新资产默认不发提醒）
+- 选择「跟随全局」时显示全局值，提供预览
+- 选择「自定义」时展开天数下拉选择
+
+### 3.3 Dashboard — 即将到期区域
+
+现有「即将到期」卡片增强为显示提醒状态：
+
+| 图标 | 含义 |
+|---|---|
+| 🔔 ✓ | 已开启提醒 |
+| 🔔 | 未开启提醒（可点击跳转设置） |
+| （无） | 提醒已全局关闭（profile 级别） |
+
+---
+
+## 4. 后端设计
+
+### 4.1 Cron 端点
+
+路由：`app/routes/api.cron.send-reminders.tsx`
+
+**部署配置**（`vercel.json`）：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/send-reminders",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
+```
+
+每日 UTC 08:00（北京时间 16:00）触发。
+
+**处理逻辑（同一个端点同时处理 cron 触发和手动触发）：**
+
+```
+POST /api/cron/send-reminders
+X-Cron-Trigger: true  (Vercel Cron 自动添加)
+或
+POST /api/cron/send-reminders  (手动触发，需认证)
+```
+
+1. 查询所有 `profile.reminder_enabled = true` 的用户
+2. 对每个用户，查询其所有 `asset.deleted_at IS NULL AND asset.reminder_enabled = true` 的资产
+3. 对每条资产：
+   a. 确定提醒类型（订阅 → subscription_renewal，有保修 → warranty_expiry）
+   b. 计算 due_date（续费日/保修到期日）
+   c. 计算 reminder_days（override ?? profile 全局值）
+   d. 计算 scheduled_at = due_date - reminder_days
+   e. 如果 scheduled_at ≤ 今天 → 查 `reminder_jobs` 去重
+   f. 未发送过 → 发邮件 → 写入 `reminder_jobs`（`sent_at = now()`）
+4. Cron 触发时使用内部 service key 鉴权；手动触发需用户 session
+
+发送频率控制：**每个 asset + 每个提醒类型 + 每个 due_date 周期内只发一次**。去重依据：`reminder_jobs` 表中同一 `asset_id + reminder_type` 是否有 `sent_at NOT NULL` 的记录。
+
+### 4.2 邮件发送
+
+使用 Resend：
+
+```
+POST https://api.resend.com/emails
+```
+
+邮件模板：
+
+- 订阅续费提醒：`「{asset_name}」即将于 {due_date} 续费（{amount}元），请确保账户余额充足。`
+- 保修到期提醒：`「{asset_name}」的保修将于 {due_date} 到期，如需续保请及时处理。`
+
+收件人：`profile.email`
+
+### 4.3 手动触发
+
+设置页「立即检查提醒」按钮 → POST `/api/cron/send-reminders`（带用户 cookie）→ 只检查当前用户 → 返回结果提示条（"已检查，无待发送提醒" / "已发送 X 条提醒"）。
+
+---
+
+## 5. 实现步骤
+
+| # | 步骤 | 文件 |
+|---|---|---|
+| 1 | schema: 新增 `reminder_enabled` 字段 | `app/db/schema.ts` |
+| 2 | 生成迁移 | `pnpm db:generate` |
+| 3 | 更新 db-init.sql | `docs/db-init.sql` |
+| 4 | 设置页：取消注释通知 section + 实现保存逻辑 | `app/routes/settings.tsx` |
+| 5 | 资产详情：替换提醒 Dialog（开关 + radio 天数选择） | `app/routes/assets.$id.tsx` |
+| 6 | 订阅详情：替换提醒 Dialog | `app/routes/subscriptions.$id.tsx` |
+| 7 | 新增 cron 路由 | `app/routes/api.cron.send-reminders.tsx` |
+| 8 | 新增 Resend 邮件发送函数 | `app/lib/email.server.ts` |
+| 9 | Dashboard 增强：提醒状态展示 | `app/routes/dashboard.tsx` |
+| 10 | 更新 REQUIREMENT.md 未实现清单 | `docs/REQUIREMENT.md` |
+
+---
+
+## 6. 回滚方案
+
+- schema 回滚：`pnpm db:generate` 生成回退迁移
+- 代码回滚：`git revert`
+- 数据回滚：`reminder_jobs` 表仅追加，不修改已发送记录；无需数据回滚

@@ -1,6 +1,6 @@
 import type { Route } from './+types/dashboard'
 import type { ChartConfig } from '~/components/ui/chart'
-import { IconX } from '@tabler/icons-react'
+import { IconBell, IconBellOff, IconX } from '@tabler/icons-react'
 import { useState } from 'react'
 import { data as loaderDataFn, redirect, useLoaderData, useNavigate } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
@@ -276,8 +276,13 @@ export default function Dashboard() {
                   <div className="text-[14px] font-medium" style={{ color: 'var(--color-ink)' }}>
                     {item.name}
                   </div>
-                  <div className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
-                    {item.detail}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px]" style={{ color: 'var(--color-muted-soft)' }}>
+                      {item.detail}
+                    </span>
+                    {item.reminderEnabled
+                      ? <IconBell size={12} className="shrink-0 text-primary" />
+                      : <IconBellOff size={12} className="shrink-0" style={{ color: 'var(--color-muted-soft)' }} />}
                   </div>
                 </div>
               </button>

@@ -37,6 +37,8 @@ export default [
     route('settings/tags', 'routes/settings/tags.tsx'),
     route('settings/payment-types', 'routes/settings/payment-types.tsx'),
     route('settings/payment-accounts', 'routes/settings/payment-accounts.tsx'),
+    route('settings/reminders', 'routes/settings/reminders.tsx'),
   ]),
   route('settings/export-xlsx', 'routes/settings.export-xlsx.tsx'),
+  route('api/cron/send-reminders', 'routes/api.cron.send-reminders.tsx'),
 ] satisfies RouteConfig

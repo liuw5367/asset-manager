@@ -333,9 +333,17 @@
 
 | 类型 | 说明 |
 |---|---|
-| Loader | 返回 `{ profile: { displayName, email, avatarEmoji, reminderEnabled }, counts }` |
+| Loader | 返回 `{ profile: { displayName, email, avatarEmoji }, counts }` |
 | Action `logout` | `supabase.auth.signOut()`，redirect `/login` |
 | Action `update_profile` | 更新 `displayName` + `avatarEmoji` |
+
+### `GET /settings/reminders`
+
+| 类型 | 说明 |
+|---|---|
+| Loader | 返回 `{ reminderEnabled, reminderSubscriptionDays, reminderWarrantyDays }` |
+| Action `update_reminder` | 更新 `reminderEnabled` + `reminderSubscriptionDays` + `reminderWarrantyDays` |
+| Action `manual_reminder_check` | 触发 `POST /api/cron/send-reminders`，返回 `{ sent }` |
 
 ### `GET/POST /settings/categories`
 

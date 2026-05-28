@@ -91,13 +91,11 @@ SUPABASE_ANON_KEY=your-anon-key
 
 ---
 
-## Vercel Cron（邮件提醒）— 未实现
+## Vercel Cron（邮件提醒）
 
-> **注意**：以下为预期架构，cron 端点和邮件发送逻辑尚未实现。数据库表 `reminder_jobs` 和 UI 已就绪，但后端处理代码未完成。
+邮件提醒功能依赖 Vercel Cron 定时触发 API route。
 
-邮件提醒功能计划依赖 Vercel Cron 定时触发 API route。
-
-在 `vercel.json` 中配置（需要时添加）：
+在 `vercel.json` 中配置：
 
 ```json
 {
@@ -110,13 +108,11 @@ SUPABASE_ANON_KEY=your-anon-key
 }
 ```
 
-每日 UTC 08:00（北京时间 16:00）触发，查询 `reminder_jobs` 表中到期的提醒任务，通过 Resend 发送邮件。
+每日 UTC 08:00（北京时间 16:00）触发，扫描用户资产配置，通过 Resend 发送到期提醒邮件。同时支持用户从设置页手动触发。
 
 ---
 
-## Resend 邮件服务 — 未实现
-
-> **注意**：Resend 集成尚未实现。以下为预期配置，待 cron 端点开发完成后使用。
+## Resend 邮件服务
 
 ### 1. 注册
 
@@ -133,6 +129,7 @@ API Key 需添加到 Vercel 环境变量（供 cron route 使用）：
 | 变量 | 值 |
 |---|---|
 | `RESEND_API_KEY` | 你的 Resend API Key |
+| `EMAIL_FROM` | 发件人地址，如 `Holdly <notifications@你的域名>`（可选，默认 `notifications@holdly.app`）|
 
 ---
 

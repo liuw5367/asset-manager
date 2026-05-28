@@ -458,3 +458,35 @@ export async function getAssetTagsByUserId(userId: string) {
     .innerJoin(tags, eq(assetTags.tagId, tags.id))
     .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
 }
+
+// ========== 资产提醒设置 ==========
+
+export async function updateAssetReminder(
+  id: string,
+  userId: string,
+  input: { reminderEnabled: boolean, reminderWarrantyDaysOverride: number | null },
+) {
+  await db
+    .update(assets)
+    .set({
+      reminderEnabled: input.reminderEnabled,
+      reminderWarrantyDaysOverride: input.reminderWarrantyDaysOverride,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+export async function updateSubscriptionReminder(
+  id: string,
+  userId: string,
+  input: { reminderEnabled: boolean, reminderSubscriptionDaysOverride: number | null },
+) {
+  await db
+    .update(assets)
+    .set({
+      reminderEnabled: input.reminderEnabled,
+      reminderSubscriptionDaysOverride: input.reminderSubscriptionDaysOverride,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}

@@ -18,6 +18,8 @@ export async function getSettingsProfileByUserId(userId: string) {
       email: profiles.email,
       avatarEmoji: profiles.avatarEmoji,
       reminderEnabled: profiles.reminderEnabled,
+      reminderSubscriptionDays: profiles.reminderSubscriptionDays,
+      reminderWarrantyDays: profiles.reminderWarrantyDays,
     })
     .from(profiles)
     .where(eq(profiles.id, userId))
@@ -35,6 +37,23 @@ export async function updateSettingsProfile(userId: string, input: { displayName
       updatedAt: new Date(),
     })
     .where(eq(profiles.id, userId))
+    .returning({ id: profiles.id })
+
+  return row ?? null
+}
+
+export async function updateSettingsReminderConfig(
+  userId: string,
+  input: { reminderEnabled: boolean, reminderSubscriptionDays: number, reminderWarrantyDays: number },
+) {
+  const [row] = await db
+    .update(profiles)
+    .set({
+      reminderEnabled: input.reminderEnabled,
+      reminderSubscriptionDays: input.reminderSubscriptionDays,
+      reminderWarrantyDays: input.reminderWarrantyDays,
+      updatedAt: new Date(),
+    })
     .returning({ id: profiles.id })
 
   return row ?? null

@@ -54,6 +54,7 @@ interface AssetOverview {
   subscriptionStartDate: string | null
   tradedInAt: string | null
   tradeInPrice: string | null
+  reminderEnabled: boolean | null
 }
 
 interface CategoryMeta {
@@ -79,6 +80,7 @@ export interface DashboardData {
     emoji: string
     name: string
     detail: string
+    reminderEnabled: boolean
   }[]
 }
 
@@ -239,6 +241,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       subscriptionStartDate: assets.subscriptionStartDate,
       tradedInAt: assets.tradedInAt,
       tradeInPrice: assets.tradeInPrice,
+      reminderEnabled: assets.reminderEnabled,
     })
     .from(assets)
     .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
@@ -375,6 +378,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         emoji: a.emoji,
         name: a.name,
         detail: `订阅 · ${expiryStr} 到期（${daysLeft} 天后）`,
+        reminderEnabled: a.reminderEnabled ?? false,
       })
     }
   }
@@ -404,6 +408,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       emoji: asset.emoji,
       name: asset.name,
       detail: `保修 · ${w.endDate} 到期（${daysLeft} 天后）`,
+      reminderEnabled: asset.reminderEnabled ?? false,
     })
   }
 

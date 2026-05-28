@@ -49,7 +49,6 @@ export async function loader({ request }: Route.LoaderArgs) {
       displayName: profile?.displayName?.trim() || user.user_metadata?.display_name || user.email?.split('@')[0] || '用户',
       email: profile?.email || user.email || '',
       avatarEmoji: profile?.avatarEmoji || '',
-      reminderEnabled: profile?.reminderEnabled ?? true,
     },
     counts: {
       categories: categories.length,
@@ -254,24 +253,6 @@ export default function SettingsPage() {
         </div>
       </profileFetcher.Form>
 
-      {/* <section className="mb-8">
-        <h2
-          className="mb-3 text-sm font-medium uppercase tracking-wide"
-          style={{ color: 'var(--color-muted-soft)' }}
-        >
-          通知
-        </h2>
-        <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
-          <Field orientation="horizontal">
-            <FieldLabel>邮件到期提醒</FieldLabel>
-            <FieldContent>
-              <FieldDescription>提醒设置功能待后续设计，本期先保留界面。</FieldDescription>
-            </FieldContent>
-            <Switch checked={profile.reminderEnabled} disabled />
-          </Field>
-        </div>
-      </section> */}
-
       <section className="mb-8">
         <h2
           className="mb-3 text-sm font-medium uppercase tracking-wide"
@@ -288,6 +269,7 @@ export default function SettingsPage() {
             { label: '标签管理', to: '/settings/tags', desc: `${counts.tags} 个标签` },
             { label: '支付类型管理', to: '/settings/payment-types', desc: `${counts.paymentTypes} 个类型` },
             { label: '支付账户管理', to: '/settings/payment-accounts', desc: `${counts.paymentAccounts} 个账户` },
+            { label: '提醒设置', to: '/settings/reminders', desc: '订阅续费 · 保修到期' },
             { label: '导出数据', to: '/settings/export-xlsx', desc: '导出为 xlsx 文件' },
           ].map((item, i) => (
             item.to === '/settings/export-xlsx'
@@ -320,7 +302,7 @@ export default function SettingsPage() {
                     className="flex w-full items-center justify-between px-4 py-3.5 text-left transition-colors hover:opacity-85"
                     style={{
                       borderBottom:
-                        i < 4 ? '1px solid var(--color-hairline)' : undefined,
+                        i < 5 ? '1px solid var(--color-hairline)' : undefined,
                     }}
                   >
                     <div className="flex items-center gap-2">
@@ -349,7 +331,7 @@ export default function SettingsPage() {
                     className="flex items-center justify-between px-4 py-3.5 transition-colors hover:opacity-85"
                     style={{
                       borderBottom:
-                        i < 4 ? '1px solid var(--color-hairline)' : undefined,
+                        i < 5 ? '1px solid var(--color-hairline)' : undefined,
                     }}
                   >
                     <div>

@@ -92,7 +92,8 @@ export const assets = pgTable('assets', {
   paymentAccountId: uuid('payment_account_id'),
   notes: text('notes'),
 
-  // 到期提醒覆盖
+  // 到期提醒
+  reminderEnabled: boolean('reminder_enabled').default(false),
   reminderSubscriptionDaysOverride: integer('reminder_subscription_days_override'),
   reminderWarrantyDaysOverride: integer('reminder_warranty_days_override'),
 

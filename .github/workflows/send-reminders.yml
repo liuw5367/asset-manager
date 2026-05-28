@@ -1,0 +1,17 @@
+name: Send Reminders
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger cron endpoint
+        run: |
+          curl -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.VERCEL_URL || 'https://holdly-slient.vercel.app' }}/api/cron/send-reminders"

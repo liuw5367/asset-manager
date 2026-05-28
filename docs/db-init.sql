@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS public.assets (
   payment_account_id UUID,
   notes TEXT,
 
-  -- 到期提醒覆盖
+  -- 到期提醒
+  reminder_enabled BOOLEAN DEFAULT FALSE,
   reminder_subscription_days_override INTEGER,
   reminder_warranty_days_override INTEGER,
 

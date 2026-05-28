@@ -25,7 +25,8 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '~/components/ui/field'
-import { Input } from '~/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
+import { Switch } from '~/components/ui/switch'
 import {
   getAssetById,
   getAssetWithTags,
@@ -36,7 +37,9 @@ import {
   resumeSubscription,
   softDeleteAsset,
   stopSubscription,
+  updateSubscriptionReminder,
 } from '~/db/queries/assets'
+import { getSettingsProfileByUserId } from '~/db/queries/settings'
 import { calculateAssetDurationDays, formatDaysWithYears, formatInteger, formatNumber, getBillingCycleLabel } from '~/lib/asset-meta'
 import { calcSubscriptionDailyCost } from '~/lib/cost'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
@@ -54,12 +57,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (asset.assetType !== 'subscription')
     throw redirect(`/assets/${asset.id}`)
 
-  const [tagIds, allCategories, allTags, paymentTypes, paymentAccounts] = await Promise.all([
+  const [tagIds, allCategories, allTags, paymentTypes, paymentAccounts, profile] = await Promise.all([
     getAssetWithTags(asset.id),
     getCategoriesByUserId(user.id),
     getTagsByUserId(user.id),
     getPaymentTypesByUserId(user.id),
     getPaymentAccountsByUserId(user.id),
+    getSettingsProfileByUserId(user.id),
   ])
 
   const ended = asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
@@ -83,6 +87,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     paymentAccounts,
     holdingDays,
     dailyCost,
+    globalReminderSubscriptionDays: profile?.reminderSubscriptionDays ?? 7,
   }, { headers })
 }
 
@@ -109,6 +114,16 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (intent === 'delete') {
     await softDeleteAsset(params.id, user.id)
     return redirect('/assets', { headers })
+  }
+
+  if (intent === 'update_reminder') {
+    const reminderEnabled = formData.get('reminderEnabled') === 'true'
+    const daysRaw = formData.get('reminderSubscriptionDaysOverride')
+    const reminderSubscriptionDaysOverride = daysRaw && daysRaw !== 'null' ? Number(daysRaw) : null
+
+    await updateSubscriptionReminder(params.id, user.id, { reminderEnabled, reminderSubscriptionDaysOverride })
+
+    return data({ ok: true }, { headers })
   }
 
   return data({ ok: false }, { headers })
@@ -141,6 +156,7 @@ export default function SubscriptionDetailPage() {
     paymentAccounts,
     holdingDays,
     dailyCost,
+    globalReminderSubscriptionDays,
   } = useLoaderData<typeof loader>()
 
   const navigate = useNavigate()
@@ -159,7 +175,11 @@ export default function SubscriptionDetailPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelDate, setCancelDate] = useState(todayDate)
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
-  const [subscriptionReminder, setSubscriptionReminder] = useState('跟随全局（7天）')
+  const [reminderEnabled, setReminderEnabled] = useState(asset.reminderEnabled ?? false)
+  const [reminderSubscriptionDaysOverride, setReminderSubscriptionDaysOverride] = useState<number | null>(
+    asset.reminderSubscriptionDaysOverride ?? null,
+  )
+  const reminderFollowGlobal = reminderSubscriptionDaysOverride === null
 
   function onCancel() {
     const fd = new FormData()
@@ -181,7 +201,24 @@ export default function SubscriptionDetailPage() {
     submit(fd, { method: 'post' })
   }
 
+  function handleSaveReminder() {
+    const fd = new FormData()
+    fd.append('intent', 'update_reminder')
+    fd.append('reminderEnabled', String(reminderEnabled))
+    fd.append('reminderSubscriptionDaysOverride', reminderFollowGlobal ? 'null' : String(reminderSubscriptionDaysOverride))
+    submit(fd, { method: 'post' })
+    setReminderDialogOpen(false)
+  }
+
+  function handleOpenReminderDialog() {
+    setReminderEnabled(asset.reminderEnabled ?? false)
+    setReminderSubscriptionDaysOverride(asset.reminderSubscriptionDaysOverride ?? null)
+    setReminderDialogOpen(true)
+  }
+
   const ended = asset.subscriptionStatus === 'cancelled' || Boolean(asset.subscriptionStoppedAt)
+
+  const subscriptionCost = dailyCost * holdingDays
 
   const basicRows = [
     asset.billingCycle ? { label: '订阅周期', value: getBillingCycleLabel(asset.billingCycle) } : null,
@@ -191,6 +228,23 @@ export default function SubscriptionDetailPage() {
     paymentType ? { label: '支付类型', value: paymentType.name } : null,
     paymentAccount ? { label: '支付方式', value: paymentAccount.name } : null,
     category ? { label: '分类', value: `${category.emoji} ${category.name}` } : null,
+    {
+      label: '续费提醒',
+      value: (
+        <span className="flex items-center gap-1">
+          {asset.reminderEnabled
+            ? (
+                <>
+                  <IconBell size={14} className="text-primary" />
+                  {' '}
+                  {asset.reminderSubscriptionDaysOverride ?? globalReminderSubscriptionDays}
+                  天前
+                </>
+              )
+            : <span style={{ color: 'var(--color-muted-soft)' }}>已关闭</span>}
+        </span>
+      ),
+    },
   ].filter(Boolean) as Array<{ label: string, value: React.ReactNode, primary?: boolean }>
 
   const statusRows = [
@@ -206,10 +260,11 @@ export default function SubscriptionDetailPage() {
       ? { label: '订阅日期', value: asset.subscriptionStartDate || asset.purchaseDate || '' }
       : null,
     { label: '订阅天数', value: formatDaysWithYears(holdingDays) },
+    { label: '订阅花费', value: formatInteger(subscriptionCost), primary: true },
     ended && asset.subscriptionStoppedAt
       ? { label: '取消日期', value: asset.subscriptionStoppedAt }
       : null,
-  ].filter(Boolean) as Array<{ label: string, value: React.ReactNode }>
+  ].filter(Boolean) as Array<{ label: string, value: React.ReactNode, primary?: boolean }>
 
   return (
     <div className="pb-8">
@@ -244,7 +299,7 @@ export default function SubscriptionDetailPage() {
 
       <SectionCard title="状态" className="mt-3">
         {statusRows.map((row, index) => (
-          <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} isLast={index === statusRows.length - 1} />
+          <DetailRow key={`${row.label}-${index}`} label={row.label} value={row.value} primary={row.primary} isLast={index === statusRows.length - 1} />
         ))}
       </SectionCard>
 
@@ -253,7 +308,7 @@ export default function SubscriptionDetailPage() {
           <IconPencil size={14} data-icon="inline-start" />
           编辑订阅
         </Button>
-        <Button className="h-10 text-[13px]" variant="default" onClick={() => setReminderDialogOpen(true)}>
+        <Button className="h-10 text-[13px]" variant="default" onClick={handleOpenReminderDialog}>
           <IconBell size={14} data-icon="inline-start" />
           提醒设置
         </Button>
@@ -305,17 +360,54 @@ export default function SubscriptionDetailPage() {
       <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>提醒设置</DialogTitle>
+            <DialogTitle>续费提醒设置</DialogTitle>
           </DialogHeader>
           <FieldGroup>
-            <Field>
-              <FieldLabel>订阅提醒</FieldLabel>
-              <Input placeholder="例如：7天前提醒" value={subscriptionReminder} onChange={e => setSubscriptionReminder(e.target.value)} />
+            <Field orientation="horizontal" className="justify-between">
+              <FieldLabel>开启提醒</FieldLabel>
+              <Switch checked={reminderEnabled} onCheckedChange={setReminderEnabled} />
             </Field>
+            {reminderEnabled && (
+              <Field>
+                <FieldLabel>提醒时间</FieldLabel>
+                <Select
+                  value={reminderFollowGlobal ? 'global' : String(reminderSubscriptionDaysOverride)}
+                  onValueChange={(v) => {
+                    if (v === 'global') {
+                      setReminderSubscriptionDaysOverride(null)
+                    }
+                    else {
+                      setReminderSubscriptionDaysOverride(Number(v))
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {value => value === 'global' ? `跟随全局（${globalReminderSubscriptionDays}天）` : `${value} 天前`}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">
+                      跟随全局（
+                      {globalReminderSubscriptionDays}
+                      天）
+                    </SelectItem>
+                    <SelectItem value="3">3 天前</SelectItem>
+                    <SelectItem value="7">7 天前</SelectItem>
+                    <SelectItem value="14">14 天前</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
           </FieldGroup>
           <DialogFooter>
-            <Button className="h-10" variant="default" onClick={() => setReminderDialogOpen(false)}>
-              <IconCheck size={14} data-icon="inline-start" />
+            <Button className="h-10" variant="secondary" onClick={() => setReminderDialogOpen(false)}>
+              <IconX size={14} data-icon="inline-start" />
+              取消
+            </Button>
+            <Button className="h-10" variant="default" onClick={handleSaveReminder} disabled={isSubmitting}>
+              {isSubmitting && <IconLoader2 size={14} className="animate-spin" />}
+              {!isSubmitting && <IconCheck size={14} data-icon="inline-start" />}
               保存
             </Button>
           </DialogFooter>
