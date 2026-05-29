@@ -1,5 +1,5 @@
 import type { Route } from './+types/data'
-import { IconCheck, IconDownload, IconLoader2 } from '@tabler/icons-react'
+import { IconCheck, IconDownload, IconLoader2, IconSend } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { data, redirect, useFetcher, useLoaderData } from 'react-router'
 import { SubPageHeader } from '~/components/page-header'
@@ -7,6 +7,7 @@ import { Button } from '~/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
 import { getSettingsProfileByUserId, updateBackupConfig } from '~/db/queries/settings'
+import { processUserBackup } from '~/lib/backup.server'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -17,10 +18,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const profile = await getSettingsProfileByUserId(user.id)
 
+  const hostname = new URL(request.url).hostname
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
+
   return data({
     backupEnabled: profile?.backupEnabled ?? false,
     backupDayOfMonth: profile?.backupDayOfMonth ?? 1,
     backupFrequency: profile?.backupFrequency ?? 'monthly',
+    isLocal,
   }, { headers })
 }
 
@@ -40,10 +45,20 @@ export async function action({ request }: Route.ActionArgs) {
 
     await updateBackupConfig(user.id, { backupEnabled, backupDayOfMonth, backupFrequency })
 
-    return data({ ok: true, intent, error: undefined }, { headers })
+    return data({ ok: true, intent, error: undefined, sent: 0 }, { headers })
   }
 
-  return data({ ok: false, intent, error: '不支持的操作' }, { headers })
+  if (intent === 'manual_backup') {
+    try {
+      const sent = await processUserBackup(user.id)
+      return data({ ok: true, intent, error: undefined, sent }, { headers })
+    }
+    catch {
+      return data({ ok: false, intent, error: '备份发送失败', sent: 0 }, { headers })
+    }
+  }
+
+  return data({ ok: false, intent, error: '不支持的操作', sent: 0 }, { headers })
 }
 
 export default function DataPage() {
@@ -55,6 +70,8 @@ export default function DataPage() {
   const [backupFrequency, setBackupFrequency] = useState(loaderData.backupFrequency)
 
   const [isExporting, setIsExporting] = useState(false)
+
+  const isChecking = fetcher.state !== 'idle' && fetcher.formData?.get('intent') === 'manual_backup'
 
   const hasChanges = backupEnabled !== loaderData.backupEnabled
     || backupDayOfMonth !== loaderData.backupDayOfMonth
@@ -209,6 +226,47 @@ export default function DataPage() {
           </Button>
         </div>
       </div>
+
+      {loaderData.isLocal && (
+        <div className="mt-3 rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+          <h3
+            className="mb-0.5 text-sm font-medium uppercase tracking-wide"
+            style={{ color: 'var(--color-muted-soft)' }}
+          >
+            手动备份
+          </h3>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--color-muted-soft)' }}>
+              立即发送备份邮件
+            </span>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                const fd = new FormData()
+                fd.set('intent', 'manual_backup')
+                fetcher.submit(fd, { method: 'post' })
+              }}
+              disabled={isChecking}
+            >
+              {isChecking
+                ? <IconLoader2 size={14} className="animate-spin" />
+                : <IconSend size={14} data-icon="inline-start" />}
+              立即备份
+            </Button>
+          </div>
+          {fetcher.data?.ok === true && fetcher.data?.intent === 'manual_backup' && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-success)' }}>
+              备份邮件已发送
+            </p>
+          )}
+          {fetcher.data?.ok === false && fetcher.data?.intent === 'manual_backup' && !isChecking && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-error)' }}>
+              {fetcher.data.error}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

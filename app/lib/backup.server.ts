@@ -1,8 +1,11 @@
+import process from 'node:process'
+import { format } from 'date-fns'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import { db } from '~/db'
 import { getAssetTagsByUserId } from '~/db/queries/assets'
 import { assets, categories, paymentAccounts, paymentTypes, planMembers, planRecordItems, planRecordMemberNotes, planRecords, plans, profiles } from '~/db/schema'
+import { sendEmail } from '~/lib/email.server'
 
 export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
   const wb = XLSX.utils.book_new()
@@ -450,4 +453,52 @@ export async function generateBackupHtml(userId: string): Promise<string> {
   html += '</body></html>'
 
   return html
+}
+
+export async function processUserBackup(userId: string): Promise<number> {
+  const profile = await db
+    .select({ email: profiles.email })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1)
+    .then(r => r[0])
+
+  if (!profile?.email)
+    return 0
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd')
+
+  try {
+    const html = await generateBackupHtml(userId)
+
+    await sendEmail({
+      to: profile.email,
+      subject: `Holdly 数据备份 - ${todayStr}`,
+      text: `请查看附件中的 HTML 内容以获取备份详情。`,
+    })
+
+    // sendEmail only supports text, so send via Resend API directly for HTML
+    const apiKey = process.env.RESEND_API_KEY
+    if (!apiKey)
+      return 0
+
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM || 'Holdly <notifications@holdly.app>',
+        to: profile.email,
+        subject: `Holdly 数据备份 - ${todayStr}`,
+        html,
+      }),
+    })
+
+    return res.ok ? 1 : 0
+  }
+  catch {
+    return 0
+  }
 }
