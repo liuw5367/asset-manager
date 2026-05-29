@@ -1,0 +1,2 @@
+ALTER TABLE "plan_invite_links" ADD CONSTRAINT "plan_invite_links_token_unique" UNIQUE("token");--> statement-breakpoint
+ALTER TABLE "plan_records" ADD CONSTRAINT "plan_records_plan_id_year_month_unique" UNIQUE("plan_id","year","month");

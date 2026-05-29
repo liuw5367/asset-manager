@@ -1,0 +1,1 @@
+ALTER TABLE "assets" ADD COLUMN "reminder_enabled" boolean DEFAULT false;

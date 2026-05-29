@@ -38,7 +38,7 @@ Thumbs.db
 supabase/.branches/
 
 # Drizzle
-drizzle/
+drizzle/meta/
 
 # Testing
 coverage/
