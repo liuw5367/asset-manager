@@ -1,5 +1,4 @@
 import type { Route } from './+types/reminders'
-import process from 'node:process'
 import { IconCheck, IconLoader2, IconSend } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { data, redirect, useFetcher, useLoaderData } from 'react-router'
@@ -8,6 +7,7 @@ import { Button } from '~/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
 import { Switch } from '~/components/ui/switch'
 import { getSettingsProfileByUserId, updateSettingsReminderConfig } from '~/db/queries/settings'
+import { processUserReminders } from '~/lib/reminder.server'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -49,26 +49,12 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === 'manual_reminder_check') {
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : `http://${request.headers.get('host') || 'localhost:5173'}`
-
     try {
-      const res = await fetch(`${baseUrl}/api/cron/send-reminders`, {
-        method: 'POST',
-        headers: { Cookie: request.headers.get('Cookie') || '' },
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        return data({ ok: false, intent, error: body.error || '检查失败', sent: 0 }, { headers })
-      }
-
-      const body = await res.json() as { sent?: number }
-      return data({ ok: true, intent, error: undefined, sent: body.sent ?? 0 }, { headers })
+      const sent = await processUserReminders(user.id)
+      return data({ ok: true, intent, error: undefined, sent }, { headers })
     }
     catch {
-      return data({ ok: false, intent, error: '无法连接到提醒服务', sent: 0 }, { headers })
+      return data({ ok: false, intent, error: '检查失败', sent: 0 }, { headers })
     }
   }
 
