@@ -2,6 +2,7 @@ import type { Route } from './+types/assets._index'
 import { IconChevronDown, IconSearch, IconX } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { data, redirect, useLoaderData, useNavigate } from 'react-router'
+import { EmptyState } from '~/components/empty-state'
 import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -291,50 +292,35 @@ export default function AssetsIndex() {
                 </button>
               )
             })
-          : (
-              <div
-                className="flex flex-col items-center justify-center rounded-2xl border py-14"
-                style={{ borderColor: 'var(--color-hairline)' }}
-              >
-                <span className="mb-2 text-4xl">{assets.length === 0 ? '📦' : '🔍'}</span>
-                <p className="mb-4 text-sm" style={{ color: 'var(--color-muted)' }}>
-                  {assets.length === 0 ? '还没有资产，开始记录你的第一件物品' : '没有匹配的资产'}
-                </p>
-                {assets.length === 0 && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => navigate('/assets/new')}
-                      className="rounded-lg px-4 py-2 text-sm font-medium"
-                      style={{ background: 'var(--color-primary)', color: '#fff' }}
-                    >
-                      + 创建资产
-                    </button>
-                    <button
-                      onClick={() => navigate('/subscriptions/new')}
-                      className="rounded-lg px-4 py-2 text-sm font-medium"
-                      style={{ background: 'var(--color-primary-muted)', color: 'var(--color-primary)' }}
-                    >
-                      + 创建订阅
-                    </button>
-                  </div>
-                )}
-                {assets.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setSearch('')
-                      setActiveType(null)
-                      setSelectedCategory(null)
-                      setSelectedTag(null)
-                      setSortOption('default')
-                    }}
-                    className="rounded-lg px-4 py-2 text-sm font-medium"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    重置筛选
-                  </button>
-                )}
-              </div>
-            )}
+          : assets.length === 0
+            ? (
+                <EmptyState
+                  emoji="📦"
+                  title="还没有资产，开始记录你的第一件物品"
+                  actions={[
+                    { label: '+ 创建资产', to: '/assets/new' },
+                    { label: '+ 创建订阅', to: '/subscriptions/new' },
+                  ]}
+                />
+              )
+            : (
+                <EmptyState
+                  emoji="🔍"
+                  title="没有匹配的资产"
+                  actions={[
+                    {
+                      label: '重置筛选',
+                      onClick: () => {
+                        setSearch('')
+                        setActiveType(null)
+                        setSelectedCategory(null)
+                        setSelectedTag(null)
+                        setSortOption('default')
+                      },
+                    },
+                  ]}
+                />
+              )}
       </div>
 
       {filteredAssets.length > 0 && (

@@ -1,5 +1,6 @@
 import type { Route } from './+types/plans._index'
 import { data, Link, redirect, useLoaderData } from 'react-router'
+import { EmptyState } from '~/components/empty-state'
 import { MainPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { getPlanSummariesByUserId } from '~/db/queries/plans'
@@ -24,7 +25,18 @@ export default function PlansIndex() {
       <MainPageHeader title="财务计划" action={{ label: '+ 计划', to: '/plans/new' }} />
 
       <div className="flex flex-col gap-3">
-        {plans.map(plan => (
+        {plans.length === 0
+          ? (
+              <EmptyState
+                emoji="💰"
+                title="还没有计划"
+                description="创建一个财务计划来追踪你的收支"
+                actions={[
+                  { label: '+ 创建计划', to: '/plans/new' },
+                ]}
+              />
+            )
+          : plans.map(plan => (
           <Link
             key={plan.id}
             to={`/plans/${plan.id}`}
