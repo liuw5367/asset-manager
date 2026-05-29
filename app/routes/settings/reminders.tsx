@@ -18,10 +18,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const profile = await getSettingsProfileByUserId(user.id)
 
+  const hostname = new URL(request.url).hostname
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
+
   return data({
     reminderEnabled: profile?.reminderEnabled ?? true,
     reminderSubscriptionDays: profile?.reminderSubscriptionDays ?? 7,
     reminderWarrantyDays: profile?.reminderWarrantyDays ?? 14,
+    isLocal,
   }, { headers })
 }
 
@@ -180,44 +184,46 @@ export default function RemindersPage() {
         )}
       </div>
 
-      <div className="mt-3 rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
-        <h3
-          className="mb-0.5 text-sm font-medium uppercase tracking-wide"
-          style={{ color: 'var(--color-muted-soft)' }}
-        >
-          手动检查
-        </h3>
-        <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: 'var(--color-muted-soft)' }}>
-            立即发送待处理的邮件提醒通知
-          </span>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              const fd = new FormData()
-              fd.set('intent', 'manual_reminder_check')
-              fetcher.submit(fd, { method: 'post' })
-            }}
-            disabled={isChecking || !reminderEnabled}
+      {loaderData.isLocal && (
+        <div className="mt-3 rounded-2xl p-4" style={{ backgroundColor: 'var(--color-surface-card)' }}>
+          <h3
+            className="mb-0.5 text-sm font-medium uppercase tracking-wide"
+            style={{ color: 'var(--color-muted-soft)' }}
           >
-            {isChecking
-              ? <IconLoader2 size={14} className="animate-spin" />
-              : <IconSend size={14} data-icon="inline-start" />}
-            立即检查
-          </Button>
+            手动检查
+          </h3>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--color-muted-soft)' }}>
+              立即发送待处理的邮件提醒通知
+            </span>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                const fd = new FormData()
+                fd.set('intent', 'manual_reminder_check')
+                fetcher.submit(fd, { method: 'post' })
+              }}
+              disabled={isChecking || !reminderEnabled}
+            >
+              {isChecking
+                ? <IconLoader2 size={14} className="animate-spin" />
+                : <IconSend size={14} data-icon="inline-start" />}
+              立即检查
+            </Button>
+          </div>
+          {fetcher.data?.ok === true && fetcher.data?.intent === 'manual_reminder_check' && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-success)' }}>
+              {`已发送 ${fetcher.data.sent} 封提醒`}
+            </p>
+          )}
+          {fetcher.data?.ok === false && !isChecking && (
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-error)' }}>
+              {fetcher.data.error}
+            </p>
+          )}
         </div>
-        {fetcher.data?.ok === true && fetcher.data?.intent === 'manual_reminder_check' && (
-          <p className="mt-2 text-xs" style={{ color: 'var(--color-success)' }}>
-            {`已发送 ${fetcher.data.sent} 封提醒`}
-          </p>
-        )}
-        {fetcher.data?.ok === false && !isChecking && (
-          <p className="mt-2 text-xs" style={{ color: 'var(--color-error)' }}>
-            {fetcher.data.error}
-          </p>
-        )}
-      </div>
+      )}
     </div>
   )
 }
