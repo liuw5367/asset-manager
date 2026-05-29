@@ -1,6 +1,6 @@
+import type { assets } from '~/db/schema'
 import { describe, expect, it } from 'vitest'
 import { calcDueDate } from './reminder.server'
-import type { assets } from '~/db/schema'
 
 function makeAsset(overrides: Partial<typeof assets.$inferSelect>): typeof assets.$inferSelect {
   return {

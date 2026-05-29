@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateAssetDurationDays, formatDaysWithYears, getAssetDetailPath,
-  getAssetEditPath,
-  getBillingCycleLabel,
-  toAmount,
-  subAmount,
-  calculateHoldingDays,
-  formatNumber,
-  formatInteger,
-} from './asset-meta'
+import { calculateAssetDurationDays, calculateHoldingDays, formatDaysWithYears, formatInteger, formatNumber, getAssetDetailPath, getAssetEditPath, getBillingCycleLabel, subAmount, toAmount } from './asset-meta'
 
 describe('calculateAssetDurationDays', () => {
   it('订阅结束时使用 subscriptionStoppedAt 计算天数', () => {

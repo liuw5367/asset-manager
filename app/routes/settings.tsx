@@ -14,6 +14,7 @@ import EmojiPicker from 'emoji-picker-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import { data, Link, redirect, useFetcher, useLoaderData } from 'react-router'
+import { toast } from 'sonner'
 import { MainPageHeader } from '~/components/page-header'
 import { PublicAvatar } from '~/components/public-avatar'
 import { Button } from '~/components/ui/button'
@@ -120,6 +121,11 @@ export default function SettingsPage() {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (profileFetcher.data && !profileFetcher.data.ok)
+      toast.error(profileFetcher.data.error)
+  }, [profileFetcher.data])
 
   const isLoggingOut = logoutFetcher.state !== 'idle'
   const currentTheme: 'system' | 'light' | 'dark'

@@ -2,6 +2,7 @@ import type { Route } from './+types/data'
 import { IconCheck, IconDownload, IconLoader2, IconSend } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { data, redirect, useFetcher, useLoaderData } from 'react-router'
+import { toast } from 'sonner'
 import { SubPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -82,6 +83,11 @@ export default function DataPage() {
     setBackupDayOfMonth(loaderData.backupDayOfMonth)
     setBackupFrequency(loaderData.backupFrequency)
   }, [loaderData.backupEnabled, loaderData.backupDayOfMonth, loaderData.backupFrequency])
+
+  useEffect(() => {
+    if (fetcher.data?.ok === false)
+      toast.error(fetcher.data.error)
+  }, [fetcher.data])
 
   function saveBackup() {
     const fd = new FormData()
@@ -212,7 +218,7 @@ export default function DataPage() {
                 URL.revokeObjectURL(url)
               }
               catch {
-                // ignore
+                toast.error('导出失败，请重试')
               }
               finally {
                 setIsExporting(false)

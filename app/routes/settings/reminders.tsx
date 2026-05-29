@@ -2,6 +2,7 @@ import type { Route } from './+types/reminders'
 import { IconCheck, IconLoader2, IconSend } from '@tabler/icons-react'
 import { useEffect, useState } from 'react'
 import { data, redirect, useFetcher, useLoaderData } from 'react-router'
+import { toast } from 'sonner'
 import { SubPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '~/components/ui/select'
@@ -82,6 +83,11 @@ export default function RemindersPage() {
     setReminderSubscriptionDays(loaderData.reminderSubscriptionDays)
     setReminderWarrantyDays(loaderData.reminderWarrantyDays)
   }, [loaderData.reminderEnabled, loaderData.reminderSubscriptionDays, loaderData.reminderWarrantyDays])
+
+  useEffect(() => {
+    if (fetcher.data?.ok === false)
+      toast.error(fetcher.data.error)
+  }, [fetcher.data])
 
   function saveReminder() {
     const fd = new FormData()
