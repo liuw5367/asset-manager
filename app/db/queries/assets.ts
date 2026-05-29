@@ -1,3 +1,4 @@
+import { addMonths, addYears, format } from 'date-fns'
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import { db } from '~/db'
 import {
@@ -7,6 +8,7 @@ import {
   paymentAccounts,
   paymentTypes,
   repairRecords,
+  subscriptionRenewals,
   tags,
   warranties,
 } from '~/db/schema'
@@ -489,4 +491,41 @@ export async function updateSubscriptionReminder(
       updatedAt: new Date(),
     })
     .where(and(eq(assets.id, id), eq(assets.userId, userId)))
+}
+
+// ========== 续费记录 ==========
+
+export async function getLatestRenewal(assetId: string) {
+  const rows = await db
+    .select()
+    .from(subscriptionRenewals)
+    .where(eq(subscriptionRenewals.assetId, assetId))
+    .orderBy(desc(subscriptionRenewals.startDate))
+    .limit(1)
+  return rows[0] || null
+}
+
+export async function createRenewal(
+  assetId: string,
+  billingCycle: 'monthly' | 'quarterly' | 'yearly',
+  price: string,
+  startDate: string,
+) {
+  await db.insert(subscriptionRenewals).values({
+    assetId,
+    billingCycle,
+    price,
+    startDate,
+  })
+
+  // 同步更新资产的下次续费日期，供 dashboard/reminder 等场景使用
+  const base = new Date(`${startDate}T00:00:00`)
+  const nextDate = billingCycle === 'monthly'
+    ? addMonths(base, 1)
+    : billingCycle === 'quarterly'
+      ? addMonths(base, 3)
+      : addYears(base, 1)
+  await db.update(assets)
+    .set({ nextRenewalDate: format(nextDate, 'yyyy-MM-dd') })
+    .where(eq(assets.id, assetId))
 }

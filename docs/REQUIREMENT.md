@@ -311,6 +311,7 @@ emoji + 名称 + 状态指示点 + 每日成本 + 类型标签 + 分类 + 标签
 - 订阅信息：周期标签（月付/季付/年付）、订阅价、每日成本、下次续费日期、开始日期、持有天数
 - 状态：active/cancelled 徽标
 - **取消订阅**：弹出 Dialog，选择取消日期（日期选择器），确认后设置 `subscriptionStoppedAt` 和 `subscriptionStatus: 'cancelled'`
+- **记录续费**：弹出 Dialog，金额预填 `subscriptionPrice`（可编辑），展示计费周期、本次周期起止、下次续费日期预览。确认后创建 `subscription_renewals` 记录，`nextRenewalDate` 自动推进
 - **恢复订阅**：仅取消状态的订阅展示此按钮，一键恢复为 active 状态，清除 `subscriptionStoppedAt`
 - **编辑**：跳转 `/subscriptions/:id/edit`
 - **删除**：二次确认 Alert Dialog，确认后软删除并跳转 `/assets`
@@ -476,9 +477,7 @@ snapshot 模式支持，格式要求：
 
 ## 9. 未实现
 
-### 9.1 手动续费操作
-
-订阅详情页无「续费」按钮。续费日期仅自动计算展示，无法手动记录续费支付。
+*暂无。所有需求均已实现。*
 
 ---
 
