@@ -5,7 +5,6 @@ import * as XLSX from 'xlsx'
 import { db } from '~/db'
 import { getAssetTagsByUserId } from '~/db/queries/assets'
 import { assets, categories, paymentAccounts, paymentTypes, planMembers, planRecordItems, planRecordMemberNotes, planRecords, plans, profiles } from '~/db/schema'
-import { sendEmail } from '~/lib/email.server'
 
 export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
   const wb = XLSX.utils.book_new()
@@ -471,13 +470,6 @@ export async function processUserBackup(userId: string): Promise<number> {
   try {
     const html = await generateBackupHtml(userId)
 
-    await sendEmail({
-      to: profile.email,
-      subject: `Holdly 数据备份 - ${todayStr}`,
-      text: `请查看附件中的 HTML 内容以获取备份详情。`,
-    })
-
-    // sendEmail only supports text, so send via Resend API directly for HTML
     const apiKey = process.env.RESEND_API_KEY
     if (!apiKey)
       return 0
