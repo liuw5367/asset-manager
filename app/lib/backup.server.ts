@@ -21,7 +21,6 @@ export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
       purchasePrice: assets.purchasePrice,
       currentValue: assets.currentValue,
       purchaseDate: assets.purchaseDate,
-      purchaseReceipt: assets.purchaseReceipt,
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
       nextRenewalDate: assets.nextRenewalDate,
@@ -62,13 +61,11 @@ export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
     购入价: a.purchasePrice ? Number(a.purchasePrice) : '',
     当前估价: a.currentValue ? Number(a.currentValue) : '',
     购入日期: a.purchaseDate || '',
-    凭证: a.purchaseReceipt || '',
     订阅价: a.subscriptionPrice ? Number(a.subscriptionPrice) : '',
     计费周期: a.billingCycle ? ({ monthly: '月付', quarterly: '季付', yearly: '年付' })[a.billingCycle] : '',
     下次续费日: a.nextRenewalDate || '',
     订阅开始日: a.subscriptionStartDate || '',
-    订阅状态: a.subscriptionStatus === 'cancelled' ? '已取消' : a.subscriptionStatus === 'active' ? '活跃' : '',
-    订阅停用日: a.subscriptionStoppedAt || '',
+    状态: getAssetStatus(a),
     支付类型: a.paymentTypeName || '',
     支付账户: a.paymentAccountName || '',
     备注: a.notes || '',
@@ -89,13 +86,11 @@ export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
     { wch: 10 },
     { wch: 10 },
     { wch: 12 },
-    { wch: 16 },
     { wch: 10 },
     { wch: 8 },
     { wch: 12 },
     { wch: 12 },
-    { wch: 8 },
-    { wch: 12 },
+    { wch: 10 },
     { wch: 10 },
     { wch: 12 },
     { wch: 20 },
@@ -262,7 +257,6 @@ async function getAssetData(userId: string) {
       purchasePrice: assets.purchasePrice,
       currentValue: assets.currentValue,
       purchaseDate: assets.purchaseDate,
-      purchaseReceipt: assets.purchaseReceipt,
       subscriptionPrice: assets.subscriptionPrice,
       billingCycle: assets.billingCycle,
       nextRenewalDate: assets.nextRenewalDate,
@@ -280,7 +274,7 @@ async function getAssetData(userId: string) {
     })
     .from(assets)
     .leftJoin(categories, eq(assets.categoryId, categories.id))
-    .leftJoin(paymentTypes, eq(assets.paymentTypeId, paymentTypes.id))
+    .leftJoin(paymentTypes, eq(assets.categoryId, paymentTypes.id))
     .leftJoin(paymentAccounts, eq(assets.paymentAccountId, paymentAccounts.id))
     .where(and(eq(assets.userId, userId), isNull(assets.deletedAt)))
     .orderBy(assets.createdAt)
@@ -310,6 +304,23 @@ function esc(text: unknown): string {
   return String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+function getAssetStatus(a: {
+  assetType: string | null
+  subscriptionStatus: string | null
+  tradedInAt: string | Date | null
+  tradedFromAssetId: string | null
+}): string {
+  if (a.subscriptionStatus === 'cancelled')
+    return '已取消'
+  if (a.assetType === 'subscription')
+    return '订阅中'
+  if (a.tradedInAt && a.tradedFromAssetId)
+    return '已回收'
+  if (a.tradedInAt)
+    return '已卖出'
+  return '持有中'
+}
+
 export async function generateBackupHtml(userId: string): Promise<string> {
   const assetRows = await getAssetData(userId)
   const plans = await getPlanData(userId)
@@ -320,6 +331,8 @@ export async function generateBackupHtml(userId: string): Promise<string> {
     const existing = tagMap.get(row.assetId) || ''
     tagMap.set(row.assetId, existing ? `${existing}、${row.tagName}` : row.tagName)
   }
+
+  const assetNameMap = new Map(assetRows.map(a => [a.id, a.name]))
 
   let html = '<html><head><meta charset="utf-8"><style>'
   html += 'body{font-family:sans-serif;color:#333;padding:20px}'
@@ -333,14 +346,15 @@ export async function generateBackupHtml(userId: string): Promise<string> {
 
   // ===== 资产列表 =====
   html += '<h2>资产列表</h2><table><thead><tr>'
-  const assetHeaders = ['名称', '类型', '分类', '标签', '购入价', '当前估价', '购入日期', '订阅价', '周期', '下次续费日', '支付类型', '支付账户', '备注', '状态', '卖出日期', '卖出价格']
+  const assetHeaders = ['名称', 'Emoji', '类型', '分类', '标签', '购入价', '当前估价', '购入日期', '订阅价', '计费周期', '下次续费日', '订阅开始日', '支付类型', '支付账户', '备注', '状态', '卖出日期', '卖出价格', '旧资产', '创建时间', '更新时间']
   for (const h of assetHeaders)
     html += `<th>${esc(h)}</th>`
   html += '</tr></thead><tbody>'
 
   for (const a of assetRows) {
     html += '<tr>'
-    html += `<td>${esc(a.emoji)} ${esc(a.name)}</td>`
+    html += `<td>${esc(a.name)}</td>`
+    html += `<td>${esc(a.emoji)}</td>`
     html += `<td>${a.assetType === 'subscription' ? '订阅' : '买断'}</td>`
     html += `<td>${esc(a.categoryName ? `${a.categoryEmoji || ''} ${a.categoryName}`.trim() : '未分类')}</td>`
     html += `<td>${esc(tagMap.get(a.id) || '')}</td>`
@@ -350,12 +364,16 @@ export async function generateBackupHtml(userId: string): Promise<string> {
     html += `<td class="num">${a.subscriptionPrice ? esc(a.subscriptionPrice) : ''}</td>`
     html += `<td>${a.billingCycle ? ({ monthly: '月付', quarterly: '季付', yearly: '年付' })[a.billingCycle] : ''}</td>`
     html += `<td>${esc(a.nextRenewalDate || '')}</td>`
+    html += `<td>${esc(a.subscriptionStartDate || '')}</td>`
     html += `<td>${esc(a.paymentTypeName || '')}</td>`
     html += `<td>${esc(a.paymentAccountName || '')}</td>`
     html += `<td>${esc(a.notes || '')}</td>`
-    html += `<td>${a.subscriptionStatus === 'cancelled' ? '已取消' : a.subscriptionStoppedAt ? '已停止' : a.tradedInAt ? '已卖出' : '持有中'}</td>`
+    html += `<td>${esc(getAssetStatus(a))}</td>`
     html += `<td>${esc(a.tradedInAt || '')}</td>`
     html += `<td class="num">${a.tradeInPrice ? esc(a.tradeInPrice) : ''}</td>`
+    html += `<td>${esc(a.tradedFromAssetId ? (assetNameMap.get(a.tradedFromAssetId) || '') : '')}</td>`
+    html += `<td>${esc(a.createdAt ? new Date(a.createdAt).toISOString().slice(0, 19) : '')}</td>`
+    html += `<td>${esc(a.updatedAt ? new Date(a.updatedAt).toISOString().slice(0, 19) : '')}</td>`
     html += '</tr>'
   }
   html += '</tbody></table>'
@@ -383,16 +401,28 @@ export async function generateBackupHtml(userId: string): Promise<string> {
       continue
 
     const recordIds = recordRows.map(r => r.id)
-    const itemRows = await db
-      .select()
-      .from(planRecordItems)
-      .where(and(inArray(planRecordItems.recordId, recordIds), isNull(planRecordItems.deletedAt)))
+    const [itemRows, noteRows] = await Promise.all([
+      db
+        .select()
+        .from(planRecordItems)
+        .where(and(inArray(planRecordItems.recordId, recordIds), isNull(planRecordItems.deletedAt))),
+      db
+        .select()
+        .from(planRecordMemberNotes)
+        .where(and(inArray(planRecordMemberNotes.recordId, recordIds), isNull(planRecordMemberNotes.deletedAt))),
+    ])
 
     const itemByRecord = new Map<string, typeof itemRows>()
     for (const item of itemRows) {
       const list = itemByRecord.get(item.recordId) || []
       list.push(item)
       itemByRecord.set(item.recordId, list)
+    }
+    const noteByRecord = new Map<string, typeof noteRows>()
+    for (const note of noteRows) {
+      const list = noteByRecord.get(note.recordId) || []
+      list.push(note)
+      noteByRecord.set(note.recordId, list)
     }
 
     const itemColumns = new Map<string, string>()
@@ -408,17 +438,24 @@ export async function generateBackupHtml(userId: string): Promise<string> {
       }
     }
     const itemColumnKeys = [...itemColumns.keys()]
+    const noteMembers = planMemberRows.map(m => ({
+      userId: m.userId,
+      name: memberNameMap.get(m.userId)!,
+    }))
 
     html += `<h2>计划-${esc(plan.name)}</h2><table><thead><tr>`
-    html += '<th>年月</th>'
+    html += '<th>年月</th><th>模式</th>'
     for (const colKey of itemColumnKeys)
       html += `<th>${esc(itemColumns.get(colKey)!)}</th>`
     html += '<th>月收入合计</th><th>月支出合计</th><th>月净收入</th><th>总额</th>'
+    for (const m of noteMembers)
+      html += `<th>${esc(m.name)}:备注</th>`
     html += '</tr></thead><tbody>'
 
     let previousTotal = Number(plan.startingValue ?? 0)
     for (const rec of recordRows) {
       const items = itemByRecord.get(rec.id) || []
+      const notes = noteByRecord.get(rec.id) || []
       const monthIncome = items.filter(i => i.itemType === 'income').reduce((s, i) => s + Number(i.amount), 0)
       const monthExpense = items.filter(i => i.itemType === 'expense').reduce((s, i) => s + Number(i.amount), 0)
       const monthNet = monthIncome - monthExpense
@@ -432,6 +469,7 @@ export async function generateBackupHtml(userId: string): Promise<string> {
 
       html += '<tr>'
       html += `<td>${esc(rec.year)}-${String(rec.month).padStart(2, '0')}</td>`
+      html += `<td>${plan.planMode === 'snapshot' ? '总额记录' : '收支累加'}</td>`
       for (const colKey of itemColumnKeys) {
         const [memberId, itemName] = colKey.split(':')
         const amt = items
@@ -443,6 +481,10 @@ export async function generateBackupHtml(userId: string): Promise<string> {
       html += `<td class="num">${monthExpense || ''}</td>`
       html += `<td class="num">${esc(netIncome)}</td>`
       html += `<td class="num">${totalValue === 0 && rec.year === 0 && rec.month === 0 ? '' : esc(totalValue)}</td>`
+      for (const m of noteMembers) {
+        const note = notes.find(n => n.memberId === m.userId)
+        html += `<td>${note?.note?.trim() ? esc(note.note.trim()) : ''}</td>`
+      }
       html += '</tr>'
     }
     html += '</tbody></table>'
