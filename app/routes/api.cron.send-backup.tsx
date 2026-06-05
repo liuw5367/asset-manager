@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '~/db'
 import { profiles } from '~/db/schema'
 import { generateBackupHtml } from '~/lib/backup.server'
+import { sendEmail } from '~/lib/email.server'
 
 export async function action({ request }: { request: Request }) {
   const secret = request.headers.get('x-cron-secret')
@@ -23,45 +24,57 @@ export async function action({ request }: { request: Request }) {
     .where(eq(profiles.backupEnabled, true))
 
   let totalSent = 0
+  let skippedNoEmail = 0
+  let skippedDifferentDay = 0
+  let skippedUnsupportedFrequency = 0
+  let failed = 0
 
   for (const profile of candidates) {
-    if (!profile.email)
+    if (!profile.email) {
+      skippedNoEmail++
       continue
+    }
 
-    if (profile.backupDayOfMonth !== dayOfMonth)
+    if (profile.backupDayOfMonth !== dayOfMonth) {
+      skippedDifferentDay++
       continue
+    }
 
-    if (profile.backupFrequency !== 'monthly')
+    if (profile.backupFrequency !== 'monthly') {
+      skippedUnsupportedFrequency++
       continue
+    }
 
     try {
       const html = await generateBackupHtml(profile.id)
-
-      const apiKey = process.env.RESEND_API_KEY
-      if (!apiKey)
-        continue
-
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: process.env.EMAIL_FROM || 'Holdly <notifications@holdly.app>',
-          to: profile.email,
-          subject: `Holdly 数据备份 - ${todayStr}`,
-          html,
-        }),
+      const delivery = await sendEmail({
+        to: profile.email,
+        subject: `Holdly 数据备份 - ${todayStr}`,
+        html,
       })
 
-      if (res.ok)
+      if (delivery.ok) {
         totalSent++
+      }
+      else {
+        failed++
+      }
     }
-    catch {
-      // skip user on failure
+    catch (error) {
+      failed++
+      console.error('[backup-cron] failed to send backup:', error)
     }
   }
 
-  return Response.json({ ok: true, sent: totalSent })
+  return Response.json({
+    ok: true,
+    sent: totalSent,
+    checked: candidates.length,
+    skipped: {
+      noEmail: skippedNoEmail,
+      differentDay: skippedDifferentDay,
+      unsupportedFrequency: skippedUnsupportedFrequency,
+    },
+    failed,
+  })
 }

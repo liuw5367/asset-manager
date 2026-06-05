@@ -411,6 +411,8 @@
 3. 对每个用户调用 `generateBackupHtml(userId)` 生成资产 + 计划数据的 HTML 表格
 4. 通过 Resend API 发送到 `profile.email`
 
+**响应**：返回 `{ ok, sent, checked, skipped, failed }`。`skipped` 包含 `noEmail`、`differentDay`、`unsupportedFrequency`，用于区分 cron 已运行但没有邮件发送的原因；Resend 发送失败时计入 `failed`，不计入 `sent`。
+
 ---
 
 ## 数据查询层

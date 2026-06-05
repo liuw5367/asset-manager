@@ -82,11 +82,14 @@ export async function processUserReminders(userId: string): Promise<number> {
     if (alreadySent)
       continue
 
-    await sendEmail({
+    const delivery = await sendEmail({
       to: profile.email,
       subject: `「${a.name}」即将续费`,
       text: `你好，「${a.name}」将于 ${dueDate} 续费（${a.subscriptionPrice || ''}元），请确保账户余额充足。`,
     })
+
+    if (!delivery.ok)
+      continue
 
     await db.insert(reminderJobs).values({
       assetId: a.id,
@@ -137,11 +140,14 @@ export async function processUserReminders(userId: string): Promise<number> {
     if (alreadySent)
       continue
 
-    await sendEmail({
+    const delivery = await sendEmail({
       to: profile.email,
       subject: `「${a.name}」保修即将到期`,
       text: `你好，「${a.name}」的保修将于 ${w.endDate} 到期，如需续保请及时处理。`,
     })
+
+    if (!delivery.ok)
+      continue
 
     await db.insert(reminderJobs).values({
       assetId: a.id,

@@ -5,7 +5,8 @@ const RESEND_API_URL = 'https://api.resend.com/emails'
 interface SendEmailInput {
   to: string
   subject: string
-  text: string
+  text?: string
+  html?: string
 }
 
 export async function sendEmail(input: SendEmailInput) {
@@ -26,7 +27,8 @@ export async function sendEmail(input: SendEmailInput) {
       from: process.env.EMAIL_FROM || 'Holdly <notifications@holdly.app>',
       to: input.to,
       subject: input.subject,
-      text: input.text,
+      ...(input.text ? { text: input.text } : {}),
+      ...(input.html ? { html: input.html } : {}),
     }),
   })
 

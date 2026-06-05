@@ -1,10 +1,10 @@
-import process from 'node:process'
 import { format } from 'date-fns'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import * as XLSX from 'xlsx'
 import { db } from '~/db'
 import { getAssetTagsByUserId } from '~/db/queries/assets'
 import { assets, categories, paymentAccounts, paymentTypes, planMembers, planRecordItems, planRecordMemberNotes, planRecords, plans, profiles } from '~/db/schema'
+import { sendEmail } from '~/lib/email.server'
 
 export async function generateExportXlsx(userId: string): Promise<Uint8Array> {
   const wb = XLSX.utils.book_new()
@@ -512,27 +512,16 @@ export async function processUserBackup(userId: string): Promise<number> {
   try {
     const html = await generateBackupHtml(userId)
 
-    const apiKey = process.env.RESEND_API_KEY
-    if (!apiKey)
-      return 0
-
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || 'Holdly <notifications@holdly.app>',
-        to: profile.email,
-        subject: `Holdly 数据备份 - ${todayStr}`,
-        html,
-      }),
+    const delivery = await sendEmail({
+      to: profile.email,
+      subject: `Holdly 数据备份 - ${todayStr}`,
+      html,
     })
 
-    return res.ok ? 1 : 0
+    return delivery.ok ? 1 : 0
   }
-  catch {
+  catch (error) {
+    console.error('[backup] failed to send manual backup:', error)
     return 0
   }
 }

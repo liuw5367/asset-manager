@@ -263,7 +263,7 @@ export default function DataPage() {
           </div>
           {fetcher.data?.ok === true && fetcher.data?.intent === 'manual_backup' && (
             <p className="mt-2 text-xs" style={{ color: 'var(--color-success)' }}>
-              备份邮件已发送
+              {fetcher.data.sent > 0 ? '备份邮件已发送' : '没有发送备份邮件，请检查邮件服务配置'}
             </p>
           )}
           {fetcher.data?.ok === false && fetcher.data?.intent === 'manual_backup' && !isChecking && (
