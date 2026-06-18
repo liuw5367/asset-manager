@@ -1,13 +1,14 @@
 import type { Route } from './+types/auth.callback'
 import { redirect } from 'react-router'
-import { safeRedirect } from '~/lib/redirect'
+import { getAuthCallbackTarget } from '~/lib/auth-callback'
 import { createSupabaseServerClient } from '~/lib/supabase.server'
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const next = url.searchParams.get('next')
-  const target = safeRedirect(next, '/dashboard')
+  const registered = url.searchParams.get('registered')
+  const target = getAuthCallbackTarget(next, registered)
 
   if (!code) {
     return redirect('/login?error=missing_code')

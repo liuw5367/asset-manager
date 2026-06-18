@@ -213,7 +213,9 @@ snapshot 模式：总额 = 手动录入的 recordedTotalValue
 
 注册成功后系统自动初始化：个人资料 + 7 个预置分类 + 7 个预置支付类型。
 
-无 session 时显示「注册成功，请查收邮件」。
+无 session 时显示「确认邮件已发送」，提示用户去邮箱点击确认链接。
+
+从确认邮件回到 `/auth/callback?registered=1` 后，成功换取 session 并进入 Dashboard，显示「注册成功，欢迎来到 Holdly」提示。
 
 ### `/forgot-password` 找回密码
 

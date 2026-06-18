@@ -1,9 +1,10 @@
 import type { Route } from './+types/dashboard'
 import type { ChartConfig } from '~/components/ui/chart'
 import { IconBell, IconBellOff, IconX } from '@tabler/icons-react'
-import { useState } from 'react'
-import { data as loaderDataFn, redirect, useLoaderData, useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
+import { data as loaderDataFn, redirect, useLoaderData, useNavigate, useSearchParams } from 'react-router'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import { toast } from 'sonner'
 import { MainPageHeader } from '~/components/page-header'
 import { Button } from '~/components/ui/button'
 import {
@@ -33,6 +34,7 @@ const trendChartConfig = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const data = useLoaderData<typeof loader>()
   const [showWarning, setShowWarning] = useState(true)
   const [statsModel, setStatsModel] = useState<'one_time' | 'subscription'>('one_time')
@@ -40,6 +42,16 @@ export default function Dashboard() {
   const { kpi, statsByType, expiring } = data
   const categorySpending = statsByType[statsModel].categorySpending
   const monthlyTrend = statsByType[statsModel].monthlyTrend
+
+  useEffect(() => {
+    if (searchParams.get('registered') !== '1')
+      return
+
+    toast.success('注册成功，欢迎来到 Holdly')
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('registered')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const kpis = [
     { label: '每日成本', value: kpi.dailyCostTotal.toFixed(2), subtitle: '元/天' },

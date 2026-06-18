@@ -20,7 +20,7 @@
 | 类型 | 说明 |
 |---|---|
 | Loader | 已登录 → redirect `/dashboard` |
-| Action | 验证 `{ displayName, email, password, confirmPassword }`，调用 `signUp`。无 session 时返回 `{ success: true }`（邮件确认），有 session 时 redirect `/dashboard` |
+| Action | 验证 `{ displayName, email, password, confirmPassword }`，调用 `signUp`，邮件确认回跳 `/auth/callback?registered=1`。无 session 时返回 `{ success: true }`（确认邮件已发送），有 session 时 redirect `/dashboard?registered=1` |
 
 ### `/forgot-password`
 
@@ -33,7 +33,7 @@
 
 | 类型 | 说明 |
 |---|---|
-| Loader | 交换 OAuth code 为 session，成功 → redirect `/dashboard`（或 `?next=`），失败 → `/login?error=` |
+| Loader | 交换 OAuth / 邮箱确认 code 为 session，成功 → redirect `/dashboard`（或 `?next=`）；带 `registered=1` 时 redirect `/dashboard?registered=1`，失败 → `/login?error=` |
 
 ### `/account/update-password`
 

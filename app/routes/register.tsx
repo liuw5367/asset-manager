@@ -1,6 +1,6 @@
 import type { Route } from './+types/register'
 
-import { IconEye, IconEyeOff } from '@tabler/icons-react'
+import { IconEye, IconEyeOff, IconLoader2 } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link, redirect, useFetcher } from 'react-router'
 import { registerSchema } from '~/lib/auth.schema'
@@ -17,6 +17,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const { supabase, headers } = createSupabaseServerClient(request)
+  const url = new URL(request.url)
   const formData = await request.formData()
 
   const raw = {
@@ -38,6 +39,7 @@ export async function action({ request }: Route.ActionArgs) {
     password,
     options: {
       data: { display_name: displayName },
+      emailRedirectTo: `${url.origin}/auth/callback?registered=1`,
     },
   })
 
@@ -46,7 +48,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (data.session) {
-    return redirect('/dashboard', { headers })
+    return redirect('/dashboard?registered=1', { headers })
   }
 
   return { success: true }
@@ -90,10 +92,10 @@ export default function Register() {
             }}
           >
             <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-ink)' }}>
-              注册成功
+              确认邮件已发送
             </p>
             <p style={{ fontSize: 14, color: 'var(--color-muted)', marginTop: 8 }}>
-              确认邮件已发送到你的邮箱，请点击链接完成验证。
+              请在邮箱里点击确认链接。回来后会自动进入 Holdly，并提示注册成功。
             </p>
             <Link to="/login">
               <button
@@ -164,12 +166,43 @@ export default function Register() {
         >
           创建账号
         </div>
-        <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 32 }}>
-          开始记录你的每件资产，追踪真实持有成本。
+        <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 18, lineHeight: 1.6 }}>
+          输入邮箱和密码后，点击「发送确认邮件」。我们会把确认链接发到你的邮箱。
         </p>
 
         {/* Auth group */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, textAlign: 'left' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            {['填写信息', '查收邮件', '开始使用'].map((step, index) => (
+              <div
+                key={step}
+                style={{
+                  minHeight: 54,
+                  border: '1px solid var(--color-hairline)',
+                  borderRadius: 10,
+                  padding: '8px 6px',
+                  background: index === 0 ? 'var(--color-primary-muted)' : 'var(--color-canvas)',
+                  color: index === 0 ? 'var(--color-primary)' : 'var(--color-muted)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600 }}>
+                  {index + 1}
+                </div>
+                <div style={{ marginTop: 2, fontSize: 12, lineHeight: 1.25 }}>
+                  {step}
+                </div>
+              </div>
+            ))}
+          </div>
+
           {/* Error */}
           {fetcher.data?.error && (
             <div
@@ -389,6 +422,7 @@ export default function Register() {
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: 8,
                 height: 44,
                 padding: '12px 20px',
                 width: '100%',
@@ -407,7 +441,8 @@ export default function Register() {
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.98)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
-              {isSubmitting ? '注册中...' : '注册'}
+              {isSubmitting && <IconLoader2 size={16} className="animate-spin" />}
+              {isSubmitting ? '发送中...' : '发送确认邮件'}
             </button>
           </fetcher.Form>
 

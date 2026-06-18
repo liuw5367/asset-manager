@@ -151,6 +151,8 @@ Supabase client 每请求创建（`app/lib/supabase.server.ts`），通过 cooki
   → redirect('/dashboard')
 ```
 
+注册邮件确认同样回调 `/auth/callback`。注册 action 使用 `emailRedirectTo=/auth/callback?registered=1`，callback 成功换取 session 后跳转 `/dashboard?registered=1`，Dashboard 显示一次注册成功提示并清理 query。
+
 ## 数据库约定
 
 1. **无外键约束**：表中存储关联字段（`user_id`、`asset_id` 等）但不声明 `REFERENCES`。关联查询由 Drizzle ORM 在应用层处理。理由：简化迁移、避免级联删除的隐式行为。
